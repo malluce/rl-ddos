@@ -34,8 +34,8 @@ from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
-import mygym.hhh
-import mygym.bj
+import gyms.hhh
+import gyms.bj
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
