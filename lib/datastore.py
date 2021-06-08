@@ -17,7 +17,8 @@ class Datastore(object):
 	CONFIG_FILE = 'config.gin'
 
 	EPISODE_HEADER = 'Episode, Split, MeanRules, MeanPrec, MeanRecall, MeanFPR, MeanHHHDistSum, MeanReward'
-	STEP_HEADER = 'Episode, Split, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
+#	STEP_HEADER = 'Episode, Split, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
+	STEP_HEADER = 'Episode, Step, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
 
 	@staticmethod
 	def get_timestamp():
