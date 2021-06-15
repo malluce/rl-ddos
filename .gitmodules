@@ -1,3 +1,3 @@
 [submodule "gyms"]
 	path = gyms
-	url = git@git.scc.kit.edu:vr5714/gyms.git
+	url = https://git.scc.kit.edu/ujerm/gyms.git
