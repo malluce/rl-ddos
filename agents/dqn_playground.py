@@ -42,13 +42,8 @@ flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('timestamp', None,
                     'Restore from specified timestamp.')
-# flags.DEFINE_integer('num_iterations', 200000,
-#	'Total number train/eval iterations to perform.')
 flags.DEFINE_integer('num_iterations', 100,
                      'Total number train/eval iterations to perform.')
-flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
-flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
-
 FLAGS = flags.FLAGS
 
 
@@ -234,7 +229,6 @@ def train_eval(
             time_acc += time.time() - start_time
 
             if global_step.numpy() % log_interval == 0:
-
                 logging.info('step = %d, loss = %f', global_step.numpy(),
                              train_loss.loss)
                 steps_per_sec = (global_step.numpy() - timed_at_step) / time_acc
@@ -265,7 +259,6 @@ def main(_):
     env_name = register_hhh_gym()
     logging.set_verbosity(logging.INFO)
     tf.get_logger().setLevel('INFO')
-    gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
     train_eval(FLAGS.root_dir, FLAGS.timestamp, num_iterations=FLAGS.num_iterations, env_name=env_name)
     return 0  # exit code
 
