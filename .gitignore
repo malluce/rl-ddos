@@ -9,3 +9,5 @@ data/tboard/*
 !data/stats/.gitkeep
 !data/tboard/.gitkeep
 
+.idea
+.vagrant
