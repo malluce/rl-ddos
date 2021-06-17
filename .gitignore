@@ -9,6 +9,7 @@ data/stats/*
 data/tboard/*
 !data/stats/.gitkeep
 !data/tboard/.gitkeep
+*.csv
 
 .idea
 .vagrant
