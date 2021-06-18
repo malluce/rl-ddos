@@ -78,14 +78,15 @@ class Loop(object):
 
         if s.trace_start == 1.0:
             s.trace_start = 0.0
-            step_finished = False
+            # step_finished = False ## TODO revert commit
 
-            #			for i in range(self.action_interval):
-            while not step_finished:
+            for i in range(self.action_interval):  ## TODO revert commit
+                # while not step_finished: ## TODO revert commit
                 # pre-sample without incrementing the
                 # trace counter when initiating a new
                 # episode
-                p, step_finished = self.trace.next()
+                p = self.trace.sample()
+                # p, step_finished = self.trace.next() ## TODO revert commit
                 self.hhh.update(p.ip)
         else:
             s.rewind()
@@ -96,47 +97,21 @@ class Loop(object):
         # IP range when determining hhh coverage
         b = sorted(self.hhh.query(s.phi, s.min_prefix), key=lambda _: _.len)
 
-        s.bl_dist = np.zeros(16)
-        blcnt = Counter([_.len for _ in b])
-
-        for k, v in blcnt.items():
-            s.bl_dist[k - 17] = v
+        self._calc_blocklist_distr(b, s)
 
         self.blacklist = Blacklist(b)
         s.blacklist_size = len(self.blacklist)
 
-        H = list(sorted(b, key=lambda _: _.id))
-
-        if len(H) > 1:
-            vd = [Loop.hhh_voldist(H[i], H[j])
-                  for i in range(len(H))
-                  for j in range(i + 1, len(H))]
-
-            # Remove (negative) voldist of any two overlapping HHHs
-            vd = [_ for _ in vd if _ > 0]
-
-            if vd:
-                scale = lambda x, n: log10(x) / n
-                sigmoid = lambda x: 1.0 / (1.0 + exp(-x))
-                squash = lambda x, n: 0 if x == 0 else sigmoid(10.0 * (scale(x, n) - 0.5))
-                #				crop = lambda x : 1.0 * (x - 0xffff0000) / 0xffff
-                crop = lambda x: 1.0 * x / 0xffffffff
-
-                s.hhh_distance_avg = squash(np.mean(vd), 14)
-                s.hhh_distance_sum = squash(sum(vd), 14)
-                s.hhh_distance_min = squash(min(vd), 14)
-                s.hhh_distance_max = squash(max(vd), 14)
-                s.hhh_distance_std = squash(np.std(vd), 9)
-                s.hhh_min = crop(H[0].id)
-                s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
+        self._calc_hhh_distance_metrics(b, s)
 
         s.samples = 0
-        step_finished = False
+        # step_finished = False ## TODO revert commit
 
-        #		for i in range(self.action_interval):
-        while not step_finished:
+        for i in range(self.action_interval):  ## TODO revert commit
+            # while not step_finished: ## TODO revert commit
             try:
-                p, step_finished = self.trace.next()
+                # p, step_finished = self.trace.next()## TODO revert commit
+                p = self.trace.next()
                 self.packets.append(p)
             except StopIteration:
                 self.trace_ended = True
@@ -177,3 +152,34 @@ class Loop(object):
         s.complete()
 
         return self.trace_ended, self.state
+
+    def _calc_hhh_distance_metrics(self, b, s):
+        H = list(sorted(b, key=lambda _: _.id))
+        if len(H) > 1:
+            vd = [Loop.hhh_voldist(H[i], H[j])
+                  for i in range(len(H))
+                  for j in range(i + 1, len(H))]
+
+            # Remove (negative) voldist of any two overlapping HHHs
+            vd = [_ for _ in vd if _ > 0]
+
+            if vd:
+                scale = lambda x, n: log10(x) / n
+                sigmoid = lambda x: 1.0 / (1.0 + exp(-x))
+                squash = lambda x, n: 0 if x == 0 else sigmoid(10.0 * (scale(x, n) - 0.5))
+                #				crop = lambda x : 1.0 * (x - 0xffff0000) / 0xffff
+                crop = lambda x: 1.0 * x / 0xffffffff
+
+                s.hhh_distance_avg = squash(np.mean(vd), 14)
+                s.hhh_distance_sum = squash(sum(vd), 14)
+                s.hhh_distance_min = squash(min(vd), 14)
+                s.hhh_distance_max = squash(max(vd), 14)
+                s.hhh_distance_std = squash(np.std(vd), 9)
+                s.hhh_min = crop(H[0].id)
+                s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
+
+    def _calc_blocklist_distr(self, b, s):
+        s.bl_dist = np.zeros(16)
+        blcnt = Counter([_.len for _ in b])
+        for k, v in blcnt.items():
+            s.bl_dist[k - 17] = v

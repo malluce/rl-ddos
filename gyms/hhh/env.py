@@ -10,7 +10,7 @@ from math import log, log2, sqrt
 from random import choice, random, randint, shuffle
 from matplotlib import pyplot as plt
 from matplotlib import cm
-from tkinter import TclError
+
 from gym.envs.registration import register
 
 from .loop import Loop
@@ -170,11 +170,11 @@ class HHHEnv(gym.Env):
         actionset_class = getattr(actionset_module, actionset_selection)
 
         self.ds = data_store
-        #		self.trace = Trace(trace_length)
-        self.trace = DistributionTrace(trace_length)
+        self.trace = Trace(trace_length)
+        # self.trace = DistributionTrace(trace_length) ## TODO revert commit
         self.loop = Loop(self.trace, state_class, actionset_class)
         self.episode = 0
-        self.current_step = 0
+        # self.current_step = 0 ## TODO revert commit
 
         self.action_space = self.loop.actionset.actionspace
 
@@ -202,7 +202,7 @@ class HHHEnv(gym.Env):
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
             self.ds.set_config('sampling_rate', self.loop.SAMPLING_RATE)
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
-            #			self.ds.set_config('benign_probability', self.trace.g.prob_benign)
+            self.ds.set_config('benign_probability', self.trace.g.prob_benign)  ## TODO revert commit
             self.ds.set_config('trace_length', len(self.trace))
 
     def seed(self, seed=None):
@@ -226,7 +226,7 @@ class HHHEnv(gym.Env):
         self._log_to_datastore(trace_ended, reward, state)
 
         # we did 1 more step
-        self.current_step += 1
+        # self.current_step += 1 ## TODO revert commit
 
         # get numpy state array
         self.state = state.get_features(action)
@@ -236,26 +236,32 @@ class HHHEnv(gym.Env):
         if state.blacklist_size == 0:
             reward = 0.0
         else:
-            reward = (
-                    (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
-                    * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
-            )
+            reward = ((state.precision ** 4) * state.recall * (1 - sqrt(state.fpr)))
+            # reward = ( ## TODO revert commit
+            #        (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
+            #        * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
+            # )
         return reward
 
     def _log_to_datastore(self, trace_ended, reward, state):
         if self.ds is not None:
-            self.ds.add_step(self.episode, self.current_step, reward, state)
+            self.ds.add_step(self.episode, self.trace.g.split, reward, state)
+            # self.ds.add_step(self.episode, self.current_step, reward, state)
 
         if trace_ended and self.ds is not None:
-            self.ds.add_episode(self.episode + 1, 0,
+            self.ds.add_episode(self.episode + 1, self.trace.g.split,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
                                 np.mean(self.hhh_distance_sums), np.mean(self.rewards))
+            # self.ds.add_episode(self.episode + 1, 0,
+            #                    np.mean(self.rules), np.mean(self.precisions),
+            #                    np.mean(self.recalls), np.mean(self.fprs),
+            #                    np.mean(self.hhh_distance_sums), np.mean(self.rewards))
 
     def reset(self):
         print('Resetting env')
         self.episode += 1
-        self.current_step = 0
+        # self.current_step = 0 ## TODO revert commit
         self.trace.rewind()
         self.loop.reset()
         self.state = self.loop.state.get_initialization()
