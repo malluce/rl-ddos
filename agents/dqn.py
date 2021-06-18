@@ -34,17 +34,14 @@ from tf_agents.networks import q_rnn_network
 from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
-import gyms.hhh
-import gyms.bj
+from gyms.hhh.env import register_hhh_gym
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('timestamp', None,
                     'Restore from specified timestamp.')
-# flags.DEFINE_integer('num_iterations', 200000,
-#	'Total number train/eval iterations to perform.')
-flags.DEFINE_integer('num_iterations', 100,
+flags.DEFINE_integer('num_iterations', 200000,
                      'Total number train/eval iterations to perform.')
 flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
 flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
@@ -60,11 +57,11 @@ def train_eval(
         num_iterations=100000,
         train_sequence_length=1,
         # Params for QNetwork
-        fc_layer_params=(10, 10),  # fc_layer_params=(100, 50),
+        fc_layer_params=(100, 50),
         # Params for QRnnNetwork
         batch_normalization=False,
-        input_fc_layer_params=(10, 10),  # input_fc_layer_params=(200, 200),
-        lstm_size=(10,),  # lstm_size=(100,),
+        input_fc_layer_params=(200, 200),
+        lstm_size=(100,),
         output_fc_layer_params=(20,),
         # Params for collect
         initial_collect_steps=1000,
@@ -296,7 +293,6 @@ def train_eval(
             train_step = common.function(train_step)
 
         logging.info('Training')
-
         for _ in range(num_iterations):
             start_time = time.time()
             time_step, policy_state = collect_driver.run(
@@ -306,7 +302,6 @@ def train_eval(
             for _ in range(train_steps_per_iteration):
                 train_loss = train_step()
             time_acc += time.time() - start_time
-
             if global_step.numpy() % log_interval == 0:
                 logging.info('step = %d, loss = %f', global_step.numpy(),
                              train_loss.loss)
@@ -355,12 +350,14 @@ def train_eval(
 
 
 def main(_):
+    register_hhh_gym()
     logging.set_verbosity(logging.INFO)
     tf.compat.v1.enable_v2_behavior()
     logging.info("test log!")
     tf.get_logger().setLevel('INFO')
     gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
     train_eval(FLAGS.root_dir, FLAGS.timestamp, num_iterations=FLAGS.num_iterations)
+    return 0
 
 
 if __name__ == '__main__':
