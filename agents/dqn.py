@@ -34,8 +34,11 @@ from tf_agents.networks import q_rnn_network
 from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
+
+from gyms.hhh.actionset import LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
 from lib.datastore import Datastore
+from gyms.hhh.state import *
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
@@ -96,8 +99,10 @@ def train_eval(
         debug_summaries=False,
         summarize_grads_and_vars=False,
         eval_metrics_callback=None,
-        state_selection=['base', 'actions', 'distvol', 'fpr', 'distvolstd', 'bldist'],
-        actionset_selection='LargeDiscreteActionSet',
+        state_obs_selection=[BaseObservations(), DistVol(), DistVolStd(), FalsePositiveRate(),
+                             BlocklistDistribution()],
+        use_prev_action_as_obs=True,
+        actionset_selection=LargeDiscreteActionSet,
         trace_length=50000):
     """A simple train and eval for DQN."""
     if timestamp is None:
@@ -137,7 +142,8 @@ def train_eval(
         ds_eval = Datastore('eval', timestamp)
 
         gym_kwargs = {
-            'state_selection': state_selection,
+            'state_obs_selection': state_obs_selection,
+            'use_prev_action_as_obs': use_prev_action_as_obs,
             'actionset_selection': actionset_selection,
             'trace_length': trace_length
         }
@@ -217,6 +223,7 @@ def train_eval(
             data_spec=tf_agent.collect_data_spec,
             batch_size=tf_env.batch_size,
             max_length=replay_buffer_capacity)
+
         collect_driver = dynamic_step_driver.DynamicStepDriver(
             tf_env,
             collect_policy,

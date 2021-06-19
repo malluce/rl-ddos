@@ -9,6 +9,7 @@ from math import log2, log10, sqrt, exp
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.label import Label
+from gyms.hhh.state import State
 
 
 class Blacklist(object):
@@ -33,25 +34,25 @@ class Loop(object):
     SAMPLING_RATE = 0.3
     HHH_EPSILON = 0.0001
 
-    def __init__(self, trace, state_class, actionset_class, epsilon=HHH_EPSILON, sampling_rate=SAMPLING_RATE,
+    def __init__(self, trace, create_state_fn, actionset, epsilon=HHH_EPSILON, sampling_rate=SAMPLING_RATE,
                  action_interval=ACTION_INTERVAL):
+        self.create_state_fn = create_state_fn
+        self.state = create_state_fn()
         self.trace = trace
-        self.state_class = state_class
-        self.actionset = actionset_class()
+        self.actionset = actionset
         self.epsilon = epsilon
         self.sampling_rate = sampling_rate
         self.weight = 1.0 / sampling_rate
         self.action_interval = action_interval
         self.blacklist = Blacklist([])
         self.hhh = HHHAlgo(epsilon)
-        self.state = self.state_class(self.actionset)
         self.trace_ended = False
         self.packets = []
 
     def reset(self):
         self.blacklist = Blacklist([])
         self.hhh = HHHAlgo(self.epsilon)
-        self.state = self.state_class(self.actionset)
+        self.state = self.create_state_fn()
         self.trace_ended = False
         self.packets = []
 

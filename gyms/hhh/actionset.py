@@ -3,9 +3,12 @@
 import numpy as np
 
 from gym.spaces import Box, Discrete, MultiDiscrete
+from abc import ABC
+
+from gyms.hhh.obs import Observation
 
 
-class ActionSet(object):
+class ActionSet(Observation, ABC):
 
     def __init__(self):
         self.actionspace = None
@@ -22,7 +25,23 @@ class ActionSet(object):
         return 'ActionSet'
 
 
-class SmallDiscreteActionSet(ActionSet):
+class DiscreteActionSet(ActionSet):
+    def get_observation(self, action):
+        one_hot_obs = np.zeros(self.shape)
+        one_hot_obs[action if isinstance(action, int) else tuple(action)] = 1.0
+        return one_hot_obs.flatten()
+
+    def get_lower_bound(self):
+        return np.zeros(self.shape)
+
+    def get_upper_bound(self):
+        return np.ones(self.shape)
+
+    def get_initialization(self):
+        return np.zeros(self.shape)
+
+
+class SmallDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
         super().__init__()
@@ -40,7 +59,7 @@ class SmallDiscreteActionSet(ActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
-class MediumDiscreteActionSet(ActionSet):
+class MediumDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
         super().__init__()
@@ -58,7 +77,7 @@ class MediumDiscreteActionSet(ActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
-class LargeDiscreteActionSet(ActionSet):
+class LargeDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
         super().__init__()
@@ -78,7 +97,7 @@ class LargeDiscreteActionSet(ActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
-class MultiDiscreteActionSet(ActionSet):
+class MultiDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
         super().__init__()
@@ -101,6 +120,18 @@ class ContinuousActionSet(ActionSet):
         super().__init__()
         self.actionspace = Box(low=np.array([-1.0]),
                                high=np.array([1.0]), dtype=np.float32)
+
+    def get_observation(self, action):
+        return np.array([action[0]])
+
+    def get_lower_bound(self):
+        return np.array([0.01])
+
+    def get_upper_bound(self):
+        return np.array([0.25])
+
+    def get_initialization(self):
+        return np.array([0.12])
 
     def resolve(self, action):
         phi = (action[0] + 1.0) * 0.5 * 0.24 + 0.01

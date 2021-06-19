@@ -4,81 +4,109 @@ import numpy as np
 
 from numpy.random import random, randint
 
-from gyms.hhh.actionset import LargeDiscreteActionSet
+from .obs import Observation
+
+
+class FalsePositiveRate(Observation):
+
+    def get_observation(self, state):
+        return np.array([state.estimated_fpr])
+
+    def get_lower_bound(self):
+        return np.array([0.0])
+
+    def get_upper_bound(self):
+        return np.array([1.2])
+
+    def get_initialization(self):
+        return np.array([0.2 * random()])
+
+
+class DistVol(Observation):
+
+    def get_observation(self, state):
+        return np.array([state.hhh_distance_avg,
+                         state.hhh_distance_sum,
+                         state.hhh_distance_min,
+                         state.hhh_distance_max])
+
+    def get_lower_bound(self):
+        return np.zeros(4)
+
+    def get_upper_bound(self):
+        return np.ones(4)
+
+    def get_initialization(self):
+        return np.zeros(4)
+
+
+class MinMaxBlockedAddress(Observation):
+
+    def get_observation(self, state):
+        return np.array([state.hhh_min, state.hhh_max])
+
+    def get_lower_bound(self):
+        return np.zeros(2)
+
+    def get_upper_bound(self):
+        return np.ones(2)
+
+    def get_initialization(self):
+        return np.zeros(2)
+
+
+class DistVolStd(Observation):
+
+    def get_observation(self, state):
+        return np.array([state.hhh_distance_std])
+
+    def get_lower_bound(self):
+        return np.zeros(1)
+
+    def get_upper_bound(self):
+        return np.ones(1)
+
+    def get_initialization(self):
+        return np.zeros(1)
+
+
+class BlocklistDistribution(Observation):
+
+    def get_observation(self, state):
+        return np.array(state.bl_dist)
+
+    def get_lower_bound(self):
+        return np.zeros(16)
+
+    def get_upper_bound(self):
+        return np.ones(16)
+
+    def get_initialization(self):
+        return np.zeros(16) * 64.0
+
+
+class BaseObservations(Observation):
+
+    def get_observation(self, state):
+        return np.array([state.trace_start, state.min_prefix,
+                         state.estimated_precision, state.estimated_recall,
+                         state.blacklist_size, state.episode_progress])
+
+    def get_lower_bound(self):
+        return np.array([0.0, 16.0, 0.0, 0.0, 0.0, 0.0])
+
+    def get_upper_bound(self):
+        return np.array([1.0, 32.0, 1.2, 1.2, 128.0, 1.0])
+
+    def get_initialization(self):
+        return np.array([1.0, 32.0, 0.2 * random(),
+                         0.2 * random(), 1.0 * randint(16, 32), 0.0])
 
 
 class State(object):
 
-    @staticmethod
-    def get_onehot_action(state, action):
-        a = np.zeros(state.actionset.shape)
-
-        a[action if isinstance(action, int) else tuple(action)] = 1.0
-
-        return a.flatten()
-
-    GROUPS = {
-        'base': {
-            'obs': lambda s, a: np.array([s.trace_start, s.min_prefix,
-                                          s.estimated_precision, s.estimated_recall,
-                                          s.blacklist_size, s.episode_progress]),
-            'lower': lambda s: np.array([0.0, 16.0, 0.0, 0.0, 0.0, 0.0]),
-            'upper': lambda s: np.array([1.0, 32.0, 1.2, 1.2, 128.0, 1.0]),
-            'init': lambda s: np.array([1.0, 32.0, 0.2 * random(),
-                                        0.2 * random(), 1.0 * randint(16, 32), 0.0])
-        },
-        'actions': {
-            'obs': get_onehot_action.__func__,
-            'lower': lambda s: np.zeros(s.actionset.shape).flatten(),
-            'upper': lambda s: np.ones(s.actionset.shape).flatten(),
-            'init': lambda s: np.zeros(s.actionset.shape).flatten()
-        },
-        'cont_actions': {
-            #			'obs'   : lambda s, a: np.array([a[0], a[1]]),
-            #			'lower' : lambda s : np.array([0.01, 17]),
-            #			'upper' : lambda s : np.array([0.25, 21]),
-            #			'init'  : lambda s : np.array([0.12, 19])
-            'obs': lambda s, a: np.array([a[0]]),
-            'lower': lambda s: np.array([0.01]),
-            'upper': lambda s: np.array([0.25]),
-            'init': lambda s: np.array([0.12])
-        },
-        'distvol': {
-            'obs': lambda s, a: np.array([s.hhh_distance_avg,
-                                          s.hhh_distance_sum, s.hhh_distance_min, s.hhh_distance_max]),
-            'lower': lambda s: np.zeros(4),
-            'upper': lambda s: np.ones(4),
-            'init': lambda s: np.zeros(4)
-        },
-        'minmax': {
-            'obs': lambda s, a: np.array([s.hhh_min, s.hhh_max]),
-            'lower': lambda s: np.zeros(2),
-            'upper': lambda s: np.ones(2),
-            'init': lambda s: np.zeros(2)
-        },
-        'fpr': {
-            'obs': lambda s, a: np.array([s.estimated_fpr]),
-            'lower': lambda s: np.array([0.0]),
-            'upper': lambda s: np.array([1.2]),
-            'init': lambda s: np.array([0.2 * random()])
-        },
-        'distvolstd': {
-            'obs': lambda s, a: np.array([s.hhh_distance_std]),
-            'lower': lambda s: np.zeros(1),
-            'upper': lambda s: np.ones(1),
-            'init': lambda s: np.zeros(1)
-        },
-        'bldist': {
-            'obs': lambda s, a: np.array(s.bl_dist),
-            'lower': lambda s: np.zeros(16),
-            'upper': lambda s: np.ones(16),
-            'init': lambda s: np.zeros(16) * 64.0
-        }
-    }
-
-    def __init__(self, selection, actionset):
-        self.selection = selection
-        self.actionset = actionset
+    def __init__(self, selection):
+        self.selection: [Observation] = selection
         self.trace_start = 1.0
         self.phi = 0.5
         self.min_prefix = 20
@@ -161,22 +189,25 @@ class State(object):
             self.recall = 0.0
             self.estimated_recall = 0.0
 
-    def _build_state(self, what, args) -> np.ndarray:
+    def get_features(self) -> np.ndarray:
         return np.concatenate([
-            State.GROUPS[s][what](*args) for s in self.selection
+            s.get_observation(self) for s in self.selection
         ])
 
-    def get_features(self, action):
-        return self._build_state('obs', [self, action])
+    # used to set observation_space in env
+    def get_lower_bounds(self) -> np.ndarray:
+        return np.concatenate([
+            s.get_lower_bound() for s in self.selection
+        ])
 
     # used to set observation_space in env
-    def get_lower_bounds(self):
-        return self._build_state('lower', [self])
-
-    # used to set observation_space in env
-    def get_upper_bounds(self):
-        return self._build_state('upper', [self])
+    def get_upper_bounds(self) -> np.ndarray:
+        return np.concatenate([
+            s.get_upper_bound() for s in self.selection
+        ])
 
     # used to reset env
-    def get_initialization(self):
-        return self._build_state('init', [self])
+    def get_initialization(self) -> np.ndarray:
+        return np.concatenate([
+            s.get_initialization() for s in self.selection
+        ])
