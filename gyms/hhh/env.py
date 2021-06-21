@@ -1,3 +1,5 @@
+import ipaddress
+
 import gin
 import gym
 import numpy as np
@@ -106,7 +108,8 @@ class PacketGenerator(object):
     def generate_sparse_ranges(self):
         self.split = 4  # log2(20)
 
-        lo = 0xffffffff & Label._prefixmask(self.baselen, 32)
+        # lo = 0xffffffff & Label._prefixmask(self.baselen, 32)
+        lo = 0xffffffff & Label.PREFIXMASK[self.baselen]
         hi = 0xffffffff
 
         self.benign = (lo, hi)

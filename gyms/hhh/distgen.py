@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import abc
 import argparse
 import math
 import matplotlib.pyplot as plt
@@ -11,7 +10,6 @@ import time
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.cpp.hhhmodule import HIERARCHY_SIZE
-from gyms.hhh.label import Label
 
 
 def cmdline():
@@ -127,6 +125,12 @@ class FlowGroupSampler(object):
         self.attack = attack
 
     def sample(self):
+        """
+        Generates flows according to the provided samplers.
+
+        :returns: pd.DataFrame with self.num_flows many rows and six columns specifying the generated flows
+         ('start','end', 'duration', 'addr', 'rate', 'attack')
+        """
         addr = self.address_sampler.sample(self.num_flows)
         start = self.start_sampler.sample(self.num_flows)
         duration = self.duration_sampler.sample(self.num_flows)
@@ -139,9 +143,10 @@ class FlowGroupSampler(object):
             attk = np.zeros_like(start)
             rate = np.ones_like(start)
 
-        return pd.DataFrame(
+        df = pd.DataFrame(
             np.array((start, end, duration, addr, rate, attk)).transpose(),
             columns=['start', 'end', 'duration', 'addr', 'rate', 'attack'])
+        return df
 
 
 class Timer(object):
@@ -189,6 +194,10 @@ class TraceSampler(object):
         return f
 
     def init_flows(self):
+        """
+        Samples flows from flowsamplers to flows, sets flowgrid (shape (maxtime, 2*maxaddr))
+        and num_samples (number of non-zero entries in flowgrid).
+        """
         self.flows = pd.concat([s.sample() for s in self.flowsamplers])
 
         maxaddr = self.flows['addr'].max()
@@ -197,30 +206,31 @@ class TraceSampler(object):
         if self.maxtime is not None:
             maxtime = min(self.maxtime, maxtime)
 
-        rg = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
-                          columns=range(maxaddr + 1), dtype=int)
-        ag = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
-                          columns=range(maxaddr + 1), dtype=int)
+        rate_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
+                                 columns=range(maxaddr + 1), dtype=int)
+        attack_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
+                                   columns=range(maxaddr + 1), dtype=int)
 
         for _, f in self.flows.iterrows():
-            timespan = ((rg.index >= f['start']) & (rg.index <= f['end']))
-            rg.loc[timespan, f['addr']] += f['rate']
+            timespan = ((rate_grid.index >= f['start']) & (rate_grid.index <= f['end']))
+            rate_grid.loc[timespan, f['addr']] += f['rate']
             # TODO: handle overlap of benign and attack flows
-            ag.loc[timespan, f['addr']] += f['attack']
+            attack_grid.loc[timespan, f['addr']] += f['attack']
 
-        self.flowgrid = pd.concat({'rate': rg, 'attack': ag}, axis=1)
+        self.flowgrid = pd.concat({'rate': rate_grid, 'attack': attack_grid}, axis=1)
         self.num_samples = np.count_nonzero(self.flowgrid['rate'])
 
     def samples(self):
         step_finished = False
 
-        for t in self.flowgrid.index:
+        for t in self.flowgrid.index:  # iterate over all rows
             step = self.flowgrid.loc[self.flowgrid.index == t]
-            sr = step.loc[t, ('rate')]
-            sa = step.loc[t, ('attack')]
+            step_rates = step.loc[t, ('rate')]
+            step_attack = step.loc[t, ('attack')]
 
-            for addr in sr.index[(sr.values > 0)]:
-                yield addr, sr[addr], sa[addr], step_finished
+            print(f'packets per step={len(step_rates.index[(step_rates.values > 0)])}')
+            for addr in step_rates.index[(step_rates.values > 0)]:
+                yield addr, step_rates[addr], step_attack[addr], step_finished
                 step_finished = False
 
             step_finished = True

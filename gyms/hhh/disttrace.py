@@ -10,8 +10,8 @@ from .packet import Packet
 @gin.configurable
 class DistributionTrace(object):
     _MAXADDR = 0xffff
-    _BENIGN = 1000
-    _ATTACK = 2000
+    _NUM_BENIGN_FLOWS = 1000
+    _NUM_ATTACK_FLOWS = 2000
 
     @staticmethod
     def __init_sampler(maxtime, maxaddr, benign_flows, attack_flows):
@@ -59,8 +59,8 @@ class DistributionTrace(object):
 
         return trace_sampler
 
-    def __init__(self, maxtime, maxaddr=_MAXADDR, benign_flows=_BENIGN,
-                 attack_flows=_ATTACK):
+    def __init__(self, maxtime, maxaddr=_MAXADDR, benign_flows=_NUM_BENIGN_FLOWS,
+                 attack_flows=_NUM_ATTACK_FLOWS):
         self.maxtime = maxtime
         self.maxaddr = maxaddr
         self.benign_flows = benign_flows
@@ -70,7 +70,14 @@ class DistributionTrace(object):
     def __next__(self):
         return self.next()
 
-    def next(self):
+    def next(self) -> (Packet, bool):
+        """
+        Returns the next packet from the trace and a bool which indicates whether this packet is the last
+        packet of the current time step.
+
+        :raises StopIteration: when the end of the episode is reached (the trace finished)
+        :returns: packet, step_finished
+        """
         if self.i == self.N:
             raise StopIteration()
 
@@ -79,18 +86,20 @@ class DistributionTrace(object):
 
         return Packet(addr, attack == 1), step_finished
 
-    def __next__(self):
-        return self.next()
-
     def __iter__(self):
         return self
 
     def rewind(self):
+        """
+        Re-draws samples from the TraceSampler, which is also re-initialized.
+        Has to be used before calling next() after next() returned step_finished=True.
+        """
         self.trace_sampler = DistributionTrace.__init_sampler(
             self.maxtime, self.maxaddr, self.benign_flows, self.attack_flows)
         self.samples = self.trace_sampler.samples()
         self.N = self.trace_sampler.num_samples
         self.i = 0
+        print(f'number of packets next episode: {self.N}')
 
     def __len__(self):
         return self.N
