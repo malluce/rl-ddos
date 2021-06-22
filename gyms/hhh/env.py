@@ -15,6 +15,7 @@ from matplotlib import cm
 
 from gym.envs.registration import register
 
+from .actionset import ActionSet
 from .loop import Loop
 from .label import Label
 from .obs import Observation
@@ -168,9 +169,8 @@ class Trace(object):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset_selection,
+                 actionset: ActionSet,
                  trace_length):
-        actionset = actionset_selection()
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
@@ -286,7 +286,6 @@ class HHHEnv(gym.Env):
         )
 
     def reset(self):
-        print('Resetting env')
         self.episode += 1
         # self.current_step = 0 ## TODO revert commit
         self.trace.rewind()
