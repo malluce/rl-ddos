@@ -15,6 +15,16 @@ class DistributionTrace(object):
 
     @staticmethod
     def __init_sampler(maxtime, maxaddr, benign_flows, attack_flows):
+        """
+        Initializes several FlowGroupSamplers and instantiates a TraceSampler from them, which is invoked to create
+        flows.
+
+        :param maxtime: the maximum time step of the flows that are to be generated (passed to samplers)
+        :param maxaddr: the maximum ip address of the flows that are to be generated (passed to samplers)
+        :param benign_flows: the number of benign flows
+        :param attack_flows: the number of attack flows
+        :return: the TraceSampler object
+        """
         flowsamplers = [
             # 1st set of benign flows
             FlowGroupSampler(benign_flows,
@@ -59,12 +69,21 @@ class DistributionTrace(object):
 
         return trace_sampler
 
-    def __init__(self, maxtime, maxaddr=_MAXADDR, benign_flows=_NUM_BENIGN_FLOWS,
-                 attack_flows=_NUM_ATTACK_FLOWS):
+    def __init__(self, maxtime, maxaddr=_MAXADDR, num_benign_flows=_NUM_BENIGN_FLOWS,
+                 num_attack_flows=_NUM_ATTACK_FLOWS):
+        """
+        Creates a new DistributionTrace, which will create packets for a given number of time steps whose ip address is
+        not larger than maxaddr. The packets are drawn from benign_flows many benign and num_attack_flows many attack flows.
+
+        :param maxtime: the number of time steps to generate packets for
+        :param maxaddr: the maximum ip address of generated packets
+        :param num_benign_flows: the number of benign flows to generate packets from
+        :param num_attack_flows: the number of attack flows to generate packets from
+        """
         self.maxtime = maxtime
         self.maxaddr = maxaddr
-        self.benign_flows = benign_flows
-        self.attack_flows = attack_flows
+        self.benign_flows = num_benign_flows
+        self.attack_flows = num_attack_flows
         self.rewind()
 
     def __next__(self):
@@ -102,4 +121,9 @@ class DistributionTrace(object):
         print(f'number of packets next episode: {self.N}')
 
     def __len__(self):
+        """
+        Returns the number of packets of this trace. (equal to episode length in packets)
+
+        :return: number of trace packets
+        """
         return self.N
