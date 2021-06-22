@@ -36,6 +36,7 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
 import gyms.hhh
+from agents.util import get_dirs
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
@@ -103,12 +104,10 @@ def train_eval(
     """A simple train and eval for DQN."""
     if timestamp is None:
         timestamp = Datastore.get_timestamp()
-    root_dir = os.path.expanduser(root_dir)
-    train_dir = os.path.join(root_dir, 'train')
-    eval_dir = os.path.join(root_dir, 'eval')
+    dirs = get_dirs(root_dir, timestamp, 'dqn-inf')
 
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        eval_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
 
     train_metrics = [
         tf_metrics.NumberOfEpisodes(),
@@ -180,7 +179,7 @@ def train_eval(
         eval_policy = tf_agent.policy
 
         train_checkpointer = common.Checkpointer(
-            ckpt_dir=train_dir,
+            ckpt_dir=dirs['tf_train'],
             agent=tf_agent,
             global_step=global_step,
             metrics=metric_utils.MetricsGroup(train_metrics, 'train_metrics'))

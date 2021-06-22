@@ -36,14 +36,17 @@ from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
+from agents.util import get_dirs
+from gyms.hhh.actionset import LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
+from gyms.hhh.state import BaseObservations
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('timestamp', None,
                     'Restore from specified timestamp.')
-flags.DEFINE_integer('num_iterations', 100,
+flags.DEFINE_integer('num_iterations', 1000,
                      'Total number train/eval iterations to perform.')
 FLAGS = flags.FLAGS
 
@@ -53,15 +56,15 @@ def train_eval(
         root_dir,
         timestamp=None,
         env_name='HHHGym-v0',
-        num_iterations=10001,
+        num_iterations=10000,
         train_sequence_length=1,
         # Params for QNetwork
         fc_layer_params=(100, 50),
         # Params for collect
-        initial_collect_steps=100,
+        initial_collect_steps=1000,
         collect_steps_per_iteration=1,
         epsilon_greedy=0.1,
-        replay_buffer_capacity=10000,
+        replay_buffer_capacity=100000,
         # Params for target update
         target_update_tau=0.05,
         target_update_period=5,
@@ -76,15 +79,16 @@ def train_eval(
         use_tf_functions=True,
         # Params for eval
         num_eval_episodes=5,
-        eval_interval=50,
+        eval_interval=100,
         # Params for summaries and logging
-        log_interval=10,
+        log_interval=20,
         summaries_flush_secs=10,
         debug_summaries=False,
         summarize_grads_and_vars=False,
-        state_selection=['base', 'actions', 'distvol', 'fpr', 'distvolstd', 'bldist'],
-        actionset_selection='LargeDiscreteActionSet',
-        trace_length=10):
+        state_selection=[BaseObservations()],
+        actionset_selection=LargeDiscreteActionSet(),
+        use_prev_action_as_obs=False,
+        trace_length=50000):
     """A simple train and eval for DQN."""
 
     print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
@@ -94,12 +98,11 @@ def train_eval(
         timestamp = Datastore.get_timestamp()
 
     # setup writers
-    root_dir = os.path.expanduser(root_dir)
-    root_dir = os.path.join(root_dir, timestamp)
+    dirs = get_dirs(root_dir, timestamp, 'dqn-play')
     train_summary_writer = tf.compat.v2.summary.create_file_writer(
-        os.path.join(root_dir, 'train'), flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        os.path.join(root_dir, 'eval'), flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
 
     # setup metrics
     train_metrics = [
@@ -119,14 +122,15 @@ def train_eval(
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
     # setup datastore
-    ds_train = Datastore('train', timestamp)
-    ds_eval = Datastore('eval', timestamp)
+    ds_train = Datastore(dirs['root'], 'train')
+    ds_eval = Datastore(dirs['root'], 'eval')
 
     # setup envs (train, eval)
     gym_kwargs = {
-        'state_selection': state_selection,
-        'actionset_selection': actionset_selection,
-        'trace_length': trace_length
+        'state_obs_selection': state_selection,
+        'actionset': actionset_selection,
+        'trace_length': trace_length,
+        'use_prev_action_as_obs': use_prev_action_as_obs
     }
     train_gym = suite_gym.load(
         env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs},
@@ -213,13 +217,11 @@ def train_eval(
     logging.info('Training')
 
     for _ in range(num_iterations):
-        logging.info(f"==== Starting step {_} ====")
         start_time = time.time()
         time_step, policy_state = collect_driver.run(
             time_step=time_step,
             policy_state=policy_state,
         )
-        print(time_step)
         for _ in range(train_steps_per_iteration):
             train_loss = train_step()
         time_acc += time.time() - start_time

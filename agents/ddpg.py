@@ -19,6 +19,7 @@ import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
 # from tf_agents.agents.ddpg import actor_network
 # from tf_agents.agents.ddpg import critic_network
+from agents.util import get_dirs
 from nets import ddpg_actor_network as actor_network
 from nets import ddpg_critic_network as critic_network
 from tf_agents.agents.ddpg import ddpg_agent
@@ -90,17 +91,14 @@ def train_eval(
         trace_length=50000):
     """A simple train and eval for DDPG."""
     timestamp = Datastore.get_timestamp()
-    root_dir = os.path.expanduser(root_dir)
-    root_dir = os.path.join(root_dir, timestamp)
-    train_dir = os.path.join(root_dir, 'train')
-    eval_dir = os.path.join(root_dir, 'eval')
+    dirs = get_dirs(root_dir, timestamp, 'ddpg')
 
     train_summary_writer = tf.compat.v2.summary.create_file_writer(
-        train_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
     train_summary_writer.set_as_default()
 
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        eval_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
 
     train_metrics = [
         tf_metrics.NumberOfEpisodes(),
@@ -116,8 +114,8 @@ def train_eval(
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
     with tf.compat.v2.summary.record_if(lambda: tf.math.equal(global_step % summary_interval, 0)):
-        ds_train = Datastore('train', timestamp)
-        ds_eval = Datastore('eval', timestamp)
+        ds_train = Datastore(root_dir, 'train')
+        ds_eval = Datastore(root_dir, 'eval')
 
         gym_kwargs = {
             'state_selection': state_selection,
@@ -139,11 +137,11 @@ def train_eval(
         eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(eval_env_name, ds_eval))
 
         actor_net = actor_network.ActorNetwork(
-            tf_env.time_step_spec().observation,
+            tf_env.time_step_spec().obs_from_state,
             tf_env.action_spec(),
             fc_layer_params=actor_fc_layers)
 
-        critic_net_input_specs = (tf_env.time_step_spec().observation,
+        critic_net_input_specs = (tf_env.time_step_spec().obs_from_state,
                                   tf_env.action_spec())
 
         critic_net = critic_network.CriticNetwork(

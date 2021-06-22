@@ -9,6 +9,7 @@ from __future__ import print_function
 import os
 import time
 
+import tf_agents
 from absl import app
 from absl import flags
 from absl import logging
@@ -31,7 +32,10 @@ from tf_agents.policies import policy_saver
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
-import gyms.hhh
+from agents.util import get_dirs
+from gyms.hhh.actionset import ContinuousActionSet, LargeDiscreteActionSet
+from gyms.hhh.env import register_hhh_gym
+from gyms.hhh.state import BaseObservations, BlocklistDistribution, DistVol, DistVolStd, FalsePositiveRate
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
@@ -87,26 +91,23 @@ def train_eval(
         use_tf_functions=False,
         debug_summaries=False,
         summarize_grads_and_vars=False,
-        state_selection=['base', 'distvol', 'fpr', 'distvolstd', 'bldist'],
-        actionset_selection='ContinuousActionSet',
+        state_selection=[BaseObservations(), DistVol(), FalsePositiveRate(), DistVolStd(), BlocklistDistribution()],
+        actionset_selection=LargeDiscreteActionSet,
         trace_length=50000):
     """A simple train and eval for PPO."""
     if root_dir is None:
         raise AttributeError('train_eval requires a root_dir.')
 
     timestamp = Datastore.get_timestamp()
-    root_dir = os.path.expanduser(root_dir)
-    root_dir = os.path.join(root_dir, timestamp)
-    train_dir = os.path.join(root_dir, 'train')
-    eval_dir = os.path.join(root_dir, 'eval')
+    dirs = get_dirs(root_dir, timestamp, 'ppo')
     saved_model_dir = os.path.join(root_dir, 'policy_saved_model')
 
     train_summary_writer = tf.compat.v2.summary.create_file_writer(
-        train_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
     train_summary_writer.set_as_default()
 
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        eval_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
     eval_metrics = [
         tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
         tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes)
@@ -119,11 +120,12 @@ def train_eval(
         if random_seed is not None:
             tf.compat.v1.set_random_seed(random_seed)
 
-        ds_train = Datastore('train', timestamp)
-        ds_eval = Datastore('eval', timestamp)
+        ds_train = Datastore(dirs['root'], 'train')
+        ds_eval = Datastore(dirs['root'], 'eval')
 
         gym_kwargs = {
-            'state_selection': state_selection,
+            'state_obs_selection': state_selection,
+            'use_prev_action_as_obs': True,
             'actionset_selection': actionset_selection,
             'trace_length': trace_length
         }
@@ -198,12 +200,12 @@ def train_eval(
             max_length=replay_buffer_capacity)
 
         train_checkpointer = common.Checkpointer(
-            ckpt_dir=train_dir,
+            ckpt_dir=dirs['chkpt'],
             agent=tf_agent,
             global_step=global_step,
             metrics=metric_utils.MetricsGroup(train_metrics, 'train_metrics'))
         policy_checkpointer = common.Checkpointer(
-            ckpt_dir=os.path.join(train_dir, 'policy'),
+            ckpt_dir=os.path.join(dirs['tf_train'], 'policy'),
             policy=eval_policy,
             global_step=global_step)
         saved_model = policy_saver.PolicySaver(
@@ -297,10 +299,12 @@ def train_eval(
 
 
 def main(_):
+    register_hhh_gym()
     logging.set_verbosity(logging.INFO)
     tf.get_logger().setLevel('ERROR')
     tf.compat.v1.enable_v2_behavior()
     gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
+    tf_agents.system.multiprocessing.enable_interactive_mode()
     train_eval(
         FLAGS.root_dir,
         use_rnns=FLAGS.use_rnns,

@@ -35,6 +35,7 @@ from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
+from agents.util import get_dirs
 from gyms.hhh.actionset import LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
 from lib.datastore import Datastore
@@ -102,23 +103,20 @@ def train_eval(
         state_obs_selection=[BaseObservations(), DistVol(), DistVolStd(), FalsePositiveRate(),
                              BlocklistDistribution()],
         use_prev_action_as_obs=True,
-        actionset_selection=LargeDiscreteActionSet,
+        actionset_selection=LargeDiscreteActionSet(),
         trace_length=50000):
     """A simple train and eval for DQN."""
     if timestamp is None:
         timestamp = Datastore.get_timestamp()
-    root_dir = os.path.expanduser(root_dir)
-    root_dir = os.path.join(root_dir, timestamp)
-    train_dir = os.path.join(root_dir, 'train')
-    eval_dir = os.path.join(root_dir, 'eval')
+    dirs = get_dirs(root_dir, timestamp, 'dqn')
     lr_find = learning_rate is None
 
     train_summary_writer = tf.compat.v2.summary.create_file_writer(
-        train_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
     #	train_summary_writer.set_as_default()
 
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        eval_dir, flush_millis=summaries_flush_secs * 1000)
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
 
     train_metrics = [
         tf_metrics.NumberOfEpisodes(),
@@ -138,13 +136,13 @@ def train_eval(
     #	with tf.compat.v2.summary.record_if(
     #			lambda: tf.math.equal(global_step % summary_interval, 0)):
     with train_summary_writer.as_default():
-        ds_train = Datastore('train', timestamp)
-        ds_eval = Datastore('eval', timestamp)
+        ds_train = Datastore(dirs['root'], 'train')
+        ds_eval = Datastore(dirs['root'], 'eval')
 
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
-            'actionset_selection': actionset_selection,
+            'actionset': actionset_selection,
             'trace_length': trace_length
         }
 
@@ -230,16 +228,16 @@ def train_eval(
             observers=[replay_buffer.add_batch] + train_metrics,
             num_steps=collect_steps_per_iteration)
         train_checkpointer = common.Checkpointer(
-            ckpt_dir=train_dir,
+            ckpt_dir=dirs['chkpt'],
             agent=tf_agent,
             global_step=global_step,
             metrics=metric_utils.MetricsGroup(train_metrics, 'train_metrics'))
         policy_checkpointer = common.Checkpointer(
-            ckpt_dir=os.path.join(train_dir, 'policy'),
+            ckpt_dir=dirs['policy_chkpt'],
             policy=eval_policy,
             global_step=global_step)
         rb_checkpointer = common.Checkpointer(
-            ckpt_dir=os.path.join(train_dir, 'replay_buffer'),
+            ckpt_dir=dirs['replay_buf_chkpt'],
             max_to_keep=1,
             replay_buffer=replay_buffer)
 

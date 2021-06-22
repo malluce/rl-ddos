@@ -10,8 +10,7 @@ from pathlib import Path
 class Datastore(object):
     __instance = None
 
-    BASE_DIR = Path('data/stats')
-    TENSORBOARD_DIR = Path('data/tensorboard')
+    SUB_BASE_DIR = Path('datastore')  # datastore writes to subdir in root dir (rootdir/datastore/...)
     EPISODE_FILE = 'episodes.csv'
     ENVIRONMENT_FILE = 'environment.csv'
     CONFIG_FILE = 'config.gin'
@@ -28,8 +27,8 @@ class Datastore(object):
         return datetime.now().strftime('%Y%m%d-%H%M%S')
 
     @staticmethod
-    def _create_entry(subdir, timestamp):
-        experiment_dir = Datastore.BASE_DIR / timestamp
+    def _create_entry(rootdir, subdir):
+        experiment_dir = rootdir / Datastore.SUB_BASE_DIR
 
         if subdir is not None:
             experiment_dir = experiment_dir / subdir
@@ -61,11 +60,8 @@ class Datastore(object):
             state.hhh_distance_avg, state.hhh_distance_sum, state.hhh_min,
             state.hhh_max)
 
-    def __init__(self, subdir=None, timestamp=None):
-        if timestamp is None:
-            timestamp = Datastore.get_timestamp()
-
-        self.experiment_dir = Datastore._create_entry(subdir, timestamp)
+    def __init__(self, rootdir: str, subdir: str):
+        self.experiment_dir = Datastore._create_entry(Path(rootdir), subdir)
 
         episode_file_path = self.experiment_dir / Datastore.EPISODE_FILE
         environment_file_path = self.experiment_dir / Datastore.ENVIRONMENT_FILE
