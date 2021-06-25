@@ -6,7 +6,9 @@ def get_dirs(root_dir, timestamp, alg_name):
     root_dir = os.path.expanduser(root_dir)
     root_dir = os.path.join(root_dir, alg_name + '_' + timestamp)
     dirs['root'] = root_dir
-    tf_train_dir = os.path.join(root_dir, 'tensorflow', 'train')
+    tf_dir = os.path.join(root_dir, 'tensorflow')
+    dirs['tf'] = tf_dir
+    tf_train_dir = os.path.join(tf_dir, 'train')
     dirs['tf_train'] = tf_train_dir
     dirs['tf_eval'] = os.path.join(root_dir, 'tensorflow', 'eval')
     dirs['chkpt'] = tf_train_dir
