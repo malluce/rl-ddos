@@ -25,7 +25,6 @@ import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
 from tf_agents.networks import network
 from tf_agents.utils import common
-
 import agents.nets.ddpg_utils as utils
 
 
@@ -93,7 +92,7 @@ class ActorNetwork(network.Network):
             activation_fn=activation_fn,
             kernel_initializer=tf.compat.v1.keras.initializers.VarianceScaling(
                 scale=1. / 3., mode='fan_in', distribution='uniform'),
-            batch_normalization=True,
+            batch_normalization=True,  # added by hauke
             name='input_mlp')
 
         self._mlp_layers.append(

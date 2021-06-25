@@ -91,7 +91,7 @@ class EncodingNetwork(network.Network):
                  weight_decay_params=None,
                  kernel_initializer=None,
                  batch_squash=True,
-                 batch_normalization=False,
+                 batch_normalization=False,  # added by hauke
                  dtype=tf.float32,
                  name='EncodingNetwork',
                  conv_type=CONV_TYPE_2D):
@@ -265,8 +265,8 @@ class EncodingNetwork(network.Network):
                                      'lists have different lengths (%d vs. %d.)' %
                                      (len(weight_decay_params), len(fc_layer_params)))
 
-            if batch_normalization:
-                layers.append(tf.keras.layers.BatchNormalization())
+            if batch_normalization:  # added by hauke
+                layers.append(tf.keras.layers.BatchNormalization())  # added by hauke
 
             for num_units, dropout_params, weight_decay in zip(
                     fc_layer_params, dropout_layer_params, weight_decay_params):

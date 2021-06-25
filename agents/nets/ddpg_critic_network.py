@@ -127,7 +127,7 @@ class CriticNetwork(network.Network):
             observation_dropout_layer_params,
             activation_fn=activation_fn,
             kernel_initializer=kernel_initializer,
-            batch_normalization=True,
+            batch_normalization=True,  # added by hauke
             name='observation_encoding')
 
         self._action_layers = utils.mlp_layers(

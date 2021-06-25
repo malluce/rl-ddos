@@ -179,7 +179,7 @@ def mlp_layers(conv_layer_params=None,
                                  'lists have different lengths (%d vs. %d.)' %
                                  (len(weight_decay_params), len(fc_layer_params)))
 
-        if batch_normalization:
+        if batch_normalization:  # one batch norm in front (added by hauke)
             layers.append(tf.keras.layers.BatchNormalization())
 
         for num_units, dropout_params, weight_decay in zip(
@@ -200,6 +200,6 @@ def mlp_layers(conv_layer_params=None,
                 layers.append(maybe_permanent_dropout(**dropout_params))
 
             if batch_normalization:
-                layers.append(tf.keras.layers.BatchNormalization())
+                layers.append(tf.keras.layers.BatchNormalization())  # one batch norm after each layer added by hauke
 
     return layers

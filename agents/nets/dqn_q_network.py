@@ -54,7 +54,7 @@ class QNetwork(network.Network):
                  activation_fn=tf.keras.activations.relu,
                  kernel_initializer=None,
                  batch_squash=True,
-                 batch_normalization=False,
+                 batch_normalization=False,  # added by hauke
                  dtype=tf.float32,
                  name='QNetwork'):
         """Creates an instance of `QNetwork`.
