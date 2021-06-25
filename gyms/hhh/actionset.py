@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import abc
 
 import numpy as np
 
@@ -14,10 +15,12 @@ class ActionSet(Observation, ABC):
         self.actionspace = None
         self.shape = None
 
+    @abc.abstractmethod
     def resolve(self, action):
         """ transform selected action into phi and min-prefix values """
         pass
 
+    @abc.abstractmethod
     def get_min_prefixlen(self):
         pass
 
@@ -28,7 +31,7 @@ class ActionSet(Observation, ABC):
 class DiscreteActionSet(ActionSet):
     def get_observation(self, action):
         one_hot_obs = np.zeros(self.shape)
-        one_hot_obs[action if isinstance(action, int) else tuple(action)] = 1.0
+        one_hot_obs[action if isinstance(action, (int, np.integer)) else tuple(action)] = 1.0
         return one_hot_obs.flatten()
 
     def get_lower_bound(self):
@@ -95,6 +98,30 @@ class LargeDiscreteActionSet(DiscreteActionSet):
 
     def __repr__(self):
         return self.__class__.__name__ + str(self.actions)
+
+
+class EvalActionSet(ActionSet):
+    """
+    Used for eval purposes, where actions are not used as observations (e.g., actions are chosen randomly or fixed)
+    """
+
+    def resolve(self, action):
+        return action[0], action[1]
+
+    def get_min_prefixlen(self):
+        pass
+
+    def get_observation(self, observed_object):
+        pass
+
+    def get_lower_bound(self):
+        pass
+
+    def get_upper_bound(self):
+        pass
+
+    def get_initialization(self):
+        pass
 
 
 class MultiDiscreteActionSet(DiscreteActionSet):
