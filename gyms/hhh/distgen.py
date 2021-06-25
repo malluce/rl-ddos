@@ -228,7 +228,6 @@ class TraceSampler(object):
             step_rates = step.loc[t, ('rate')]
             step_attack = step.loc[t, ('attack')]
 
-            print(f'packets per step={len(step_rates.index[(step_rates.values > 0)])}')
             for addr in step_rates.index[(step_rates.values > 0)]:
                 yield addr, step_rates[addr], step_attack[addr], step_finished
                 step_finished = False
