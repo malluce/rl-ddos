@@ -17,10 +17,7 @@ class Datastore(object):
 
     EPISODE_HEADER = 'Episode, Split, MeanRules, MeanPrec, MeanRecall, MeanFPR, MeanHHHDistSum, MeanReward'
 
-    ## TODO revert commit
-    STEP_HEADER = 'Episode, Split, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
-
-    # STEP_HEADER = 'Episode, Step, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
+    STEP_HEADER = 'Episode, Step, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
 
     @staticmethod
     def get_timestamp():
@@ -95,6 +92,10 @@ class Datastore(object):
 
     def add_step_line(self, line):
         Datastore._add(self.environment_file, line)
+
+    def flush(self):
+        self.environment_file.flush()
+        self.episode_file.flush()
 
     def print_episode_header(self):
         Datastore._print(Datastore.EPISODE_HEADER)

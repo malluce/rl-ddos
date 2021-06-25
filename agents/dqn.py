@@ -77,7 +77,7 @@ def train_eval(
         target_update_period=5,
         # Params for train
         train_steps_per_iteration=1,
-        batch_size=64,
+        batch_size=1024,  # 64
         learning_rate=1e-4,
         learning_rate_decay_rate=None,
         learning_rate_decay_step=None,
@@ -87,8 +87,8 @@ def train_eval(
         gradient_clipping=None,
         use_tf_functions=True,
         # Params for eval
-        num_eval_episodes=10,
-        eval_interval=1000,
+        num_eval_episodes=5,
+        eval_interval=10000,
         # Params for checkpoints
         train_checkpoint_interval=10000,
         policy_checkpoint_interval=5000,
@@ -100,11 +100,11 @@ def train_eval(
         debug_summaries=False,
         summarize_grads_and_vars=False,
         eval_metrics_callback=None,
-        state_obs_selection=[BaseObservations(), DistVol(), DistVolStd(), FalsePositiveRate(),
+        state_obs_selection=[BaseObservations(), FalsePositiveRate(), DistVol(), MinMaxBlockedAddress(), DistVolStd(),
                              BlocklistDistribution()],
         use_prev_action_as_obs=True,
         actionset_selection=LargeDiscreteActionSet(),
-        trace_length=50000):
+        trace_length=600):
     """A simple train and eval for DQN."""
     if timestamp is None:
         timestamp = Datastore.get_timestamp()
@@ -113,7 +113,7 @@ def train_eval(
 
     train_summary_writer = tf.compat.v2.summary.create_file_writer(
         dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
-    #	train_summary_writer.set_as_default()
+    train_summary_writer.set_as_default()
 
     eval_summary_writer = tf.compat.v2.summary.create_file_writer(
         dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
@@ -139,23 +139,8 @@ def train_eval(
         ds_train = Datastore(dirs['root'], 'train')
         ds_eval = Datastore(dirs['root'], 'eval')
 
-        gym_kwargs = {
-            'state_obs_selection': state_obs_selection,
-            'use_prev_action_as_obs': use_prev_action_as_obs,
-            'actionset': actionset_selection,
-            'trace_length': trace_length
-        }
-
-        logging.info('creating train gym...')
-        train_gym = suite_gym.load(
-            env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs},
-            spec_dtype_map={gym.spaces.Discrete: np.int32})
-        logging.info('casting to tf env')
-        tf_env = tf_py_environment.TFPyEnvironment(train_gym)
-        logging.info('creating eval env...')
-        eval_tf_env = tf_py_environment.TFPyEnvironment(suite_gym.load(
-            env_name, gym_kwargs={'data_store': ds_eval, **gym_kwargs},
-            spec_dtype_map={gym.spaces.Discrete: np.int32}))
+        eval_tf_env, tf_env = get_envs(actionset_selection, ds_eval, ds_train, env_name, state_obs_selection,
+                                       trace_length, use_prev_action_as_obs)
 
         if train_sequence_length != 1 and n_step_update != 1:
             raise NotImplementedError(
@@ -188,7 +173,6 @@ def train_eval(
             num_iterations = 7500
             log_interval = 10
         #			tf.summary.scalar('learning_rate', learning_rate, step = global_step)
-
         if learning_rate_decay_rate is not None and learning_rate_decay_step is not None:
             learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
                 learning_rate, learning_rate_decay_step, learning_rate_decay_rate,
@@ -227,22 +211,10 @@ def train_eval(
             collect_policy,
             observers=[replay_buffer.add_batch] + train_metrics,
             num_steps=collect_steps_per_iteration)
-        train_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['chkpt'],
-            agent=tf_agent,
-            global_step=global_step,
-            metrics=metric_utils.MetricsGroup(train_metrics, 'train_metrics'))
-        policy_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['policy_chkpt'],
-            policy=eval_policy,
-            global_step=global_step)
-        rb_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['replay_buf_chkpt'],
-            max_to_keep=1,
-            replay_buffer=replay_buffer)
 
-        train_checkpointer.initialize_or_restore()
-        rb_checkpointer.initialize_or_restore()
+        policy_checkpointer, rb_checkpointer, train_checkpointer = get_checkpointers(dirs, eval_policy, global_step,
+                                                                                     replay_buffer, tf_agent,
+                                                                                     train_metrics)
 
         if use_tf_functions:
             collect_driver.run = common.function(collect_driver.run)
@@ -352,6 +324,45 @@ def train_eval(
                 metric_utils.log_metrics(eval_metrics)
 
         return train_loss
+
+
+def get_envs(actionset_selection, ds_eval, ds_train, env_name, state_obs_selection, trace_length,
+             use_prev_action_as_obs):
+    gym_kwargs = {
+        'state_obs_selection': state_obs_selection,
+        'use_prev_action_as_obs': use_prev_action_as_obs,
+        'actionset': actionset_selection,
+        'trace_length': trace_length
+    }
+    train_gym = suite_gym.load(
+        env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs},
+        spec_dtype_map={gym.spaces.Discrete: np.int32})
+    tf_env = tf_py_environment.TFPyEnvironment(train_gym)
+    eval_tf_env = tf_py_environment.TFPyEnvironment(suite_gym.load(
+        env_name, gym_kwargs={'data_store': ds_eval, **gym_kwargs},
+        spec_dtype_map={gym.spaces.Discrete: np.int32}))
+    return eval_tf_env, tf_env
+
+
+def get_checkpointers(dirs, eval_policy, global_step, replay_buffer, tf_agent, train_metrics):
+    train_checkpointer = common.Checkpointer(
+        ckpt_dir=dirs['chkpt'],
+        agent=tf_agent,
+        global_step=global_step,
+        metrics=metric_utils.MetricsGroup(train_metrics, 'train_metrics'))
+    policy_checkpointer = common.Checkpointer(
+        ckpt_dir=dirs['policy_chkpt'],
+        policy=eval_policy,
+        global_step=global_step)
+    rb_checkpointer = common.Checkpointer(
+        ckpt_dir=dirs['replay_buf_chkpt'],
+        max_to_keep=1,
+        replay_buffer=replay_buffer)
+
+    train_checkpointer.initialize_or_restore()
+    rb_checkpointer.initialize_or_restore()
+
+    return policy_checkpointer, rb_checkpointer, train_checkpointer
 
 
 def main(_):

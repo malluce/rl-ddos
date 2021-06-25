@@ -174,11 +174,10 @@ class HHHEnv(gym.Env):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
-        self.trace = Trace(trace_length)
-        # self.trace = DistributionTrace(trace_length) ## TODO revert commit
+        self.trace = DistributionTrace(trace_length)
         self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset)
         self.episode = 0
-        # self.current_step = 0 ## TODO revert commit
+        self.current_step = 0
 
         self.action_space = self.loop.actionset.actionspace
         self.observation_space = self._observation_spec()
@@ -201,7 +200,6 @@ class HHHEnv(gym.Env):
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
             self.ds.set_config('sampling_rate', self.loop.SAMPLING_RATE)
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
-            self.ds.set_config('benign_probability', self.trace.g.prob_benign)  ## TODO revert commit
             self.ds.set_config('trace_length', len(self.trace))
 
     def seed(self, seed=None):
@@ -225,7 +223,7 @@ class HHHEnv(gym.Env):
         self._log_to_datastore(trace_ended, reward, state)
 
         # we did 1 more step
-        # self.current_step += 1 ## TODO revert commit
+        self.current_step += 1
 
         # get numpy observation array
         observation = self._build_observation(previous_action=action)
@@ -236,27 +234,24 @@ class HHHEnv(gym.Env):
         if state.blacklist_size == 0:
             reward = 0.0
         else:
-            reward = ((state.precision ** 4) * state.recall * (1 - sqrt(state.fpr)))
-            # reward = ( ## TODO revert commit
-            #        (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
-            #        * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
-            # )
+            reward = (
+                    (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
+                    * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
+            )
         return reward
 
     def _log_to_datastore(self, trace_ended, reward, state):
         if self.ds is not None:
-            self.ds.add_step(self.episode, self.trace.g.split, reward, state)
-            # self.ds.add_step(self.episode, self.current_step, reward, state)
+            self.ds.add_step(self.episode, self.current_step, reward, state)
 
         if trace_ended and self.ds is not None:
-            self.ds.add_episode(self.episode + 1, self.trace.g.split,
+            self.ds.add_episode(self.episode + 1, 0,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
                                 np.mean(self.hhh_distance_sums), np.mean(self.rewards))
-            # self.ds.add_episode(self.episode + 1, 0,
-            #                    np.mean(self.rules), np.mean(self.precisions),
-            #                    np.mean(self.recalls), np.mean(self.fprs),
-            #                    np.mean(self.hhh_distance_sums), np.mean(self.rewards))
+
+        if trace_ended:
+            self.ds.flush()
 
     def _build_observation(self, previous_action=None):
         action_observation, state_observation = (None, None)
@@ -287,7 +282,7 @@ class HHHEnv(gym.Env):
 
     def reset(self):
         self.episode += 1
-        # self.current_step = 0 ## TODO revert commit
+        self.current_step = 0
         self.trace.rewind()
         self.loop.reset()
         self.rewards = []

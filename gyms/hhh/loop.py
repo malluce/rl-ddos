@@ -79,15 +79,13 @@ class Loop(object):
 
         if s.trace_start == 1.0:
             s.trace_start = 0.0
-            # step_finished = False ## TODO revert commit
+            step_finished = False
 
-            for i in range(self.action_interval):  ## TODO revert commit
-                # while not step_finished: ## TODO revert commit
+            while not step_finished:
                 # pre-sample without incrementing the
                 # trace counter when initiating a new
                 # episode
-                p = self.trace.sample()
-                # p, step_finished = self.trace.next() ## TODO revert commit
+                p, step_finished = self.trace.next()
                 self.hhh.update(p.ip)
         else:
             s.rewind()
@@ -106,13 +104,11 @@ class Loop(object):
         self._calc_hhh_distance_metrics(b, s)
 
         s.samples = 0
-        # step_finished = False ## TODO revert commit
+        step_finished = False
 
-        for i in range(self.action_interval):  ## TODO revert commit
-            # while not step_finished: ## TODO revert commit
+        while not step_finished:
             try:
-                # p, step_finished = self.trace.next()## TODO revert commit
-                p = self.trace.next()
+                p, step_finished = self.trace.next()
                 self.packets.append(p)
             except StopIteration:
                 self.trace_ended = True
