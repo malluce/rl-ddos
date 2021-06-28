@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import abc
 
+import gin
 import numpy as np
 
 from gym.spaces import Box, Discrete, MultiDiscrete
@@ -44,6 +45,7 @@ class DiscreteActionSet(ActionSet):
         return np.zeros(self.shape)
 
 
+@gin.configurable
 class SmallDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
@@ -62,6 +64,7 @@ class SmallDiscreteActionSet(DiscreteActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
+@gin.configurable
 class MediumDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
@@ -80,6 +83,7 @@ class MediumDiscreteActionSet(DiscreteActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
+@gin.configurable
 class LargeDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
@@ -100,7 +104,7 @@ class LargeDiscreteActionSet(DiscreteActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
-class EvalActionSet(ActionSet):
+class DirectResolveActionSet(ActionSet):
     """
     Used for eval purposes, where actions are not used as observations (e.g., actions are chosen randomly or fixed)
     """
@@ -124,6 +128,7 @@ class EvalActionSet(ActionSet):
         pass
 
 
+@gin.configurable
 class MultiDiscreteActionSet(DiscreteActionSet):
 
     def __init__(self):
@@ -141,6 +146,7 @@ class MultiDiscreteActionSet(DiscreteActionSet):
         return str(self.actionspace)
 
 
+@gin.configurable
 class ContinuousActionSet(ActionSet):
 
     def __init__(self):
