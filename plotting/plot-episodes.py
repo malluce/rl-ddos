@@ -12,7 +12,6 @@ from matplotlib.gridspec import GridSpec
 from statistics import mean
 from threading import Thread
 from time import sleep
-from _tkinter import TclError
 
 terminated = False
 
