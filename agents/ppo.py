@@ -16,7 +16,8 @@ from absl import logging
 
 import gin
 import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
-
+from tensorflow import DType
+from tf_agents.specs.tensor_spec import BoundedTensorSpec
 from tf_agents.agents.ppo import ppo_clip_agent
 from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
@@ -30,6 +31,8 @@ from tf_agents.networks import value_network
 from tf_agents.networks import value_rnn_network
 from tf_agents.policies import policy_saver
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
+from tf_agents.specs import array_spec
+from tf_agents.typing.types import NestedBoundedTensorSpec, NestedTensorSpec
 from tf_agents.utils import common
 
 from agents.util import get_dirs
@@ -37,6 +40,8 @@ from gyms.hhh.actionset import ContinuousActionSet, LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
 from gyms.hhh.state import BaseObservations, BlocklistDistribution, DistVol, DistVolStd, FalsePositiveRate
 from lib.datastore import Datastore
+
+import numpy as np
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
@@ -92,8 +97,8 @@ def train_eval(
         debug_summaries=False,
         summarize_grads_and_vars=False,
         state_selection=[BaseObservations(), DistVol(), FalsePositiveRate(), DistVolStd(), BlocklistDistribution()],
-        actionset_selection=LargeDiscreteActionSet,
-        trace_length=50000):
+        actionset_selection=LargeDiscreteActionSet(),
+        trace_length=600):
     """A simple train and eval for PPO."""
     if root_dir is None:
         raise AttributeError('train_eval requires a root_dir.')
@@ -126,7 +131,7 @@ def train_eval(
         gym_kwargs = {
             'state_obs_selection': state_selection,
             'use_prev_action_as_obs': True,
-            'actionset_selection': actionset_selection,
+            'actionset': actionset_selection,
             'trace_length': trace_length
         }
 
