@@ -19,7 +19,12 @@ import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
 # from tf_agents.agents.ddpg import actor_network
 # from tf_agents.agents.ddpg import critic_network
+from tf_agents.specs import BoundedTensorSpec
+
 from agents.util import get_dirs
+from gyms.hhh.actionset import ContinuousActionSet
+from gyms.hhh.env import register_hhh_gym
+from gyms.hhh.state import BaseObservations
 from nets import ddpg_actor_network as actor_network
 from nets import ddpg_critic_network as critic_network
 from tf_agents.agents.ddpg import ddpg_agent
@@ -86,9 +91,10 @@ def train_eval(
         debug_summaries=False,
         summarize_grads_and_vars=False,
         eval_metrics_callback=None,
-        state_selection=['base', 'cont_actions', 'distvol', 'fpr', 'distvolstd', 'bldist'],
-        actionset_selection='ContinuousActionSet',
-        trace_length=50000):
+        state_selection=[BaseObservations()],
+        # state_selection=['base', 'cont_actions', 'distvol', 'fpr', 'distvolstd', 'bldist'],
+        actionset_selection=ContinuousActionSet(),
+        trace_length=600):
     """A simple train and eval for DDPG."""
     timestamp = Datastore.get_timestamp()
     dirs = get_dirs(root_dir, timestamp, 'ddpg')
@@ -118,8 +124,9 @@ def train_eval(
         ds_eval = Datastore(root_dir, 'eval')
 
         gym_kwargs = {
-            'state_selection': state_selection,
-            'actionset_selection': actionset_selection,
+            'state_obs_selection': state_selection,
+            'use_prev_action_as_obs': True,
+            'actionset': actionset_selection,
             'trace_length': trace_length
         }
 
@@ -137,11 +144,11 @@ def train_eval(
         eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(eval_env_name, ds_eval))
 
         actor_net = actor_network.ActorNetwork(
-            tf_env.time_step_spec().obs_from_state,
+            tf_env.time_step_spec().observation,
             tf_env.action_spec(),
             fc_layer_params=actor_fc_layers)
 
-        critic_net_input_specs = (tf_env.time_step_spec().obs_from_state,
+        critic_net_input_specs = (tf_env.time_step_spec().observation,
                                   tf_env.action_spec())
 
         critic_net = critic_network.CriticNetwork(
@@ -152,7 +159,7 @@ def train_eval(
 
         tf_agent = ddpg_agent.DdpgAgent(
             tf_env.time_step_spec(),
-            tf_env.action_spec(),
+            action_spec,  # tf_env.action_spec(),
             actor_network=actor_net,
             critic_network=critic_net,
             actor_optimizer=tf.compat.v1.train.AdamOptimizer(
@@ -282,6 +289,7 @@ def train_eval(
 
 
 def main(_):
+    register_hhh_gym()
     tf.compat.v1.enable_v2_behavior()
     logging.set_verbosity(logging.INFO)
     tf.get_logger().setLevel('ERROR')
