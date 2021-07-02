@@ -10,8 +10,8 @@ from .packet import Packet
 @gin.configurable
 class DistributionTrace(object):
     _MAXADDR = 0xffff
-    _NUM_BENIGN_FLOWS = 1000
-    _NUM_ATTACK_FLOWS = 2000
+    _NUM_BENIGN_FLOWS = 500
+    _NUM_ATTACK_FLOWS = 1000
 
     @staticmethod
     def __init_sampler(maxtime, maxaddr, benign_flows, attack_flows):
