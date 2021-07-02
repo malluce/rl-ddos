@@ -6,6 +6,7 @@
 __pycache__/*
 env/
 data/*
+!data/configs
 !data/.gitkeep
 !data/tboard/.gitkeep
 

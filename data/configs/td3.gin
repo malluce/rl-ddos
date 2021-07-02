@@ -1,0 +1,36 @@
+# env params
+TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@BaseObservations(),)
+TrainLoop.actionset_selection=@ContinuousActionSet()
+TrainLoop.trace_length=600
+DistributionTrace.num_benign_flows=500
+DistributionTrace.num_attack_flows=1000
+
+# agent params
+get_train_loop.alg_name='td3'
+TD3WrapAgent.actor_layers=(400, 300)
+TD3WrapAgent.critic_obs_layers=(400,)
+TD3WrapAgent.critic_act_layers=None
+TD3WrapAgent.critic_joint_layers=(300,)
+TD3WrapAgent.actor_lr=1e-2 #1e-3
+TD3WrapAgent.critic_lr=1e-2 #1e-3
+TD3WrapAgent.exploration_noise_std=0.1
+TD3WrapAgent.target_update_tau=5e-3
+TD3WrapAgent.target_update_period=2
+TD3WrapAgent.actor_update_period=2
+TD3WrapAgent.gamma=0.99
+TD3WrapAgent.target_policy_noise=0.2
+TD3WrapAgent.target_policy_clip=0.5
+
+# train params
+TrainLoop.num_iterations = 200000
+TrainLoop.eval_interval = 6000
+TrainLoop.num_eval_episodes = 5
+TrainLoop.batch_size = 1024
+TrainLoop.replay_buf_size = 100000
+TrainLoop.initial_collect_steps = 1200
+TrainLoop.log_interval = 600
+
+
+

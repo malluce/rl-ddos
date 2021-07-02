@@ -1,0 +1,18 @@
+train_eval.num_iterations=200000
+train_eval.env_name='HHHGym-v0'
+train_eval.actionset_selection=@LargeDiscreteActionSet()
+train_eval.eval_interval=500
+train_eval.train_sequence_length=10
+train_eval.input_fc_layer_params=(200, 200)
+train_eval.lstm_size=(128, 128, 128)
+train_eval.output_fc_layer_params=(200,)
+train_eval.batch_size=128#2000
+train_eval.learning_rate=5e-5
+train_eval.learning_rate_decay_rate=0.96
+train_eval.learning_rate_decay_step=1000
+train_eval.trace_length=600
+train_eval.train_checkpoint_interval=5000
+
+
+DistributionTrace.num_benign_flows=500
+DistributionTrace.num_attack_flows=1000
