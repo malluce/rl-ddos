@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import gin
 import numpy as np
 
 from numpy.random import random, randint
@@ -7,6 +7,7 @@ from numpy.random import random, randint
 from .obs import Observation
 
 
+@gin.register
 class FalsePositiveRate(Observation):
 
     def get_observation(self, state):
@@ -22,6 +23,7 @@ class FalsePositiveRate(Observation):
         return np.array([0.2 * random()])
 
 
+@gin.register
 class DistVol(Observation):
 
     def get_observation(self, state):
@@ -40,6 +42,7 @@ class DistVol(Observation):
         return np.zeros(4)
 
 
+@gin.register
 class MinMaxBlockedAddress(Observation):
 
     def get_observation(self, state):
@@ -55,6 +58,7 @@ class MinMaxBlockedAddress(Observation):
         return np.zeros(2)
 
 
+@gin.register
 class DistVolStd(Observation):
 
     def get_observation(self, state):
@@ -70,6 +74,7 @@ class DistVolStd(Observation):
         return np.zeros(1)
 
 
+@gin.register
 class BlocklistDistribution(Observation):
 
     def get_observation(self, state):
@@ -85,6 +90,7 @@ class BlocklistDistribution(Observation):
         return np.zeros(16) * 64.0
 
 
+@gin.register
 class BaseObservations(Observation):
 
     def get_observation(self, state):
