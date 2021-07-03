@@ -97,15 +97,14 @@ class TrainLoop(ABC):
     def _init_metrics(self):
         self.eval_metrics = [
             tf_metrics.AverageReturnMetric(buffer_size=self.num_eval_episodes),
-            tf_metrics.AverageEpisodeLengthMetric(buffer_size=self.num_eval_episodes),
-            tf_metrics.ChosenActionHistogram(buffer_size=self.num_eval_episodes)
+            tf_metrics.AverageEpisodeLengthMetric(buffer_size=self.num_eval_episodes)
         ]
         self.train_metrics = [
             tf_metrics.NumberOfEpisodes(),
             tf_metrics.EnvironmentSteps(),
             tf_metrics.AverageReturnMetric(),
             tf_metrics.AverageEpisodeLengthMetric(),
-            tf_metrics.ChosenActionHistogram()
+            tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype)
         ]
 
     def _init_replay_buffer(self):

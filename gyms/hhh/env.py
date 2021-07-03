@@ -23,6 +23,7 @@ from .state import State
 from .disttrace import DistributionTrace
 
 from lib.datastore import Datastore
+from .util import maybe_cast_to_arr
 
 
 def register_hhh_gym(env_name='HHHGym-v0'):
@@ -258,19 +259,21 @@ class HHHEnv(gym.Env):
         if previous_action is None:
             state_observation = self.loop.state.get_initialization()
             if self.use_prev_action_as_obs:
-                action_observation = self.loop.actionset.get_initialization()
+                action_observation = maybe_cast_to_arr(self.loop.actionset.get_initialization())
         else:
             state_observation = self.loop.state.get_features()
             if self.use_prev_action_as_obs:
-                action_observation = self.loop.actionset.get_observation(previous_action)
+                action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
 
         return state_observation if not self.use_prev_action_as_obs else np.concatenate((state_observation,
                                                                                          action_observation))
 
     def _observation_spec(self):
         if self.use_prev_action_as_obs:
-            lb = np.concatenate((self.loop.state.get_lower_bounds(), self.loop.actionset.get_lower_bound()))
-            ub = np.concatenate((self.loop.state.get_upper_bounds(), self.loop.actionset.get_upper_bound()))
+            lb = np.concatenate(
+                (self.loop.state.get_lower_bounds(), maybe_cast_to_arr(self.loop.actionset.get_lower_bound())))
+            ub = np.concatenate(
+                (self.loop.state.get_upper_bounds(), maybe_cast_to_arr(self.loop.actionset.get_upper_bound())))
         else:
             lb = self.loop.state.get_lower_bounds()
             ub = self.loop.state.get_upper_bounds()

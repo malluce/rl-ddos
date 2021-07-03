@@ -5,6 +5,7 @@ import numpy as np
 from numpy.random import random, randint
 
 from .obs import Observation
+from .util import maybe_cast_to_arr
 
 
 @gin.register
@@ -197,23 +198,23 @@ class State(object):
 
     def get_features(self) -> np.ndarray:
         return np.concatenate([
-            s.get_observation(self) for s in self.selection
+            maybe_cast_to_arr(s.get_observation(self)) for s in self.selection
         ])
 
     # used to set observation_space in env
     def get_lower_bounds(self) -> np.ndarray:
         return np.concatenate([
-            s.get_lower_bound() for s in self.selection
+            maybe_cast_to_arr(s.get_lower_bound()) for s in self.selection
         ])
 
     # used to set observation_space in env
     def get_upper_bounds(self) -> np.ndarray:
         return np.concatenate([
-            s.get_upper_bound() for s in self.selection
+            maybe_cast_to_arr(s.get_upper_bound()) for s in self.selection
         ])
 
     # used to reset env
     def get_initialization(self) -> np.ndarray:
         return np.concatenate([
-            s.get_initialization() for s in self.selection
+            maybe_cast_to_arr(s.get_initialization()) for s in self.selection
         ])

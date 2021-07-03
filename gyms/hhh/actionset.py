@@ -151,23 +151,25 @@ class ContinuousActionSet(ActionSet):
 
     def __init__(self):
         super().__init__()
-        self.actionspace = Box(low=np.array([-1.0]),
-                               high=np.array([1.0]), dtype=np.float32)
+        self.actionspace = Box(low=-1.0,
+                               high=1.0,
+                               shape=(),
+                               dtype=np.float32)
 
     def get_observation(self, action):
-        return np.array([action[0]])
+        return action
 
     def get_lower_bound(self):
-        return np.array([0.01])
+        return 0.01
 
     def get_upper_bound(self):
-        return np.array([0.25])
+        return 0.25
 
     def get_initialization(self):
-        return np.array([0.12])
+        return 0.12
 
     def resolve(self, action):
-        phi = (action[0] + 1.0) * 0.5 * 0.24 + 0.01
+        phi = (action + 1.0) * 0.5 * 0.24 + 0.01
 
         if phi <= 0.015:
             min_prefixlen = 21
