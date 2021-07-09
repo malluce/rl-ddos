@@ -157,20 +157,26 @@ class ContinuousActionSet(ActionSet):
                                dtype=np.float32)
 
     def get_observation(self, action):
-        return action
+        # return action
+        return self._agent_action_to_phi(action)
+
+    def _agent_action_to_phi(self, agent_action):
+        return np.clip(0.5 + 0.5 * agent_action, self.get_lower_bound(), self.get_upper_bound())
 
     def get_lower_bound(self):
         return 0.01
 
     def get_upper_bound(self):
-        return 0.25
+        # return 0.25
+        return 1.0
 
     def get_initialization(self):
         return 0.12
 
     def resolve(self, action):
-        phi = (action + 1.0) * 0.5 * 0.24 + 0.01
+        # phi = (action + 1.0) * 0.5 * 0.24 + 0.01
 
+        phi = self._agent_action_to_phi(action)
         if phi <= 0.015:
             min_prefixlen = 21
         if phi > 0.015 and phi <= 0.05:
