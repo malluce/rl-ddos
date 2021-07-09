@@ -64,6 +64,22 @@ class DistributionTrace(object):
                              attack=True),
         ]
 
+        # TODO replace by above (only a simple example)
+        flowsamplers = [
+            # 1st set of benign flows
+            FlowGroupSampler(benign_flows,
+                             UniformSampler(0, 1),
+                             UniformSampler(maxtime - 1, maxtime),
+                             UniformSampler(0.2 * maxaddr, 0.5 * maxaddr),
+                             attack=False),
+            # 1st set of attack flows
+            FlowGroupSampler(attack_flows,
+                             UniformSampler(0, 1),
+                             UniformSampler(maxtime - 1, maxtime),
+                             UniformSampler(0.7 * maxaddr, 1.0 * maxaddr),
+                             attack=True)
+        ]
+
         trace_sampler = TraceSampler(flowsamplers, maxtime)
         trace_sampler.init_flows()
 
@@ -97,13 +113,7 @@ class DistributionTrace(object):
         :raises StopIteration: when the end of the episode is reached (the trace finished)
         :returns: packet, step_finished
         """
-        if self.i == self.N:
-            raise StopIteration()
-
-        addr, rate, attack, step_finished = next(self.samples)
-        self.i += 1
-
-        return Packet(addr, attack == 1), step_finished
+        return next(self.samples)
 
     def __iter__(self):
         return self
@@ -117,7 +127,6 @@ class DistributionTrace(object):
             self.maxtime, self.maxaddr, self.benign_flows, self.attack_flows)
         self.samples = self.trace_sampler.samples()
         self.N = self.trace_sampler.num_samples
-        self.i = 0
         print(f'number of packets next episode: {self.N}')
 
     def __len__(self):

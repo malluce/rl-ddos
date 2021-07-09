@@ -2,6 +2,8 @@
 
 import argparse
 import math
+from ipaddress import IPv4Address
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mgrid
 import numpy as np
@@ -11,24 +13,20 @@ import time
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.cpp.hhhmodule import HIERARCHY_SIZE
 
+from gyms.hhh.packet import Packet
+
 
 def cmdline():
     argp = argparse.ArgumentParser(description='Simulated HHH generation')
 
-    argp.add_argument('--benign', type=int, default=2000,
-                      help='Number of benign flows')
-    argp.add_argument('--attack', type=int, default=1000,
-                      help='Number of attack flows')
-    argp.add_argument('--steps', type=int, default=7500,
-                      help='Number of time steps')
-    argp.add_argument('--maxaddr', type=int, default=0xfff,
-                      help='Size of address space')
-    argp.add_argument('--epsilon', type=float, default=.005,
-                      help='Error bound')
-    argp.add_argument('--phi', type=float, default=.02,
-                      help='Query threshold')
-    argp.add_argument('--minprefix', type=int, default=0,
-                      help='Minimum prefix length')
+    argp.add_argument('--benign', type=int, default=500, help='Number of benign flows')
+    argp.add_argument('--attack', type=int, default=2000, help='Number of attack flows')
+    argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
+    argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
+    argp.add_argument('--epsilon', type=float, default=0.0001, help='Error bound')
+    argp.add_argument('--phi', type=float, default=.5, help='Query threshold')
+    argp.add_argument('--minprefix', type=int, default=17, help='Minimum prefix length')
+    argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
 
     return argp.parse_args()
 
@@ -44,13 +42,14 @@ class Sampler(object):
 
 class UniformSampler(Sampler):
 
-    def __init__(self, start, end):
+    def __init__(self, start, end, seed=None):
         super().__init__()
+        self.rng = np.random.default_rng(seed=seed)
         self.start = start
         self.end = end
 
     def sample(self, num_samples):
-        samples = np.random.uniform(self.start, self.end, num_samples)
+        samples = self.rng.uniform(self.start, self.end, num_samples)
         samples = samples.astype(int)
 
         return samples
@@ -62,13 +61,14 @@ class WeibullSampler(Sampler):
     def quantile(x, weibull_a):
         return (-math.log(1 - (x / 100))) ** (1 / weibull_a)
 
-    def __init__(self, weibull_a, scale):
+    def __init__(self, weibull_a, scale, seed=None):
         super().__init__()
+        self.rng = np.random.default_rng(seed=seed)
         self.a = weibull_a
         self.scale = scale
 
     def sample(self, num_samples):
-        samples = self.scale * np.random.weibull(self.a, size=(num_samples))
+        samples = self.scale * self.rng.weibull(self.a, size=(num_samples))
         samples = samples.astype(int)
 
         return samples
@@ -76,8 +76,9 @@ class WeibullSampler(Sampler):
 
 class NormalSampler(Sampler):
 
-    def __init__(self, mean, stddev, min=None, max=None):
+    def __init__(self, mean, stddev, min=None, max=None, seed=None):
         super().__init__()
+        self.rng = np.random.default_rng(seed=seed)
         self.mean = mean
         self.stddev = stddev
         self.min = min
@@ -93,7 +94,7 @@ class NormalSampler(Sampler):
         return samples
 
     def sample(self, num_samples):
-        samples = np.random.normal(self.mean, self.stddev, num_samples)
+        samples = self.rng.normal(self.mean, self.stddev, num_samples)
         samples = samples.astype(int)
 
         return self._crop(samples)
@@ -129,47 +130,24 @@ class FlowGroupSampler(object):
         Generates flows according to the provided samplers.
 
         :returns: pd.DataFrame with self.num_flows many rows and six columns specifying the generated flows
-         ('start','end', 'duration', 'addr', 'rate', 'attack')
+         ('start','end', 'duration', 'addr', 'rate', 'attack'). Rate is always 1. Attack can be 0 or 1.
         """
         addr = self.address_sampler.sample(self.num_flows)
         start = self.start_sampler.sample(self.num_flows)
         duration = self.duration_sampler.sample(self.num_flows)
         end = start + duration
 
+        rate = np.ones_like(start)
+
         if self.attack:
             attk = np.ones_like(start)
-            rate = np.ones_like(start)
         else:
             attk = np.zeros_like(start)
-            rate = np.ones_like(start)
 
         df = pd.DataFrame(
             np.array((start, end, duration, addr, rate, attk)).transpose(),
             columns=['start', 'end', 'duration', 'addr', 'rate', 'attack'])
         return df
-
-
-class Timer(object):
-
-    def __init__(self):
-        self.elapsed_time = 0
-        self.start_time = 0
-
-    def start(self):
-        self.start_time = time.time()
-        return self
-
-    def stop(self):
-        self.elapsed_time += time.time() - self.start_time
-        return self
-
-    def accumulate(self, func):
-        self.start()
-        func()
-        self.stop()
-
-    def __str__(self):
-        return '{:s}'.format(str(self.elapsed_time))
 
 
 class TraceSampler(object):
@@ -198,7 +176,7 @@ class TraceSampler(object):
         Samples flows from flowsamplers to flows, sets flowgrid (shape (maxtime, 2*maxaddr))
         and num_samples (number of non-zero entries in flowgrid).
         """
-        self.flows = pd.concat([s.sample() for s in self.flowsamplers])
+        self.flows = pd.concat([s.sample() for s in self.flowsamplers])  # flows=[(num_flows, 6)]
 
         maxaddr = self.flows['addr'].max()
         maxtime = self.flows['end'].max()
@@ -211,32 +189,42 @@ class TraceSampler(object):
         attack_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
                                    columns=range(maxaddr + 1), dtype=int)
 
-        for _, f in self.flows.iterrows():
+        for _, f in self.flows.iterrows():  # aggregate sampled flow to grids (timesteps,addresses)
             timespan = ((rate_grid.index >= f['start']) & (rate_grid.index <= f['end']))
             rate_grid.loc[timespan, f['addr']] += f['rate']
             # TODO: handle overlap of benign and attack flows
             attack_grid.loc[timespan, f['addr']] += f['attack']
 
         self.flowgrid = pd.concat({'rate': rate_grid, 'attack': attack_grid}, axis=1)
-        self.num_samples = np.count_nonzero(self.flowgrid['rate'])
+        self.num_samples = self.flowgrid['rate'].sum().sum()
+        self.num_attack_samples = self.flowgrid['attack'].sum().sum()
 
     def samples(self):
         step_finished = False
-
-        for t in self.flowgrid.index:  # iterate over all rows
+        for t in self.flowgrid.index:  # iterate over all rows (= time steps)
             step = self.flowgrid.loc[self.flowgrid.index == t]
             step_rates = step.loc[t, ('rate')]
             step_attack = step.loc[t, ('attack')]
 
-            for addr in step_rates.index[(step_rates.values > 0)]:
-                yield addr, step_rates[addr], step_attack[addr], step_finished
+            for addr in np.random.permutation(step_rates.index[(step_rates.values > 0)]):
+                rate = step_rates[addr]
+                attack_rate = step_attack[addr]
+
+                for i in range(rate):  # yield all packets of addr (can be malicious or benign)
+                    malicious = i < attack_rate
+                    finished = step_finished and i == rate - 1
+                    yield Packet(addr, malicious), finished
+
                 step_finished = False
 
             step_finished = True
 
     def next(self):
-        for addr, rate, attack, step_finished in self.samples():
-            yield addr, rate, attack, step_finished
+        """
+        Yields the next packet and a bool indicating whether the current step finished.
+        """
+        for packet, step_finished in self.samples():
+            yield packet, step_finished
 
     def __next__(self):
         return self.next()
@@ -263,144 +251,154 @@ class ProgressBar(object):
         print(fmt.format('#' * round(self.displaysteps * p), round(100 * p)), end=e)
 
 
-def playthrough(traffic_sampler, epsilon, phi, minprefix):
-    bar = ProgressBar(traffic_sampler.maxtime)
-    res = pd.DataFrame(np.zeros_like(traffic_sampler.flowgrid['rate']),
-                       columns=traffic_sampler.flowgrid['rate'].columns)
-    t = 0
+def playthrough(trace_sampler, epsilon, phi, minprefix):
+    bar = ProgressBar(trace_sampler.maxtime)
+    frequencies = pd.DataFrame(np.zeros_like(trace_sampler.flowgrid['rate']),
+                               columns=trace_sampler.flowgrid['rate'].columns)
+
+    h = HHHAlgo(epsilon)
+    step = 0
 
     # play through non-zero entries in flowgrid
-    for addr, rate, attack, step_finished in traffic_sampler.samples():
-        if t % 5 == 0:
-            h = HHHAlgo(epsilon)
-
+    for packet, step_finished in trace_sampler.samples():
         # update hhh algorithm
-        h.update(addr, rate)
+        h.update(packet.ip, 1)
 
         # perform query and calculate hhh coverage
         if step_finished:
-            t += 1
-            hhhs = [HHHEntry(_) for _ in h.query(phi, minprefix)]
+            hhhs = h.query(phi, minprefix)
+            hhhs = [HHHEntry(_) for _ in hhhs]
             hhhs = sorted(hhhs, key=lambda x: x.size)
-
-            for i in range(len(hhhs)):
+            print(f'===== timestep {step} =====')
+            for r in hhhs:
+                print(f'{str(IPv4Address(r.id)).rjust(15)}/{r.len} {r.lo, r.hi}')
+            for i in range(len(hhhs)):  # iterate over HHHs sorted by prefix length
                 x = hhhs[i]
 
                 for y in hhhs[i + 1:]:
                     if y.contains(x):
+                        # decrement all f_max and f_min of HHHs contained in x
                         y.hi = max(0, y.hi - x.hi)
                         y.lo = max(0, y.lo - x.lo)
 
-                span = ((res.columns >= x.id) & (res.columns < (x.end)))
-                res.loc[t, span] += x.hi
+                span = ((frequencies.columns >= x.id) & (frequencies.columns < (x.end)))
+                frequencies.loc[step, span] += x.hi
+
+            step += 1
+            h = HHHAlgo(epsilon)
 
             if bar.increment():
                 bar.update()
 
-    return res
+    return frequencies
 
 
-def plot(flows, flowgrid, hhhgrid):
+def plot(args, flows, flowgrid, hhhgrid=None):
     fig = plt.figure(figsize=(16, 8))
-    gs = mgrid.GridSpec(3, 3)
+    gs = mgrid.GridSpec(3, 5)
 
-    ax1 = fig.add_subplot(gs[:, 0])
-    ax2 = fig.add_subplot(gs[:, 1])
-    ax3 = fig.add_subplot(gs[0, 2])
-    ax4 = fig.add_subplot(gs[1, 2])
-    ax5 = fig.add_subplot(gs[2, 2])
+    ax0 = fig.add_subplot(gs[:, 0])
+    ax1 = fig.add_subplot(gs[:, 1])
+    ax2 = fig.add_subplot(gs[:, 2])
+    ax3 = fig.add_subplot(gs[:, 3])
+    ax5 = fig.add_subplot(gs[0, 4])
+    ax6 = fig.add_subplot(gs[1, 4])
+    ax7 = fig.add_subplot(gs[2, 4])
 
-    titlesize = 11
-    labelsize = 10
-    benign_color = 'lightsteelblue'
+    titlesize = 9
+    labelsize = 9
+    ticksize = 8
+    benign_color = 'dodgerblue'
     attack_color = 'crimson'
     combined_color = 'darkgrey'
 
     benign_flows = flows[flows['attack'] == 0]
     attack_flows = flows[flows['attack'] > 0]
+    attackgrid = flowgrid['attack']
     rategrid = flowgrid['rate']
-    attkgrid = flowgrid['attack']
+    benigngrid = rategrid - attackgrid
 
-    ax1.set_title('Traffic intensity', fontsize=titlesize)
-    ax1.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax1.set_ylabel('Time (percent)', fontsize=labelsize)
-    im = rategrid.groupby(pd.cut(flowgrid.index, 400, labels=False)).sum()
-    im = im.groupby(pd.cut(im.columns, 200, labels=False), axis=1).sum()
-    from matplotlib import colors
-    ax1.pcolormesh(np.arange(200) / 2, np.arange(400) / 4, im.values,
-                   cmap='gist_heat_r', shading='auto')
+    def plot_heatmap(axis, grid, vmin=None, vmax=None):
+        ycut, ybins = pd.cut(flowgrid.index, 300, labels=False,
+                             right=False, retbins=True)
+        im = grid.groupby(ycut).sum()
+        im = im.groupby(pd.cut(im.columns, 200, labels=False), axis=1).sum()
+        vmin = vmin if vmin is not None else im.min().min()
+        vmax = vmax if vmax is not None else im.max().max()
+        mesh = axis.pcolormesh(np.arange(200) / 2, ybins[1:], im.values,
+                               cmap='gist_heat_r', shading='nearest', vmin=vmin, vmax=vmax)
+        axis.set_xticks(np.arange(0, 101, 20))
+        axis.set_yticks(np.arange(0, ybins.max() + 1, 20))
+        axis.tick_params(labelsize=ticksize)
+        cb = fig.colorbar(mesh, ax=axis, aspect=100)
+        cb.ax.tick_params(labelsize=ticksize)
 
-    plt.subplots_adjust(wspace=.2, hspace=.8)
-    ax2.set_title('Generated HHHs', fontsize=titlesize)
+        return vmin, vmax
+
+    ax2.set_title('Combined data rate', fontsize=titlesize)
     ax2.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax2.set_ylabel('Time (percent)', fontsize=labelsize)
-    im = hhhgrid.groupby(pd.cut(hhhgrid.index, 400, labels=False)).sum()
-    im = im.groupby(pd.cut(im.columns, 200, labels=False), axis=1).sum()
-    ax2.pcolormesh(np.arange(200) / 2, np.arange(400) / 4, im.values,
-                   cmap='gist_heat_r', shading='auto')
+    ax2.set_ylabel('Step', fontsize=labelsize)
+    vmin, vmax = plot_heatmap(ax2, rategrid)
 
-    ax3.set_title('Flow length distribution', fontsize=titlesize)
-    ax3.set_xlabel('Flow length', fontsize=labelsize)
-    ax3.set_ylabel('Frequency', fontsize=labelsize)
+    ax0.set_title('Benign data rate', fontsize=titlesize)
+    ax0.set_xlabel('Address space (percent)', fontsize=labelsize)
+    ax0.set_ylabel('Step', fontsize=labelsize)
+    plot_heatmap(ax0, benigngrid, vmin, vmax)
+
+    ax1.set_title('Attack data rate', fontsize=titlesize)
+    ax1.set_xlabel('Address space (percent)', fontsize=labelsize)
+    ax1.set_ylabel('Step', fontsize=labelsize)
+    plot_heatmap(ax1, attackgrid, vmin, vmax)
+
+    if hhhgrid is not None:
+        ax3.set_title(f'HHH frequency \n (phi={args.phi}, L={args.minprefix})', fontsize=titlesize)
+        ax3.set_xlabel('Address space (percent)', fontsize=labelsize)
+        ax3.set_ylabel('Step', fontsize=labelsize)
+        plot_heatmap(ax3, hhhgrid)
+
+    def plot_frequencies(axis, x, y, color):
+        axis.fill_between(x, y, 0, facecolor=color, alpha=.6)
+        axis.tick_params(labelsize=ticksize)
+
+    ax5.set_title('Flow length distribution', fontsize=titlesize)
+    ax5.set_xlabel('Flow length', fontsize=labelsize)
+    ax5.set_ylabel('Frequency', fontsize=labelsize)
     maxd = attack_flows['duration'].max()
-    bins = np.arange(0, maxd, int(maxd / 60))
+    bins = np.arange(0, maxd, max(1, int(maxd / 60)))
     benign_bins, _ = pd.cut(benign_flows['duration'], bins=bins,
                             include_lowest=True, right=False, retbins=True)
     attack_bins, _ = pd.cut(attack_flows['duration'], bins=bins,
                             include_lowest=True, right=False, retbins=True)
-    m, s, b = ax3.stem(bins[1:], benign_bins.value_counts(sort=False).values)
-    plt.setp(m, color=benign_color, markersize=3)  # marker
-    plt.setp(s, color=benign_color)  # stemline
-    m, s, b = ax3.stem(bins[1:], attack_bins.value_counts(sort=False).values)
-    plt.setp(m, color=attack_color, markersize=3)  # marker
-    plt.setp(s, color=attack_color)  # stemline
-    plt.setp(b, color='k')  # baseline
+    plot_frequencies(ax5, bins[1:], attack_bins.value_counts(sort=False).values,
+                     attack_color)
+    plot_frequencies(ax5, bins[1:], benign_bins.value_counts(sort=False).values,
+                     benign_color)
 
-    ax4.set_title('Data rate distribution over IP space', fontsize=titlesize)
-    ax4.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax4.set_ylabel('Data rate', fontsize=labelsize)
+    ax6.set_title('Data rate distribution over IP space', fontsize=titlesize)
+    ax6.set_xlabel('Address space (percent)', fontsize=labelsize)
+    ax6.set_ylabel('Data rate', fontsize=labelsize)
     rates = rategrid.sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax4.stem(rates.index, rates.values)
-    plt.setp(m, color=combined_color, markersize=2)  # marker
-    plt.setp(s, color=combined_color)  # stemline
-    plt.setp(b, color='k')  # baseline
-    rates = rategrid[attkgrid > 0].sum()
+    plot_frequencies(ax6, rates.index, rates.values, combined_color)
+    rates = rategrid[attackgrid > 0].sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax4.stem(rates.index, rates.values)
-    plt.setp(m, color=attack_color, markersize=2)  # marker
-    plt.setp(s, color=attack_color)  # stemline
-    plt.setp(b, color='k')  # baseline
-    rates = rategrid[attkgrid == 0].sum()
+    plot_frequencies(ax6, rates.index, rates.values, attack_color)
+    rates = rategrid[attackgrid == 0].sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax4.stem(rates.index, rates.values)
-    plt.setp(m, color=benign_color, markersize=2)  # marker
-    plt.setp(s, color=benign_color)  # stemline
-    plt.setp(b, color='k')  # baseline
+    plot_frequencies(ax6, rates.index, rates.values, benign_color)
 
-    ax5.set_title('Data rate over time', fontsize=titlesize)
-    ax5.set_xlabel('Time (percent)', fontsize=labelsize)
-    ax5.set_ylabel('Data rate', fontsize=labelsize)
-    rates = flowgrid.sum(axis=1)
-    rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax5.stem(rates.index, rates.values)
-    plt.setp(m, color=combined_color, markersize=2)  # marker
-    plt.setp(s, color=combined_color)  # stemline
-    plt.setp(b, color='k')  # baseline
-    rates = rategrid[attkgrid > 0].sum(axis=1)
-    rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax5.stem(rates.index, rates.values)
-    plt.setp(m, color=attack_color, markersize=2)  # marker
-    plt.setp(s, color=attack_color)  # stemline
-    plt.setp(b, color='k')  # baseline
-    rates = rategrid[attkgrid == 0].sum(axis=1)
-    rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
-    m, s, b = ax5.stem(rates.index, rates.values)
-    plt.setp(m, color=benign_color, markersize=2)  # marker
-    plt.setp(s, color=benign_color)  # stemline
-    plt.setp(b, color='k')  # baseline
+    ax7.set_title('Data rate over time', fontsize=titlesize)
+    ax7.set_xlabel('Step', fontsize=labelsize)
+    ax7.set_ylabel('Data rate', fontsize=labelsize)
+    rates = rategrid.sum(axis=1)
+    plot_frequencies(ax7, rates.index, rates.values, combined_color)
+    rates = rategrid[attackgrid > 0].sum(axis=1)
+    plot_frequencies(ax7, rates.index, rates.values, attack_color)
+    rates = rategrid[attackgrid == 0].sum(axis=1)
+    plot_frequencies(ax7, rates.index, rates.values, benign_color)
 
     plt.subplots_adjust(wspace=.5, hspace=.5)
+    plt.tight_layout()
     plt.show()
 
 
@@ -410,77 +408,32 @@ def main():
     maxaddr = args.maxaddr
     maxtime = args.steps
 
-    #	benign_start_time_sampler = UniformSampler(0, .95 * maxtime)
-    #	attack_start_time_sampler = UniformSampler(0, 2/3 * maxtime)
-    #	benign_duration_sampler = WeibullSampler(3/2,
-    #		(1 / WeibullSampler.quantile(99, 3/2)) * 1/8 * maxtime)
-    #	# We calculate the stretch factor of the Weibull distribution
-    #	# so that 99% of all malicious flows will finish before maxtime
-    #	attack_duration_sampler = WeibullSampler(2,
-    #		(1 / WeibullSampler.quantile(99, 2)) * 1/3 * maxtime)
-    #	benign_address_samplers = [
-    #		NormalSampler(1/2 * maxaddr, .17 * maxaddr, 1, maxaddr)
-    #	]
-    #	attack_address_samplers = [
-    #		NormalSampler(1/4 * maxaddr, .09 * maxaddr, 1, maxaddr),
-    #		NormalSampler(3/4 * maxaddr, .09 * maxaddr, 1, maxaddr)
-    #	]
-    #
-    #	traffic_sampler = TrafficSampler(args.benign, args.attack,
-    #		args.steps, args.maxaddr,
-    #		benign_start_time_sampler, attack_start_time_sampler,
-    #		benign_duration_sampler, attack_duration_sampler,
-    #		benign_address_samplers, attack_address_samplers)
-    #	traffic_sampler.init_flows()
-
     flowsamplers = [
         # 1st set of benign flows
         FlowGroupSampler(args.benign,
-                         UniformSampler(0, .95 * maxtime),
-                         # 99% of all flows shall end before maxtime
-                         WeibullSampler(3 / 2,
-                                        (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * maxtime),
-                         NormalSampler(1 / 2 * maxaddr, .17 * maxaddr, 1, maxaddr),
+                         UniformSampler(0, 1),
+                         UniformSampler(maxtime - 1, maxtime),
+                         UniformSampler(0.2 * maxaddr, 0.5 * maxaddr),
                          attack=False),
         # 1st set of attack flows
-        FlowGroupSampler(args.attack // 3,
-                         UniformSampler(0, 3 / 6 * maxtime),
-                         WeibullSampler(2,
-                                        (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * maxtime),
-                         NormalSampler(1 / 4 * maxaddr, .09 * maxaddr, 1, maxaddr),
-                         attack=True),
-        # 2nd set of attack flows
-        FlowGroupSampler(args.attack // 3,
-                         UniformSampler(2 / 6 * maxtime, 5 / 6 * maxtime),
-                         WeibullSampler(2,
-                                        (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * maxtime),
-                         NormalSampler(3 / 4 * maxaddr, .09 * maxaddr, 1, maxaddr),
-                         attack=True),
-        # 3rd set of attack flows
-        FlowGroupSampler(args.attack // 6,
-                         UniformSampler(0, 5 / 6 * maxtime),
-                         WeibullSampler(2,
-                                        (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * maxtime),
-                         NormalSampler(1 / 8 * maxaddr, .05 * maxaddr, 1, maxaddr),
-                         attack=True),
-        # 4th set of attack flows
-        FlowGroupSampler(args.attack // 6,
-                         UniformSampler(2 / 6, 5 / 6 * maxtime),
-                         WeibullSampler(2,
-                                        (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * maxtime),
-                         NormalSampler(3 / 8 * maxaddr, .05 * maxaddr, 1, maxaddr),
-                         attack=True),
+        FlowGroupSampler(args.attack,
+                         UniformSampler(0, 1),
+                         UniformSampler(maxtime - 1, maxtime),
+                         UniformSampler(0.7 * maxaddr, 1.0 * maxaddr),
+                         attack=True)
     ]
 
-    traffic_sampler = TraceSampler(flowsamplers, maxtime)
-    traffic_sampler.init_flows()
+    trace_sampler = TraceSampler(flowsamplers, maxtime)
+    trace_sampler.init_flows()
 
-    print('Calculating HHHs...')
-    hhhgrid = playthrough(traffic_sampler, args.epsilon, args.phi,
-                          args.minprefix)
+    if not args.nohhh:
+        print('Calculating HHHs...')
+        hhhgrid = playthrough(trace_sampler, args.epsilon, args.phi,
+                              args.minprefix)
+    else:
+        hhhgrid = None
 
-    #	hhhgrid = traffic_sampler.flowgrid['rate']
-    plot(traffic_sampler.flows, traffic_sampler.flowgrid, hhhgrid)
+    plot(args, trace_sampler.flows, trace_sampler.flowgrid, hhhgrid)
 
 
 if __name__ == '__main__':
