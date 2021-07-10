@@ -36,9 +36,10 @@ class TrainLoop(ABC):
                  batch_size: int = 64,
                  replay_buf_size: int = 100000,
                  initial_collect_steps: int = 1200, log_interval: int = 600,
-                 checkpoint_interval: int = 10000
+                 checkpoint_interval: int = 10000,
+                 train_sequence_length: int = 1
                  ):
-
+        self.train_sequence_length = train_sequence_length
         self.checkpoint_interval = checkpoint_interval
         self.num_iterations = num_iterations
         self.eval_interval = eval_interval
@@ -112,12 +113,11 @@ class TrainLoop(ABC):
             self.agent.collect_data_spec,
             batch_size=self.train_env.batch_size,
             max_length=self.replay_buf_size)
-        # Dataset generates trajectories with shape [Bx2x...]
         logging.info(f'Initializing dataset with sample_batch_size={self.batch_size[0]}')
         dataset = self.replay_buffer.as_dataset(
             num_parallel_calls=3,
             sample_batch_size=self.batch_size[0],
-            num_steps=2).prefetch(3)
+            num_steps=self.train_sequence_length + 1).prefetch(3)
         self.dataset_iterator = iter(dataset)
 
     def _init_drivers(self, collect_policy):
@@ -226,6 +226,9 @@ class TrainLoop(ABC):
                 tf.compat.v2.summary.scalar(name='global_steps_per_sec', data=steps_per_sec, step=global_step)
                 timed_at_step = global_step.numpy()
                 time_acc = 0
+
+            for scalar, name in self.agent.get_scalars_to_log():
+                tf.compat.v2.summary.scalar(name=name, data=scalar, step=global_step)
 
             for train_metric in self.train_metrics:  # update train metrics every step
                 train_metric.tf_summaries(train_step=global_step, step_metrics=self.train_metrics[:2])
