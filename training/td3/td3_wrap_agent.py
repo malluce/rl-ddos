@@ -19,10 +19,13 @@ import tensorflow as tf
 class TD3WrapAgent(Td3Agent):
 
     def __init__(self, time_step_spec, action_spec, actor_layers=(400, 300), critic_obs_layers=(400,),
-                 critic_act_layers=None, critic_joint_layers=(300,), actor_lr=1e-3, critic_lr=1e-3,
+                 critic_act_layers=None, critic_joint_layers=(300,),
                  exploration_noise_std=0.1, target_update_tau=5e-3, target_update_period=2, actor_update_period=2,
                  gamma=0.99,
                  target_policy_noise=0.2, target_policy_clip=0.5,
+                 # LR params
+                 actor_lr=1e-3, actor_lr_decay_steps=None, actor_lr_decay_rate=None,
+                 critic_lr=1e-3, critic_lr_decay_steps=None, critic_lr_decay_rate=None,
                  ## RNN params
                  # actor
                  use_act_rnn=False, rnn_act_in_fc_layers=(200, 100), rnn_act_out_fc_layers=(200,),
@@ -32,6 +35,7 @@ class TD3WrapAgent(Td3Agent):
                  rnn_crt_joint_fc_layers=(300,),
                  rnn_crt_lstm_size=(50,), rnn_crt_out_fc_layers=(200,)
                  ):
+        # set actor net
         actor_net = None
         if use_act_rnn:
             actor_net = ActorRnnNetwork(time_step_spec.observation, action_spec,
@@ -40,6 +44,7 @@ class TD3WrapAgent(Td3Agent):
         else:
             actor_net = ActorNetwork(time_step_spec.observation, action_spec, actor_layers)
 
+        # set critic net
         critic_net = None
         if use_crt_rnn:
             critic_net = CriticRnnNetwork((time_step_spec.observation, action_spec),
@@ -55,10 +60,20 @@ class TD3WrapAgent(Td3Agent):
                                        joint_fc_layer_params=critic_joint_layers
                                        )
 
-        # TODO lr decay?
-        self.actor_optimizer = Adam(ExponentialDecay(1e-5, 20000, 0.96, staircase=True))
-        self.critic_optimizer = Adam(ExponentialDecay(1e-5, 20000, 0.96, staircase=True))
+        # set lr (decay)
+        if actor_lr_decay_steps is not None:
+            self.actor_optimizer = Adam(
+                ExponentialDecay(actor_lr, actor_lr_decay_steps, actor_lr_decay_rate, staircase=True))
+        else:
+            self.actor_optimizer = Adam(actor_lr)
 
+        if critic_lr_decay_steps is not None:
+            self.critic_optimizer = Adam(
+                ExponentialDecay(critic_lr, critic_lr_decay_steps, critic_lr_decay_rate, staircase=True))
+        else:
+            self.critic_optimizer = Adam(critic_lr)
+
+        # create agent
         super(TD3WrapAgent, self).__init__(
             time_step_spec, action_spec,
             actor_net, critic_net,
@@ -77,4 +92,4 @@ class TD3WrapAgent(Td3Agent):
     def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
         actor_lr = self.actor_optimizer._decayed_lr(tf.float32)
         critic_lr = self.critic_optimizer._decayed_lr(tf.float32)
-        return [(actor_lr, 'actor_lr'), (critic_lr, 'actor_lr')]
+        return [(actor_lr, 'actor_lr'), (critic_lr, 'critic_lr')]
