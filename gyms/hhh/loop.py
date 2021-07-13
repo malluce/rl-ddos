@@ -115,6 +115,7 @@ class Loop(object):
                 break
 
             s.total += 1
+            s.packets_per_step += 1
 
             if p.malicious:
                 s.malicious += 1

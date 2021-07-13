@@ -122,6 +122,7 @@ class State(object):
 
     def rewind(self):
         # keep total items and current phi
+        self.packets_per_step = 0  # packets per step
         self.samples = 0  # sampled packets ("behind" upstream filter)
         self.blocked = 0  # blocked packets
         self.malicious = 0  # malicious packets
@@ -179,9 +180,9 @@ class State(object):
 
     def _calc_false_positive_rate(self):
         # calculation of false positive rate
-        benign = self.total - self.malicious
+        benign = self.packets_per_step - self.malicious
         benign_blocked = self.blocked - self.malicious_blocked
-        estimated_benign = self.total - self.estimated_malicious
+        estimated_benign = self.packets_per_step - self.estimated_malicious
         estimated_benign_blocked = self.blocked - self.estimated_malicious_blocked
         try:
             self.fpr = 1.0 * benign_blocked / benign

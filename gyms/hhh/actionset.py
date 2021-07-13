@@ -175,10 +175,10 @@ class ContinuousActionSet(ActionSet):
 
     def resolve(self, action):
         # phi = (action + 1.0) * 0.5 * 0.24 + 0.01
-
+        
         phi = self._agent_action_to_phi(action)
         min_prefixlen = self._phi_to_prefixlen(phi)
-        
+
         return phi, min_prefixlen
 
     def _phi_to_prefixlen(self, phi):
