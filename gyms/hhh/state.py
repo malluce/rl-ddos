@@ -168,11 +168,14 @@ class State(object):
         # calculation of precision
         try:
             self.precision = 1.0 * self.malicious_blocked / self.blocked
-            self.estimated_precision = (self.estimated_malicious_blocked
-                                        / self.blocked)
         except ZeroDivisionError:
-            self.precision = 0.0
-            self.estimated_precision = 0.0
+            # if no packet was blocked, but there was no mal packet, then precision=1
+            self.precision = 1.0 if self.malicious == 0 else 0.0
+
+        try:
+            self.estimated_precision = (self.estimated_malicious_blocked / self.blocked)
+        except ZeroDivisionError:
+            self.estimated_precision = 1.0 if int(self.estimated_malicious) == 0 else 0.0
 
     def _calc_false_positive_rate(self):
         # calculation of false positive rate
@@ -182,19 +185,24 @@ class State(object):
         estimated_benign_blocked = self.blocked - self.estimated_malicious_blocked
         try:
             self.fpr = 1.0 * benign_blocked / benign
-            self.estimated_fpr = (estimated_benign_blocked / estimated_benign)
         except ZeroDivisionError:
             self.fpr = 0.0
+
+        try:
+            self.estimated_fpr = (estimated_benign_blocked / estimated_benign)
+        except ZeroDivisionError:
             self.estimated_fpr = 0.0
 
     def _calc_recall(self):
         try:
             self.recall = 1.0 * self.malicious_blocked / self.malicious
-            self.estimated_recall = (self.estimated_malicious_blocked
-                                     / self.estimated_malicious)
         except ZeroDivisionError:
-            self.recall = 0.0
-            self.estimated_recall = 0.0
+            self.recall = 1.0  # if no malicious packets -> captured all! -> recall=1
+
+        try:
+            self.estimated_recall = (self.estimated_malicious_blocked / self.estimated_malicious)
+        except ZeroDivisionError:
+            self.estimated_recall = 1.0
 
     def get_features(self) -> np.ndarray:
         return np.concatenate([

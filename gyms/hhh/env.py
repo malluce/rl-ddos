@@ -233,7 +233,9 @@ class HHHEnv(gym.Env):
 
     def _calc_reward(self, state):
         if state.blacklist_size == 0:
-            reward = 0.0
+            # fpr is 0 (nothing blocked, so there are no false positives)
+            # precision and recall are 1 if there is no malicious packet, 0 otherwise
+            reward = state.precision * state.recall
         else:
             reward = (
                     (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
