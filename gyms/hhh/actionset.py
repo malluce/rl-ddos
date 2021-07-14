@@ -175,7 +175,7 @@ class ContinuousActionSet(ActionSet):
 
     def resolve(self, action):
         # phi = (action + 1.0) * 0.5 * 0.24 + 0.01
-        
+
         phi = self._agent_action_to_phi(action)
         min_prefixlen = self._phi_to_prefixlen(phi)
 
@@ -183,15 +183,15 @@ class ContinuousActionSet(ActionSet):
 
     def _phi_to_prefixlen(self, phi):
         min_prefixlen = 0
-        if phi <= 0.015:
+        if phi <= 0.06:
             min_prefixlen = 21
-        if phi > 0.015 and phi <= 0.05:
+        if phi > 0.06 and phi <= 0.2:
             min_prefixlen = 20
-        if phi > 0.05 and phi <= 0.12:
+        if phi > 0.2 and phi <= 0.48:
             min_prefixlen = 19
-        if phi > 0.12 and phi <= 0.2:
+        if phi > 0.48 and phi <= 0.8:
             min_prefixlen = 18
-        if phi > 0.2:
+        if phi > 0.8:
             min_prefixlen = 17
         return min_prefixlen
 
