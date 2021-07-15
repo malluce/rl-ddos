@@ -1,7 +1,8 @@
 import gin
+import tf_agents
 from absl import app, flags, logging
 import tensorflow as tf
-
+import dask
 from gyms.hhh.env import register_hhh_gym
 from training.train_loop import get_train_loop
 
@@ -18,6 +19,8 @@ def main(_):
         tf.config.experimental.set_memory_growth(gpu, True)
     for gin_file in FLAGS.gin_file:
         gin.parse_config_file(gin_file)
+    gin.config._OPERATIVE_CONFIG_LOCK = dask.utils.SerializableLock()  # required for PPO when instantiating envs
+    tf_agents.system.multiprocessing.enable_interactive_mode()
     get_train_loop(env_name=env_name).train()
     return 0
 
