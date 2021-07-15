@@ -4,7 +4,7 @@ import abc
 import gin
 import numpy as np
 
-from gym.spaces import Box, Discrete, MultiDiscrete
+from gym.spaces import Box, Discrete, MultiDiscrete, Tuple
 from abc import ABC
 
 from gyms.hhh.obs import Observation
@@ -146,6 +146,48 @@ class MultiDiscreteActionSet(DiscreteActionSet):
         return str(self.actionspace)
 
 
+def agent_action_to_phi(agent_action, lower_bound, upper_bound):
+    """
+    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid phi value.
+    :param upper_bound: upper bound on the output
+    :param lower_bound: lower bound on the output
+    :param agent_action: action in [-1.0, 1.0]
+    """
+    return np.clip(0.5 + 0.5 * agent_action, lower_bound, upper_bound)
+
+
+@gin.configurable
+class TupleActionSet(ActionSet):
+    NUMBER_OF_PREFIXES = 17  # number of different prefixes, e.g. 3 means /32, /31, /30 and 17 means /32.../16
+
+    def __init__(self):
+        super(TupleActionSet, self).__init__()
+        phi_space = Box(-1.0, 1.0, shape=(), dtype=np.float32)
+        prefix_space = Discrete(self.NUMBER_OF_PREFIXES)  # values 0..NUMBER_OF_PREFIXES-1
+        self.actionspace = Tuple((phi_space, prefix_space))
+
+    def resolve(self, action):
+        phi = agent_action_to_phi(action[0], self.get_lower_bound(), self.get_upper_bound())
+        prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES+1
+        return phi, prefix_len
+
+    def get_min_prefixlen(self):
+        return 32 - self.NUMBER_OF_PREFIXES + 1
+
+    def get_observation(self, action):
+        # TODO also min_prefix here? (action[1])
+        return agent_action_to_phi(action[0], self.get_lower_bound(), self.get_upper_bound())
+
+    def get_lower_bound(self):
+        return 0.01
+
+    def get_upper_bound(self):
+        return 1.0
+
+    def get_initialization(self):
+        return 0.12
+
+
 @gin.configurable
 class ContinuousActionSet(ActionSet):
 
@@ -158,25 +200,19 @@ class ContinuousActionSet(ActionSet):
 
     def get_observation(self, action):
         # return action
-        return self._agent_action_to_phi(action)
-
-    def _agent_action_to_phi(self, agent_action):
-        return np.clip(0.5 + 0.5 * agent_action, self.get_lower_bound(), self.get_upper_bound())
+        return agent_action_to_phi(action, self.get_lower_bound(), self.get_upper_bound())
 
     def get_lower_bound(self):
         return 0.01
 
     def get_upper_bound(self):
-        # return 0.25
         return 1.0
 
     def get_initialization(self):
         return 0.12
 
     def resolve(self, action):
-        # phi = (action + 1.0) * 0.5 * 0.24 + 0.01
-
-        phi = self._agent_action_to_phi(action)
+        phi = agent_action_to_phi(action, self.get_lower_bound(), self.get_upper_bound())
         min_prefixlen = self._phi_to_prefixlen(phi)
 
         return phi, min_prefixlen
@@ -185,11 +221,11 @@ class ContinuousActionSet(ActionSet):
         min_prefixlen = 0
         if phi <= 0.06:
             min_prefixlen = 21
-        if phi > 0.06 and phi <= 0.2:
+        if 0.06 < phi <= 0.2:
             min_prefixlen = 20
-        if phi > 0.2 and phi <= 0.48:
+        if 0.2 < phi <= 0.48:
             min_prefixlen = 19
-        if phi > 0.48 and phi <= 0.8:
+        if 0.48 < phi <= 0.8:
             min_prefixlen = 18
         if phi > 0.8:
             min_prefixlen = 17
