@@ -206,8 +206,8 @@ class TrainLoop(ABC):
         global_step = tf.compat.v1.train.get_or_create_global_step()
 
         with tf.compat.v2.summary.record_if(global_step.numpy() % 1000 == 0):
-            logging.info(f'Initializing replay for {self.initial_collect_steps} steps.')
             if self.initial_collect_driver is not None:
+                logging.info(f'Initializing replay for {self.initial_collect_steps} steps.')
                 self.initial_collect_driver.run()
             self._eval(eval_policy, global_step)
 
@@ -337,6 +337,7 @@ class PpoTrainLoop(TrainLoop):
 
     def _init_drivers(self, collect_policy):
         # no initial collect driver,..
+        logging.info(f'Initializing Step Driver with num_steps=N*T={self.collect_steps}')
         self.collect_driver = DynamicStepDriver(
             self.train_env,
             collect_policy,
