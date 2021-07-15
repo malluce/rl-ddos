@@ -1,0 +1,28 @@
+# env params
+TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
+TrainLoop.actionset_selection=@TupleActionSet()
+TrainLoop.trace_length=100
+DistributionTrace.num_benign_flows=25
+DistributionTrace.num_attack_flows=50
+
+# agent params
+get_train_loop.alg_name='ppo'
+PPOWrapAgent.lr=1e-5
+PPOWrapAgent.lr_decay_rate=None
+PPOWrapAgent.lr_decay_steps=None
+PPOWrapAgent.gamma=0.99
+PPOWrapAgent.num_epochs=15
+PPOWrapAgent.importance_ratio_clipping=0.2
+PPOWrapAgent.actor_layers=(200, 100)
+PPOWrapAgent.value_layers=(200, 100)
+
+# train params
+TrainLoop.num_iterations = 200000
+TrainLoop.eval_interval = 6000
+TrainLoop.num_eval_episodes = 5
+TrainLoop.replay_buf_size = 101
+TrainLoop.log_interval = 600
+PpoTrainLoop.num_parallel_envs = 5 # N
+PpoTrainLoop.collect_steps_per_iteration_per_env = 10 # T

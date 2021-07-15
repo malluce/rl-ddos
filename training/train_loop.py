@@ -5,10 +5,13 @@ import gin
 import tensorflow as tf
 from typing import Tuple
 
+import tf_agents
 from absl import logging
+from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
 
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
-from tf_agents.environments import suite_gym
+from tf_agents.environments import parallel_py_environment, suite_gym, tf_py_environment
+from tf_agents.environments.parallel_py_environment import ParallelPyEnvironment
 from tf_agents.environments.tf_py_environment import TFPyEnvironment
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
@@ -20,7 +23,9 @@ from agents.util import get_dirs
 from gyms.hhh.actionset import ActionSet
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
-from training.td3.td3_wrap_agent import TD3WrapAgent
+from training.wrap_agents.dqn_wrap_agent import DQNWrapAgent
+from training.wrap_agents.ppo_wrap_agent import PPOWrapAgent
+from training.wrap_agents.td3_wrap_agent import TD3WrapAgent
 
 
 @gin.configurable
@@ -77,7 +82,6 @@ class TrainLoop(ABC):
 
     def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection, trace_length,
                    use_prev_action_as_obs):
-        ds_train = Datastore(dirs['root'], 'train')
         self.ds_eval = Datastore(dirs['root'], 'eval')
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
@@ -85,8 +89,12 @@ class TrainLoop(ABC):
             'actionset': actionset_selection,
             'trace_length': trace_length
         }
-        self.train_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs}))
+        self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'])
         self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))
+
+    def _get_train_env(self, env_name, gym_kwargs, root_dir):
+        ds_train = Datastore(root_dir, 'train')
+        return TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs}))
 
     def _init_summary_writers(self, dirs):
         flush_seconds = 10 * 1000
@@ -105,7 +113,7 @@ class TrainLoop(ABC):
             tf_metrics.EnvironmentSteps(),
             tf_metrics.AverageReturnMetric(),
             tf_metrics.AverageEpisodeLengthMetric(),
-            tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype)
+            # tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype)
         ]
 
     def _init_replay_buffer(self):
@@ -132,8 +140,8 @@ class TrainLoop(ABC):
             observers=[self.replay_buffer.add_batch] + self.train_metrics,
             num_steps=1)
 
-        self.initial_collect_driver.run = common.function(self.initial_collect_driver.run)
-        self.collect_driver.run = common.function(self.collect_driver.run)
+        # self.initial_collect_driver.run = common.function(self.initial_collect_driver.run)
+        # self.collect_driver.run = common.function(self.collect_driver.run)
 
     def _init_checkpointers(self, dirs):
         global_step = tf.compat.v1.train.get_or_create_global_step()
@@ -168,7 +176,7 @@ class TrainLoop(ABC):
         metric_utils.log_metrics(self.eval_metrics)
 
     def _do_one_train_step(self):
-        experience, _ = next(self.dataset_iterator)
+        experience = self._get_experience()
 
         if tf.compat.v1.train.get_or_create_global_step() == 0:
             tf.summary.trace_on()  # trace the first execution of train to obtain model graph for tensorboard
@@ -180,12 +188,15 @@ class TrainLoop(ABC):
                 tf.summary.trace_export(name='graph export', step=0)
         return loss
 
+    def _get_experience(self):
+        return next(self.dataset_iterator)[0]
+
     @gin.configurable
     def train(self):
         self.agent.initialize()
         eval_policy = self.agent.policy
         collect_policy = self.agent.collect_policy
-        self.agent.train = common.function(self.agent.train)
+        self.agent.train = common.function(self.agent.train)  # TODO disable for PPO?
 
         self._init_metrics()
         self._init_replay_buffer()
@@ -196,36 +207,42 @@ class TrainLoop(ABC):
 
         with tf.compat.v2.summary.record_if(global_step.numpy() % 1000 == 0):
             logging.info(f'Initializing replay for {self.initial_collect_steps} steps.')
-            self.initial_collect_driver.run()
+            if self.initial_collect_driver is not None:
+                self.initial_collect_driver.run()
             self._eval(eval_policy, global_step)
 
             self._run_loop(collect_policy, eval_policy, global_step)
 
     def _run_loop(self, collect_policy, eval_policy, global_step):
         policy_state = collect_policy.get_initial_state(self.train_env.batch_size)
+        collect_time = 0
+        train_time = 0
         timed_at_step = global_step.numpy()
-        time_acc = 0
         time_step = None
-        logging.info(f'Training for {self.num_iterations} iterations with batch size {self.batch_size}.')
+        logging.info(f'Training for {self.num_iterations} iterations.')
         for _ in range(self.num_iterations):
             start_time = time.time()
             time_step, policy_state = self.collect_driver.run(
                 time_step=time_step,
                 policy_state=policy_state,
             )
+            collect_time += time.time() - start_time
+            start_time = time.time()
             train_loss = self._do_one_train_step()
             global_step = tf.compat.v1.train.get_or_create_global_step()
-            time_acc += time.time() - start_time
+            train_time += time.time() - start_time
 
             self._maybe_save_checkpoints(global_step)
 
             if global_step.numpy() % self.log_interval == 0:  # log to cmd every log_interval steps
                 logging.info('step = %d, loss = %f', global_step.numpy(), train_loss.loss)
-                steps_per_sec = (global_step.numpy() - timed_at_step) / time_acc
+                steps_per_sec = (global_step.numpy() - timed_at_step) / (collect_time + train_time)
                 logging.info('%.3f steps/sec', steps_per_sec)
+                logging.info('collect_time = %.3f, train_time = %.3f', collect_time, train_time)
                 tf.compat.v2.summary.scalar(name='global_steps_per_sec', data=steps_per_sec, step=global_step)
                 timed_at_step = global_step.numpy()
-                time_acc = 0
+                collect_time = 0
+                train_time = 0
 
             for scalar, name in self.agent.get_scalars_to_log():
                 tf.compat.v2.summary.scalar(name=name, data=scalar, step=global_step)
@@ -233,9 +250,13 @@ class TrainLoop(ABC):
             for train_metric in self.train_metrics:  # update train metrics every step
                 train_metric.tf_summaries(train_step=global_step, step_metrics=self.train_metrics[:2])
 
-            for name, extra_loss in train_loss.extra._asdict().items():  # log _all_ available loss info to tensorboard
-                with tf.name_scope('Losses/'):
-                    tf.compat.v2.summary.scalar(name=name, data=extra_loss, step=global_step)
+            for name, extra_info in train_loss.extra._asdict().items():  # log _all_ available info to tensorboard
+                if extra_info.shape == () or extra_info.shape == (1,):
+                    with tf.name_scope('Losses/'):
+                        tf.compat.v2.summary.scalar(name=name, data=extra_info, step=global_step)
+                else:
+                    with tf.name_scope('Misc/'):
+                        tf.compat.v2.summary.histogram(name=name, data=extra_info, step=global_step)
 
             if global_step.numpy() % self.eval_interval == 0:  # update eval metrics every eval_interval steps
                 self._eval(eval_policy, global_step)
@@ -256,12 +277,94 @@ class Td3TrainLoop(TrainLoop):
     def _get_alg_name(self):
         return 'td3'
 
+    # TODO add action histogram to metrics (works for TD3, but not DQN; not tested yet for PPO)
+
     def _get_agent(self):
         return TD3WrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec())
 
 
+@gin.configurable
+class DqnTrainLoop(TrainLoop):
+
+    def __init__(self, env_name: str):
+        super(DqnTrainLoop, self).__init__(env_name=env_name)  # remainder of parameters are set via gin
+
+    def _get_alg_name(self):
+        return 'dqn'
+
+    def _get_agent(self):
+        return DQNWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec())
+
+
+@gin.configurable
+class PpoTrainLoop(TrainLoop):
+
+    def __init__(self, env_name: str,
+                 num_parallel_envs: int = None,  # N from PPO paper
+                 collect_steps_per_iteration_per_env: int = None  # T from PPO paper
+                 ):
+        self.num_parallel_envs = num_parallel_envs  # N from PPO paper
+        self.collect_steps = collect_steps_per_iteration_per_env * num_parallel_envs  # N*T from PPO paper
+        super().__init__(env_name=env_name)
+
+    def _get_agent(self):
+        return PPOWrapAgent(self.train_env.time_step_spec, self.train_env.action_spec)
+
+    def _get_alg_name(self):
+        return 'ppo'
+
+    def _get_train_env(self, env_name, gym_kwargs, root_dir):
+        # override to support parallel envs
+        load = lambda name, root_path, sub_path: suite_gym.load(name, gym_kwargs={
+            'data_store': Datastore(root_path, subdir=sub_path), **gym_kwargs})
+
+        return TFPyEnvironment(ParallelPyEnvironment(
+            [lambda: load(env_name, root_dir, f'train{i + 1}') for i in range(self.num_parallel_envs)],
+            # TODO fix (only one datastore actually writes stuff to file)
+            start_serially=False))
+
+    def _init_metrics(self):
+        self.eval_metrics = [
+            tf_metrics.AverageReturnMetric(buffer_size=self.num_eval_episodes),
+            tf_metrics.AverageEpisodeLengthMetric(buffer_size=self.num_eval_episodes)
+        ]
+        self.train_metrics = [
+            tf_metrics.NumberOfEpisodes(),
+            tf_metrics.EnvironmentSteps(),
+            tf_metrics.AverageReturnMetric(batch_size=self.num_parallel_envs),  # parallel envs
+            tf_metrics.AverageEpisodeLengthMetric(batch_size=self.num_parallel_envs)
+        ]
+
+    def _init_drivers(self, collect_policy):
+        # no initial collect driver,..
+        self.collect_driver = DynamicStepDriver(
+            self.train_env,
+            collect_policy,
+            observers=[self.replay_buffer.add_batch] + self.train_metrics,
+            num_steps=self.collect_steps)  # .. and NT steps across all environments
+
+    def _init_replay_buffer(self):
+        self.replay_buffer = TFUniformReplayBuffer(
+            self.agent.collect_data_spec,
+            batch_size=self.num_parallel_envs,
+            max_length=self.replay_buf_size)
+        logging.info(f'Initializing replay buffer for {self.num_parallel_envs} environments, '
+                     f'each with a bufsize of {self.replay_buf_size}.')
+        # no initial runs, iterator not set (will gather all data from buf for each train)
+
+    def _get_experience(self):
+        return self.replay_buffer.gather_all()
+
+    def _do_one_train_step(self):
+        loss = super()._do_one_train_step()
+        self.replay_buffer.clear()  # clear replay buffer after training
+        return loss
+
+
 LOOPS = {
-    'td3': Td3TrainLoop
+    'td3': Td3TrainLoop,
+    'dqn': DqnTrainLoop,
+    'ppo': PpoTrainLoop
 }
 
 

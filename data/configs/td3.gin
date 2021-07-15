@@ -1,36 +1,54 @@
 # env params
 TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(),)
+TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
 TrainLoop.actionset_selection=@ContinuousActionSet()
-TrainLoop.trace_length=600
-DistributionTrace.num_benign_flows=500
-DistributionTrace.num_attack_flows=1000
+TrainLoop.trace_length=100 #600
+TrainLoop.train_sequence_length=1 #10
+DistributionTrace.num_benign_flows=25 #500
+DistributionTrace.num_attack_flows=50 #1000
 
-# agent params
+
+## agent params
 get_train_loop.alg_name='td3'
-TD3WrapAgent.actor_layers=(400, 300)
-TD3WrapAgent.critic_obs_layers=(400,)
-TD3WrapAgent.critic_act_layers=None
-TD3WrapAgent.critic_joint_layers=(300,)
-TD3WrapAgent.actor_lr=1e-2 #1e-3
-TD3WrapAgent.critic_lr=1e-2 #1e-3
-TD3WrapAgent.exploration_noise_std=0.1
-TD3WrapAgent.target_update_tau=5e-3
+# actor
+TD3WrapAgent.use_act_rnn=False
+#TD3WrapAgent.use_act_rnn=True
+#TD3WrapAgent.rnn_act_in_fc_layers=(400, 300)
+#TD3WrapAgent.rnn_act_out_fc_layers=(200,)
+#TD3WrapAgent.rnn_act_lstm_size=(128,)
+# critic
+TD3WrapAgent.use_crt_rnn=False
+#TD3WrapAgent.use_crt_rnn=True
+#TD3WrapAgent.rnn_crt_act_fc_layers=None
+#TD3WrapAgent.rnn_crt_obs_fc_layers=(300,)
+#TD3WrapAgent.rnn_crt_joint_fc_layers=(300,)
+#TD3WrapAgent.rnn_crt_lstm_size=(128,)
+#TD3WrapAgent.rnn_crt_out_fc_layers=(64,)
+# lr
+TD3WrapAgent.actor_lr=1e-5
+TD3WrapAgent.actor_lr_decay_steps=20000
+TD3WrapAgent.actor_lr_decay_rate=0.96
+TD3WrapAgent.critic_lr=1e-5
+TD3WrapAgent.critic_lr_decay_steps=20000
+TD3WrapAgent.critic_lr_decay_rate=0.96
+# exploration
+TD3WrapAgent.exploration_noise_std=0.2
+# updates
+TD3WrapAgent.target_update_tau=0.05 #1e-3
 TD3WrapAgent.target_update_period=2
 TD3WrapAgent.actor_update_period=2
+# discount
 TD3WrapAgent.gamma=0.99
-TD3WrapAgent.target_policy_noise=0.2
+# target policy
+TD3WrapAgent.target_policy_noise=0.2#0.2
 TD3WrapAgent.target_policy_clip=0.5
 
 # train params
 TrainLoop.num_iterations = 200000
 TrainLoop.eval_interval = 6000
 TrainLoop.num_eval_episodes = 5
-TrainLoop.batch_size = 1024
+TrainLoop.batch_size = 2048
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
-
-
-

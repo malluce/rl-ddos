@@ -14,6 +14,8 @@ from tf_agents.typing import types
 from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
+from training.wrap_agents.util import get_optimizer
+
 
 @gin.configurable
 class TD3WrapAgent(Td3Agent):
@@ -61,17 +63,8 @@ class TD3WrapAgent(Td3Agent):
                                        )
 
         # set lr (decay)
-        if actor_lr_decay_steps is not None:
-            self.actor_optimizer = Adam(
-                ExponentialDecay(actor_lr, actor_lr_decay_steps, actor_lr_decay_rate, staircase=True))
-        else:
-            self.actor_optimizer = Adam(actor_lr)
-
-        if critic_lr_decay_steps is not None:
-            self.critic_optimizer = Adam(
-                ExponentialDecay(critic_lr, critic_lr_decay_steps, critic_lr_decay_rate, staircase=True))
-        else:
-            self.critic_optimizer = Adam(critic_lr)
+        self.actor_optimizer = get_optimizer(actor_lr, actor_lr_decay_rate, actor_lr_decay_steps)
+        self.critic_optimizer = get_optimizer(critic_lr, critic_lr_decay_rate, critic_lr_decay_steps)
 
         # create agent
         super(TD3WrapAgent, self).__init__(
