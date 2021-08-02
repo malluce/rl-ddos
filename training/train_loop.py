@@ -319,8 +319,8 @@ class PpoTrainLoop(TrainLoop):
             'data_store': Datastore(root_path, subdir=sub_path), **gym_kwargs})
 
         return TFPyEnvironment(ParallelPyEnvironment(
-            [lambda: load(env_name, root_dir, f'train{i + 1}') for i in range(self.num_parallel_envs)],
-            # TODO fix (only one datastore actually writes stuff to file)
+            # i=i to bind immediately, see https://docs.python-guide.org/writing/gotchas/#late-binding-closures
+            [lambda i=i: load(env_name, root_dir, f'train{i + 1}') for i in range(self.num_parallel_envs)],
             start_serially=False))
 
     def _init_metrics(self):
