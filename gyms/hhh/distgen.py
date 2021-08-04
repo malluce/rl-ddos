@@ -13,22 +13,8 @@ import time
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.cpp.hhhmodule import HIERARCHY_SIZE
 
+from gyms.hhh.actionset import ContinuousActionSet
 from gyms.hhh.packet import Packet
-
-
-def cmdline():
-    argp = argparse.ArgumentParser(description='Simulated HHH generation')
-
-    argp.add_argument('--benign', type=int, default=500, help='Number of benign flows')
-    argp.add_argument('--attack', type=int, default=2000, help='Number of attack flows')
-    argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
-    argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
-    argp.add_argument('--epsilon', type=float, default=0.0001, help='Error bound')
-    argp.add_argument('--phi', type=float, default=.5, help='Query threshold')
-    argp.add_argument('--minprefix', type=int, default=17, help='Minimum prefix length')
-    argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
-
-    return argp.parse_args()
 
 
 class Sampler(object):
@@ -251,6 +237,22 @@ class ProgressBar(object):
         print(fmt.format('#' * round(self.displaysteps * p), round(100 * p)), end=e)
 
 
+def cmdline():
+    argp = argparse.ArgumentParser(description='Simulated HHH generation')
+    PHI = 0.57
+    argp.add_argument('--benign', type=int, default=50, help='Number of benign flows')
+    argp.add_argument('--attack', type=int, default=100, help='Number of attack flows')
+    argp.add_argument('--steps', type=int, default=300, help='Number of time steps')
+    argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
+    argp.add_argument('--epsilon', type=float, default=0.0001, help='Error bound')
+    argp.add_argument('--phi', type=float, default=PHI, help='Query threshold')
+    argp.add_argument('--minprefix', type=int, default=21,  # default=ContinuousActionSet().phi_to_prefixlen(PHI),
+                      help='Minimum prefix length')
+    argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
+
+    return argp.parse_args()
+
+
 def playthrough(trace_sampler, epsilon, phi, minprefix):
     bar = ProgressBar(trace_sampler.maxtime)
     frequencies = pd.DataFrame(np.zeros_like(trace_sampler.flowgrid['rate']),
@@ -282,10 +284,10 @@ def playthrough(trace_sampler, epsilon, phi, minprefix):
                         y.lo = max(0, y.lo - x.lo)
 
                 span = ((frequencies.columns >= x.id) & (frequencies.columns < (x.end)))
-                frequencies.loc[step, span] += x.hi
+                frequencies.loc[step, span] += x.hi / x.size
 
             step += 1
-            h = HHHAlgo(epsilon)
+            # h = HHHAlgo(epsilon)
 
             if bar.increment():
                 bar.update()
@@ -412,14 +414,14 @@ def main():
         # 1st set of benign flows
         FlowGroupSampler(args.benign,
                          UniformSampler(0, 1),
-                         UniformSampler(maxtime - 1, maxtime),
-                         UniformSampler(0.2 * maxaddr, 0.5 * maxaddr),
+                         UniformSampler(maxtime, maxtime + 1),
+                         UniformSampler(0x000, 0x7ff),  # subnet 0.0.0.0/21
                          attack=False),
         # 1st set of attack flows
         FlowGroupSampler(args.attack,
                          UniformSampler(0, 1),
-                         UniformSampler(maxtime - 1, maxtime),
-                         UniformSampler(0.7 * maxaddr, 1.0 * maxaddr),
+                         UniformSampler(maxtime / 4, maxtime / 2),  #
+                         UniformSampler(0x800, 0xfff),  # subnet 0.0.8.0/21
                          attack=True)
     ]
 
