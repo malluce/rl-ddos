@@ -1,0 +1,99 @@
+import os
+
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas
+import numpy as np
+
+
+def read_env_csv(env_file_path):
+    env_csv = pandas.read_csv(env_file_path)
+    cols = list(map(lambda x: str(x).strip(), list(env_csv.columns)))  # strip spaces from col names
+    return pandas.read_csv(env_file_path, header=0, names=cols)  # read csv again with stripped col names
+
+
+def plot_training(environment_file_path: str):
+    """
+    Plots the training process of an environment.csv file. Shows episodes on the x-axis
+    :param environment_file_path: the environment.csv file path
+   """
+    env_csv = read_env_csv(environment_file_path)
+    grouped_by_episode = env_csv.groupby(['Episode'])
+    mean = grouped_by_episode.mean()
+    quantiles = get_quantiles(grouped_by_episode)
+    run_id = environment_file_path.split('/')[-4]
+    create_plots(mean, quantiles, title=f'training (all episodes) - {run_id}', x_label='episode', data_label='mean')
+
+
+def get_quantiles(data: pandas.DataFrame):
+    return [(q, data.quantile(q)) for q in [0.2, 0.4, 0.6, 0.8]]
+
+
+def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is_one_bounded=False):
+    ax: plt.Axes = fig.add_subplot(2, 4, x)
+    x = range(data.shape[0])
+    for col in cols:
+        y = data.loc[:, col]
+        color = 'g'  # lines[-1].get_color()
+        for idx, quantile in enumerate(data_quantiles):
+            q, quantile_value = quantile
+            alpha = 0.9 - 1.5 * abs(0.5 - q)
+            y_err = quantile_value.loc[:, col]
+            ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q} quantile')
+            ax.fill_between(x, y, y_err, color=color, alpha=alpha)
+        ax.set_xlabel(x_label)
+        ax.set_title(col)
+        ax.plot(x, y, 'navy', label=data_label)
+    if is_one_bounded:
+        ax.set_ylim(bottom=0, top=1.1)
+    else:
+        ax.set_ylim(bottom=0)
+
+    return ax.get_legend_handles_labels()
+
+
+def plot_episode_behavior(environment_file_path, last_x_episodes: int):
+    """
+    Plots the metrics of an environment.csv file.
+    :param environment_file_path: the environment.csv file path
+    :param last_x_episodes: the number of episodes to plot (taken from the end)
+    """
+    env_csv = read_env_csv(environment_file_path)
+
+    def get_rows_with_episode_in(episodes):
+        filtered_rows = env_csv.loc[env_csv['Episode'].isin(episodes), :]  # get rows where episode in episodes
+        return filtered_rows.groupby(['Step'])  # return all columns grouped for each step
+
+    eps = env_csv.loc[:, 'Episode']
+    unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
+    eps_to_show = unique_eps[len(unique_eps) - last_x_episodes:]
+    last = get_rows_with_episode_in(eps_to_show)
+    last_median = last.median()
+    last_quantiles = get_quantiles(last)
+    run_id = environment_file_path.split('/')[-4]
+    create_plots(last_median, last_quantiles, title=f'last {last_x_episodes} eval episodes - {run_id}', x_label='step',
+                 data_label='median')
+
+
+def create_plots(data, quantiles, title, x_label, data_label):
+    fig: plt.Figure = plt.figure(figsize=(16, 8))
+    plot(fig, data, quantiles, ['Phi'], 1, is_one_bounded=True, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['MinPrefix'], 2, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['Precision'], 3, is_one_bounded=True, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['Recall'], 4, is_one_bounded=True, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['FPR'], 6, is_one_bounded=True, x_label=x_label, data_label=data_label)
+    handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label)
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.legend(handles, labels, loc='lower right', bbox_to_anchor=(-0.05, 0.15, 1, 1))
+    plt.show()
+
+
+if __name__ == '__main__':
+    matplotlib.rcParams.update({'font.size': 15})
+    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210802-140720/datastore'
+    train_path = os.path.join(ds_base, 'train1', 'environment.csv')
+    eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
+    plot_training(environment_file_path=train_path)
+    plot_episode_behavior(environment_file_path=eval_path, last_x_episodes=5)
