@@ -35,18 +35,18 @@ typename sketch_hhh::result_type sketch_hhh::query(const double& phi, const leng
 	count_map parent_discounts;
 	result_type result;
 
-	for (int h = spcs.size() - 1; h >= int(min_prefix_length); --h)
+	for (int h = spcs.size() - 1; h >= int(min_prefix_length); --h) // iterate over space saving instances, bottom-up until L
 	{
 		auto hh_result = spcs[h]->query(threshold);
 
 		for (auto& i = hh_result.first; i != hh_result.second; ++i)
 		{
-			counter count = i->first;
+			counter count = i->first; // f_max(e)
 
 			for (auto& j : *i->second)
 			{
 				item_id id = j.second->id;
-				counter d = 0;
+				counter d = 0; // s_e
 				label l(id, h);
 
 				auto k = current_discounts.find(l);

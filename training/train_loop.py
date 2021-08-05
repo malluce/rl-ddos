@@ -220,7 +220,7 @@ class TrainLoop(ABC):
         timed_at_step = global_step.numpy()
         time_step = None
         logging.info(f'Training for {self.num_iterations} iterations.')
-        for _ in range(self.num_iterations):
+        for iteration in range(self.num_iterations):
             start_time = time.time()
             time_step, policy_state = self.collect_driver.run(
                 time_step=time_step,
@@ -235,6 +235,7 @@ class TrainLoop(ABC):
             self._maybe_save_checkpoints(global_step)
 
             if global_step.numpy() % self.log_interval == 0:  # log to cmd every log_interval steps
+                logging.info('iteration = %d from %d', iteration, self.num_iterations)
                 logging.info('step = %d, loss = %f', global_step.numpy(), train_loss.loss)
                 steps_per_sec = (global_step.numpy() - timed_at_step) / (collect_time + train_time)
                 logging.info('%.3f steps/sec', steps_per_sec)

@@ -1,15 +1,15 @@
 /*cppimport
 <%
-cfg['compiler_args'] = ['-std=c++11', '-O3', '-Wall', '-fPIC', '-fopenmp']
-cfg['linker_args'] = ['-fopenmp']
-cfg['sources'] = ['space_saving.cpp', 'sketch_hhh.cpp']
+cfg['compiler_args'] = ['-std=c++17', '-O3', '-Wall', '-fPIC', '-pthread']
+cfg['linker_args'] = []
+cfg['sources'] = ['space_saving.cpp', 'sketch.cpp']
 setup_pybind11(cfg)
 %>
 */
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "sketch_hhh.h"
+#include "sketch.h"
 
 namespace py = pybind11;
 
@@ -17,17 +17,18 @@ PYBIND11_MODULE(hhhmodule, m)
 {
 	m.attr("HIERARCHY_SIZE") = hhh::HIERARCHY_SIZE;
 
-	py::class_<hhh::hhh_entry>(m, "HHH")
-		.def(py::init<const hh::item_id&, const hhh::length&, const hh::counter&, const hh::counter&>())
-		.def_readonly("id", &hhh::hhh_entry::id)
-		.def_readonly("len", &hhh::hhh_entry::len)
-		.def_readonly("hi", &hhh::hhh_entry::hi)
-		.def_readonly("lo", &hhh::hhh_entry::lo);
+	py::class_<hhh::hhh_item>(m, "HHH")
+		.def(py::init<const hh::item::id&, const hhh::label::length&, const hh::item::counter&, const hh::item::counter&>())
+		.def_readonly("id", &hhh::hhh_item::item_id)
+		.def_readonly("len", &hhh::hhh_item::len)
+		.def_readonly("hi", &hhh::hhh_item::hi)
+		.def_readonly("lo", &hhh::hhh_item::lo);
 
-	py::class_<hhh::sketch_hhh>(m, "SketchHHH")
+	py::class_<hhh::sketch>(m, "SketchHHH")
 		.def(py::init<const double&>())
-		.def("update", &hhh::sketch_hhh::update,
-			py::arg("id"), py::arg("count") = 1)
-		.def("query", &hhh::sketch_hhh::query,
-			py::arg("phi"), py::arg("min_prefix_length") = 0);
+		.def("update", &hhh::sketch::update,
+			py::arg("id"), py::arg("count") = 1, py::arg("flush") = false)
+		.def("query", &hhh::sketch::query,
+			py::arg("phi"), py::arg("min_prefix_length") = 0)
+		.def("clear", &hhh::sketch::clear);
 }

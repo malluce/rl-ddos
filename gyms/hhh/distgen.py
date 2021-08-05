@@ -144,7 +144,8 @@ class TraceSampler(object):
         self.benign_flows = None
         self.attack_flows = None
         self.flows = None
-        self.flowgrid = None
+        self.rate_grid = None
+        self.attack_grid = None
         self.num_samples = None
 
     def _merge_flows(self, flows):
@@ -170,50 +171,43 @@ class TraceSampler(object):
         if self.maxtime is not None:
             maxtime = min(self.maxtime, maxtime)
 
-        rate_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
-                                 columns=range(maxaddr + 1), dtype=int)
-        attack_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
-                                   columns=range(maxaddr + 1), dtype=int)
+        self.rate_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
+                                      columns=range(maxaddr + 1), dtype=int)
+        self.attack_grid = pd.DataFrame(np.zeros((maxtime, (maxaddr + 1))),
+                                        columns=range(maxaddr + 1), dtype=int)
 
         for _, f in self.flows.iterrows():  # aggregate sampled flow to grids (timesteps,addresses)
-            timespan = ((rate_grid.index >= f['start']) & (rate_grid.index <= f['end']))
-            rate_grid.loc[timespan, f['addr']] += f['rate']
+            timespan = ((self.rate_grid.index >= f['start']) & (self.rate_grid.index <= f['end']))
+            self.rate_grid.loc[timespan, f['addr']] += f['rate']
             # TODO: handle overlap of benign and attack flows
-            attack_grid.loc[timespan, f['addr']] += f['attack']
+            self.attack_grid.loc[timespan, f['addr']] += f['attack']
 
-        self.flowgrid = pd.concat({'rate': rate_grid, 'attack': attack_grid}, axis=1)
-        self.num_samples = self.flowgrid['rate'].sum().sum()
-        self.num_attack_samples = self.flowgrid['attack'].sum().sum()
+        self.num_samples = self.rate_grid.sum().sum()
+        self.num_attack_samples = self.attack_grid.sum().sum()
 
     def samples(self):
-        step_finished = False
-        for t in self.flowgrid.index:  # iterate over all rows (= time steps)
-            step = self.flowgrid.loc[self.flowgrid.index == t]
-            step_rates = step.loc[t, ('rate')]
-            step_attack = step.loc[t, ('attack')]
+        for t in self.rate_grid.index:  # iterate over all rows (= time indices)
+            total_rate = self.rate_grid.iloc[t]
+            attack_rate = self.attack_grid.iloc[t]
 
-            for addr in np.random.permutation(step_rates.index[(step_rates.values > 0)]):
-                rate = step_rates[addr]
-                attack_rate = step_attack[addr]
+            # Avoid strict order of addresses, since it would model
+            # atypical traffic behavior and impact HHH accuracy.
+            address_sequence = np.random.permutation(
+                total_rate.index[(total_rate.values > 0)]
+            )
+            address_sequence_length = len(address_sequence)
 
-                for i in range(rate):  # yield all packets of addr (can be malicious or benign)
-                    malicious = i < attack_rate
-                    finished = step_finished and i == rate - 1
-                    yield Packet(addr, malicious), finished
+            for i in range(address_sequence_length):
+                address = address_sequence[i]
+                address_total_rate = total_rate[address]
+                address_attack_rate = attack_rate[address]
+                time_index_finished = i == address_sequence_length - 1
 
-                step_finished = False
-
-            step_finished = True
-
-    def next(self):
-        """
-        Yields the next packet and a bool indicating whether the current step finished.
-        """
-        for packet, step_finished in self.samples():
-            yield packet, step_finished
-
-    def __next__(self):
-        return self.next()
+                for j in range(address_total_rate):
+                    malicious = j < address_attack_rate
+                    address_finished = j == address_total_rate - 1
+                    yield (Packet(address.item(), malicious.item()),
+                           time_index_finished and address_finished)
 
 
 class ProgressBar(object):
@@ -242,7 +236,7 @@ def cmdline():
     PHI = 0.57
     argp.add_argument('--benign', type=int, default=50, help='Number of benign flows')
     argp.add_argument('--attack', type=int, default=100, help='Number of attack flows')
-    argp.add_argument('--steps', type=int, default=300, help='Number of time steps')
+    argp.add_argument('--steps', type=int, default=1000, help='Number of time steps')
     argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
     argp.add_argument('--epsilon', type=float, default=0.0001, help='Error bound')
     argp.add_argument('--phi', type=float, default=PHI, help='Query threshold')
@@ -255,23 +249,22 @@ def cmdline():
 
 def playthrough(trace_sampler, epsilon, phi, minprefix):
     bar = ProgressBar(trace_sampler.maxtime)
-    frequencies = pd.DataFrame(np.zeros_like(trace_sampler.flowgrid['rate']),
-                               columns=trace_sampler.flowgrid['rate'].columns)
-
+    frequencies = pd.DataFrame(np.zeros_like(trace_sampler.rate_grid),
+                               columns=trace_sampler.rate_grid.columns)
     h = HHHAlgo(epsilon)
-    step = 0
+    time_index = 0
 
-    # play through non-zero entries in flowgrid
-    for packet, step_finished in trace_sampler.samples():
+    # play through non-zero entries in rate_grid
+    for packet, time_index_finished in trace_sampler.samples():
         # update hhh algorithm
-        h.update(packet.ip, 1)
+        h.update(packet.ip)
 
         # perform query and calculate hhh coverage
-        if step_finished:
+        if time_index_finished:
             hhhs = h.query(phi, minprefix)
             hhhs = [HHHEntry(_) for _ in hhhs]
             hhhs = sorted(hhhs, key=lambda x: x.size)
-            print(f'===== timestep {step} =====')
+            print(f'===== time index {time_index} =====')
             for r in hhhs:
                 print(f'{str(IPv4Address(r.id)).rjust(15)}/{r.len} {r.lo, r.hi}')
             for i in range(len(hhhs)):  # iterate over HHHs sorted by prefix length
@@ -284,10 +277,11 @@ def playthrough(trace_sampler, epsilon, phi, minprefix):
                         y.lo = max(0, y.lo - x.lo)
 
                 span = ((frequencies.columns >= x.id) & (frequencies.columns < (x.end)))
-                frequencies.loc[step, span] += x.hi / x.size
+                frequencies.loc[time_index, span] += x.hi / x.size
 
-            step += 1
-            # h = HHHAlgo(epsilon)
+            time_index += 1
+            if time_index % 10 == 0:  # clear HHH every 10 steps (~action interval)
+                h.clear()
 
             if bar.increment():
                 bar.update()
@@ -295,7 +289,7 @@ def playthrough(trace_sampler, epsilon, phi, minprefix):
     return frequencies
 
 
-def plot(args, flows, flowgrid, hhhgrid=None):
+def plot(args, flows, rate_grid, attack_grid, hhh_grid=None):
     fig = plt.figure(figsize=(16, 8))
     gs = mgrid.GridSpec(3, 5)
 
@@ -316,12 +310,10 @@ def plot(args, flows, flowgrid, hhhgrid=None):
 
     benign_flows = flows[flows['attack'] == 0]
     attack_flows = flows[flows['attack'] > 0]
-    attackgrid = flowgrid['attack']
-    rategrid = flowgrid['rate']
-    benigngrid = rategrid - attackgrid
+    benigngrid = rate_grid - attack_grid
 
     def plot_heatmap(axis, grid, vmin=None, vmax=None):
-        ycut, ybins = pd.cut(flowgrid.index, 300, labels=False,
+        ycut, ybins = pd.cut(rate_grid.index, 300, labels=False,
                              right=False, retbins=True)
         im = grid.groupby(ycut).sum()
         im = im.groupby(pd.cut(im.columns, 200, labels=False), axis=1).sum()
@@ -339,24 +331,24 @@ def plot(args, flows, flowgrid, hhhgrid=None):
 
     ax2.set_title('Combined data rate', fontsize=titlesize)
     ax2.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax2.set_ylabel('Step', fontsize=labelsize)
-    vmin, vmax = plot_heatmap(ax2, rategrid)
+    ax2.set_ylabel('Time Index', fontsize=labelsize)
+    vmin, vmax = plot_heatmap(ax2, rate_grid)
 
     ax0.set_title('Benign data rate', fontsize=titlesize)
     ax0.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax0.set_ylabel('Step', fontsize=labelsize)
+    ax0.set_ylabel('Time Index', fontsize=labelsize)
     plot_heatmap(ax0, benigngrid, vmin, vmax)
 
     ax1.set_title('Attack data rate', fontsize=titlesize)
     ax1.set_xlabel('Address space (percent)', fontsize=labelsize)
-    ax1.set_ylabel('Step', fontsize=labelsize)
-    plot_heatmap(ax1, attackgrid, vmin, vmax)
+    ax1.set_ylabel('Time Index', fontsize=labelsize)
+    plot_heatmap(ax1, attack_grid, vmin, vmax)
 
-    if hhhgrid is not None:
+    if hhh_grid is not None:
         ax3.set_title(f'HHH frequency \n (phi={args.phi}, L={args.minprefix})', fontsize=titlesize)
         ax3.set_xlabel('Address space (percent)', fontsize=labelsize)
         ax3.set_ylabel('Step', fontsize=labelsize)
-        plot_heatmap(ax3, hhhgrid)
+        plot_heatmap(ax3, hhh_grid)
 
     def plot_frequencies(axis, x, y, color):
         axis.fill_between(x, y, 0, facecolor=color, alpha=.6)
@@ -379,24 +371,24 @@ def plot(args, flows, flowgrid, hhhgrid=None):
     ax6.set_title('Data rate distribution over IP space', fontsize=titlesize)
     ax6.set_xlabel('Address space (percent)', fontsize=labelsize)
     ax6.set_ylabel('Data rate', fontsize=labelsize)
-    rates = rategrid.sum()
+    rates = rate_grid.sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
     plot_frequencies(ax6, rates.index, rates.values, combined_color)
-    rates = rategrid[attackgrid > 0].sum()
+    rates = rate_grid[attack_grid > 0].sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
     plot_frequencies(ax6, rates.index, rates.values, attack_color)
-    rates = rategrid[attackgrid == 0].sum()
+    rates = rate_grid[attack_grid == 0].sum()
     rates = rates.groupby(pd.cut(rates.index, 100, labels=False)).sum()
     plot_frequencies(ax6, rates.index, rates.values, benign_color)
 
     ax7.set_title('Data rate over time', fontsize=titlesize)
     ax7.set_xlabel('Step', fontsize=labelsize)
     ax7.set_ylabel('Data rate', fontsize=labelsize)
-    rates = rategrid.sum(axis=1)
+    rates = rate_grid.sum(axis=1)
     plot_frequencies(ax7, rates.index, rates.values, combined_color)
-    rates = rategrid[attackgrid > 0].sum(axis=1)
+    rates = rate_grid[attack_grid > 0].sum(axis=1)
     plot_frequencies(ax7, rates.index, rates.values, attack_color)
-    rates = rategrid[attackgrid == 0].sum(axis=1)
+    rates = rate_grid[attack_grid == 0].sum(axis=1)
     plot_frequencies(ax7, rates.index, rates.values, benign_color)
 
     plt.subplots_adjust(wspace=.5, hspace=.5)
@@ -430,12 +422,12 @@ def main():
 
     if not args.nohhh:
         print('Calculating HHHs...')
-        hhhgrid = playthrough(trace_sampler, args.epsilon, args.phi,
-                              args.minprefix)
+        hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
+                               args.minprefix)
     else:
-        hhhgrid = None
+        hhh_grid = None
 
-    plot(args, trace_sampler.flows, trace_sampler.flowgrid, hhhgrid)
+    plot(args, trace_sampler.flows, trace_sampler.rate_grid, trace_sampler.attack_grid, hhh_grid)
 
 
 if __name__ == '__main__':

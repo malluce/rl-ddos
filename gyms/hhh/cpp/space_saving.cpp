@@ -3,85 +3,78 @@
 using namespace std;
 using namespace hh;
 
+typedef item::id id;
+typedef item::counter counter;
+
+struct replace_item
+{
+	replace_item(const id& new_id, const counter& increment)
+	: new_id(new_id), increment(increment)
+	{}
+
+	void operator()(item& x)
+	{
+		x.item_id = new_id;
+		x.error = x.count;
+		x.count += increment;
+	}
+
+private:
+	id new_id;
+	counter increment;
+};
+
+struct increase_item
+{
+	increase_item(const counter& increment)
+	: increment(increment)
+	{}
+
+	void operator()(item& x)
+	{	x.count += increment; }
+
+private:
+	counter increment;
+};
+
 space_saving::space_saving(double epsilon)
-: epsilon(epsilon), max_items(counter_map::size_type(1.0 / epsilon)),
-  counters(counter_map_ptr(new counter_map())),
-  items(item_map_ptr(new item_map()))
+: max_items(ordered_item_map::size_type(1.0 / epsilon))
 {}
 
-void space_saving::update(const item_id& id, const counter& count)
+void space_saving::update(const id& item_id, const counter& count)
 {
-	auto item = items->find(id);
+	auto& i = items.get<ids>();
+	auto  x = i.find(item_id);
 
-	if (item != items->cend())
+	// update tracked item
+	if (x != i.cend())
 	{
-		/* item is tracked
-		 * update item count and relink
-		 */
-		auto& e = item->second;
-
-		remove_entry(e->count, id);
-
-		e->count += count;
-
-		auto b = get_bucket(e->count);
-
-		b->insert({id, e});
-
+		i.modify(x, increase_item(count));
 		return;
 	}
 
-	/* item is not tracked
-	 * replace item with lowest count and track error
-	 */
-	counter error = 0;
-
-	if (items->size() == max_items)
+	// replace lowest counter
+	if (items.size() == max_items)
 	{
-		auto  min_counter = counters->cbegin();
-		auto& min_counter_bucket = min_counter->second;
-		auto  first_entry = min_counter_bucket->cbegin();
-		auto& id = first_entry->second->id;
+		auto& c = items.get<counts>();
+		auto  y = c.begin();
 
-		error = min_counter->first;
-		items->erase(id);
-		remove_entry(error, id);
+		c.modify(y, replace_item(item_id, count));
+		return;
 	}
 
 	// insert new item
-
-	auto e = entry_ptr(new entry(id, count + error, error));
-	auto b = get_bucket(count + error);
-
-	items->insert({id, e});
-	b->insert({id, e});
+	items.emplace(item_id, count);
 }
 
 space_saving::result_type space_saving::query(const counter& threshold) const
 {
-	return result_type(counters->lower_bound(threshold), counters->end());
+	auto& c = items.get<counts>();
+
+	return result_type(c.lower_bound(threshold), c.end());
 }
 
-space_saving::bucket_map_ptr space_saving::get_bucket(const counter& count)
+void space_saving::clear()
 {
-	auto i = counters->find(count);
-
-	if (i != counters->cend())
-		return i->second;
-
-	auto bucket = bucket_map_ptr(new bucket_map());
-
-	counters->insert({count, bucket});
-
-	return bucket;
-}
-
-void space_saving::remove_entry(const counter& count, const item_id& id)
-{
-	auto& bucket = counters->at(count);
-
-	bucket->erase(id);
-
-	if (bucket->empty())
-		counters->erase(count);
+	items.get<counts>().clear();
 }

@@ -9,14 +9,12 @@
 namespace hhh
 {
 
-typedef size_t length;
-
-const static size_t HIERARCHY_SIZE = 32;
+constexpr static size_t HIERARCHY_SIZE = 32;
 const static auto mask = [] // lambda initialization
 {
-	std::array<hh::item_id, HIERARCHY_SIZE + 1> masks;
-	hh::item_id max = (1UL << HIERARCHY_SIZE) - 1;
-	hh::item_id m = max;
+	std::array<hh::item::id, HIERARCHY_SIZE + 1> masks;
+	hh::item::id max = (1UL << HIERARCHY_SIZE) - 1;
+	hh::item::id m = max;
 
 	for (auto i = masks.rbegin(); i != masks.rend(); ++i)
 	{
@@ -29,44 +27,46 @@ const static auto mask = [] // lambda initialization
 
 struct label
 {
-	hh::item_id id;
+	typedef size_t length;
+
+	hh::item::id item_id;
 	length len;
 
-	label(const hh::item_id& id, const length& len)
-	: id(id), len(len)
+	label(const hh::item::id& item_id, const length& len)
+	: item_id(item_id), len(len)
 	{}
 };
 
 static inline bool operator==(const label& x, const label& y)
-{	return x.len == y.len && x.id == y.id; }
+{	return x.len == y.len && x.item_id == y.item_id; }
 
 struct label_hash
 {
 	typedef unsigned long hash_t;
 
 	inline std::size_t operator()(const label& l) const
-	{	return std::hash<hash_t>()(hash_t(l.len) ^ hash_t(l.id)); }
+	{	return std::hash<hash_t>()(hash_t(l.len) ^ hash_t(l.item_id)); }
 };
 
-static inline hh::item_id prefix(const hh::item_id& id, const length& len)
-{	return id & mask[len]; }
+static inline hh::item::id prefix(const hh::item::id& item_id, const label::length& len)
+{	return item_id & mask[len]; }
 
 static inline label generalize(const label& l)
 {
-	length newlen = l.len - 1;
+	label::length newlen = l.len - 1;
 
-	return label(prefix(l.id, newlen), newlen);
+	return label(prefix(l.item_id, newlen), newlen);
 }
 
-struct hhh_entry
+struct hhh_item
 {
-	hh::item_id id;
-	length len;
-	hh::counter hi;
-	hh::counter lo;
+	hh::item::id item_id;
+	label::length len;
+	hh::item::counter hi;
+	hh::item::counter lo;
 
-	inline hhh_entry(const hh::item_id& id, const length& len, const hh::counter& hi, const hh::counter& lo)
-	: id(id), len(len), hi(hi), lo(lo)
+	inline hhh_item(const hh::item::id& item_id, const label::length& len, const hh::item::counter& hi, const hh::item::counter& lo)
+	: item_id(item_id), len(len), hi(hi), lo(lo)
 	{}
 };
 

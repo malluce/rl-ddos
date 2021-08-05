@@ -30,31 +30,9 @@ class Blacklist(object):
 
 @gin.configurable
 class Loop(object):
-    ACTION_INTERVAL = 500
+    ACTION_INTERVAL = 10
     SAMPLING_RATE = 0.3
     HHH_EPSILON = 0.0001
-
-    def __init__(self, trace, create_state_fn, actionset, epsilon=HHH_EPSILON, sampling_rate=SAMPLING_RATE,
-                 action_interval=ACTION_INTERVAL):
-        self.create_state_fn = create_state_fn
-        self.state = create_state_fn()
-        self.trace = trace
-        self.actionset = actionset
-        self.epsilon = epsilon
-        self.sampling_rate = sampling_rate
-        self.weight = 1.0 / sampling_rate
-        self.action_interval = action_interval
-        self.blacklist = Blacklist([])
-        self.hhh = HHHAlgo(epsilon)
-        self.trace_ended = False
-        self.packets = []
-
-    def reset(self):
-        self.blacklist = Blacklist([])
-        self.hhh = HHHAlgo(self.epsilon)
-        self.state = self.create_state_fn()
-        self.trace_ended = False
-        self.packets = []
 
     @staticmethod
     def gauss(n):
@@ -74,19 +52,45 @@ class Loop(object):
 
         return n * m * d + n * Loop.gauss(m - 1) + m * Loop.gauss(n - 1)
 
+    def __init__(self, trace, create_state_fn, actionset, epsilon=HHH_EPSILON, sampling_rate=SAMPLING_RATE,
+                 action_interval=ACTION_INTERVAL):
+        self.create_state_fn = create_state_fn
+        self.state = create_state_fn()
+        self.trace = trace
+        self.actionset = actionset
+        self.epsilon = epsilon
+        self.sampling_rate = sampling_rate
+        self.weight = 1.0 / sampling_rate
+        self.action_interval = action_interval
+        self.blacklist = Blacklist([])
+        self.hhh = HHHAlgo(epsilon)
+        self.trace_ended = False
+        self.packets = []
+
+    def reset(self):
+        self.blacklist = Blacklist([])
+        self.hhh.clear()
+        self.state = self.create_state_fn()
+        self.trace_ended = False
+        self.packets = []
+
     def step(self, action):
         s = self.state
 
         if s.trace_start == 1.0:
             s.trace_start = 0.0
-            step_finished = False
+            time_index_finished = False
+            interval = 0
 
-            while not step_finished:
+            while not (time_index_finished and interval == self.action_interval):
                 # pre-sample without incrementing the
                 # trace counter when initiating a new
                 # episode
-                p, step_finished = self.trace.next()
+                p, time_index_finished = self.trace.next()
                 self.hhh.update(p.ip)
+
+                if time_index_finished:
+                    interval += 1
         else:
             s.rewind()
 
@@ -103,13 +107,21 @@ class Loop(object):
 
         self._calc_hhh_distance_metrics(b, s)
 
+        # All necessary monitoring information has been extracted from
+        # the HHH instance in this step. Reset the HHH algorithm to
+        # get rid of stale monitoring information.
+        self.hhh.clear()
         s.samples = 0
-        step_finished = False
+        time_index_finished = False
+        interval = 0
 
-        while not step_finished:
+        while not (time_index_finished and interval == self.action_interval):
             try:
-                p, step_finished = self.trace.next()
+                p, time_index_finished = self.trace.next()
                 self.packets.append(p)
+
+                if time_index_finished:
+                    interval += 1
             except StopIteration:
                 self.trace_ended = True
                 break

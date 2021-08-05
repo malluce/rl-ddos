@@ -4,18 +4,23 @@
 namespace hh
 {
 
-typedef unsigned long item_id;
-typedef unsigned int counter;
-
-struct entry
+struct item
 {
-	item_id id;
+	typedef unsigned long id;
+	typedef unsigned int counter;
+
+	inline item()
+	: item(0, 0, 0)
+	{}
+
+	// items track one-sided errors (overestimation)
+	inline item(const id& item_id, const counter& count, const counter& error = 0)
+	: item_id(item_id), count(count), error(error)
+	{}
+
+	id item_id;
 	counter count;
 	counter error;
-
-	inline entry(const item_id& id, const counter& count, const counter& error = 0)
-	: id(id), count(count), error(error)
-	{}
 };
 
 }

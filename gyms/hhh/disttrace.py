@@ -10,8 +10,8 @@ from .packet import Packet
 @gin.configurable
 class DistributionTrace(object):
     _MAXADDR = 0xffff
-    _NUM_BENIGN_FLOWS = 500
-    _NUM_ATTACK_FLOWS = 1000
+    _NUM_BENIGN_FLOWS = 25  # 500
+    _NUM_ATTACK_FLOWS = 50  # 1000
 
     @staticmethod
     def __init_sampler(maxtime, maxaddr, benign_flows, attack_flows):
@@ -69,14 +69,14 @@ class DistributionTrace(object):
             # 1st set of benign flows
             FlowGroupSampler(benign_flows,
                              UniformSampler(0, 1),
-                             UniformSampler(maxtime - 1, maxtime),
-                             UniformSampler(0.2 * maxaddr, 0.5 * maxaddr),
+                             UniformSampler(maxtime, maxtime + 1),
+                             UniformSampler(0x000, 0x7ff),  # subnet 0.0.0.0/21
                              attack=False),
             # 1st set of attack flows
             FlowGroupSampler(attack_flows,
                              UniformSampler(0, 1),
-                             UniformSampler(maxtime - 1, maxtime),
-                             UniformSampler(0.7 * maxaddr, 1.0 * maxaddr),
+                             UniformSampler(maxtime / 4, maxtime / 2),  #
+                             UniformSampler(0x800, 0xfff),  # subnet 0.0.8.0/21
                              attack=True)
         ]
 
