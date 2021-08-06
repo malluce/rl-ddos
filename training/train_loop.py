@@ -34,7 +34,7 @@ class TrainLoop(ABC):
                  root_dir: str,
                  # env params
                  env_name: str, actionset_selection: ActionSet,
-                 state_obs_selection: Tuple[Observation], trace_length: int,
+                 state_obs_selection: Tuple[Observation],
                  use_prev_action_as_obs: bool,
                  # training params
                  num_iterations: int = 200000, eval_interval: int = 2400, num_eval_episodes: int = 10,
@@ -42,7 +42,8 @@ class TrainLoop(ABC):
                  replay_buf_size: int = 100000,
                  initial_collect_steps: int = 1200, log_interval: int = 600,
                  checkpoint_interval: int = 10000,
-                 train_sequence_length: int = 1
+                 train_sequence_length: int = 1,
+                 supports_action_histogram: bool = True
                  ):
         self.train_sequence_length = train_sequence_length
         self.checkpoint_interval = checkpoint_interval
@@ -53,10 +54,11 @@ class TrainLoop(ABC):
         self.replay_buf_size = replay_buf_size
         self.initial_collect_steps = initial_collect_steps
         self.log_interval = log_interval
+        self.supports_action_histogram = supports_action_histogram
 
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
         self.dirs = get_dirs(root_dir, Datastore.get_timestamp(), self._get_alg_name())
-        self._init_envs(actionset_selection, self.dirs, env_name, state_obs_selection, trace_length,
+        self._init_envs(actionset_selection, self.dirs, env_name, state_obs_selection,
                         use_prev_action_as_obs)
 
         (self.train_summary_writer, self.eval_summary_writer) = (None, None)  # set in _init_summary_writers
@@ -80,14 +82,13 @@ class TrainLoop(ABC):
     def _get_alg_name(self):
         pass
 
-    def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection, trace_length,
+    def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection,
                    use_prev_action_as_obs):
         self.ds_eval = Datastore(dirs['root'], 'eval')
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
-            'actionset': actionset_selection,
-            'trace_length': trace_length
+            'actionset': actionset_selection
         }
         self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'])
         self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))
@@ -112,9 +113,12 @@ class TrainLoop(ABC):
             tf_metrics.NumberOfEpisodes(),
             tf_metrics.EnvironmentSteps(),
             tf_metrics.AverageReturnMetric(),
-            tf_metrics.AverageEpisodeLengthMetric(),
-            # tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype)
+            tf_metrics.AverageEpisodeLengthMetric()
         ]
+
+        if self.supports_action_histogram:
+            self.eval_metrics.append(tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype))
+            self.train_metrics.append(tf_metrics.ChosenActionHistogram(dtype=self.train_env.action_spec().dtype))
 
     def _init_replay_buffer(self):
         self.replay_buffer = TFUniformReplayBuffer(
@@ -273,12 +277,11 @@ class TrainLoop(ABC):
 class Td3TrainLoop(TrainLoop):
 
     def __init__(self, env_name: str):
-        super(Td3TrainLoop, self).__init__(env_name=env_name)  # remainder of parameters are set via gin
+        super(Td3TrainLoop, self).__init__(env_name=env_name,
+                                           supports_action_histogram=True)  # remainder of parameters are set via gin
 
     def _get_alg_name(self):
         return 'td3'
-
-    # TODO add action histogram to metrics (works for TD3, but not DQN; not tested yet for PPO)
 
     def _get_agent(self):
         return TD3WrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec())
@@ -288,7 +291,8 @@ class Td3TrainLoop(TrainLoop):
 class DqnTrainLoop(TrainLoop):
 
     def __init__(self, env_name: str):
-        super(DqnTrainLoop, self).__init__(env_name=env_name)  # remainder of parameters are set via gin
+        super(DqnTrainLoop, self).__init__(env_name=env_name,
+                                           supports_action_histogram=False)  # remainder of parameters are set via gin
 
     def _get_alg_name(self):
         return 'dqn'
@@ -306,7 +310,7 @@ class PpoTrainLoop(TrainLoop):
                  ):
         self.num_parallel_envs = num_parallel_envs  # N from PPO paper
         self.collect_steps = collect_steps_per_iteration_per_env * num_parallel_envs  # N*T from PPO paper
-        super().__init__(env_name=env_name)
+        super().__init__(env_name=env_name, supports_action_histogram=True)
 
     def _get_agent(self):
         return PPOWrapAgent(self.train_env.time_step_spec, self.train_env.action_spec)

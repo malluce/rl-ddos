@@ -1,28 +1,18 @@
-import ipaddress
-
-import gin
 import gym
 import numpy as np
 
-from datetime import datetime
-from gym import spaces, logger
+from gym import spaces
 from gym.utils import seeding
-from importlib import import_module
-from math import log, log2, sqrt
-from random import choice, random, randint, shuffle
-from matplotlib import pyplot as plt
-from matplotlib import cm
+from math import log2, sqrt
 
 from gym.envs.registration import register
 
 from .actionset import ActionSet
 from .loop import Loop
-from .label import Label
 from .obs import Observation
 from .state import State
-from .disttrace import DistributionTrace
+from gyms.hhh.flowgen.disttrace import DistributionTrace
 
-from lib.datastore import Datastore
 from .util import maybe_cast_to_arr
 
 
@@ -40,12 +30,11 @@ def register_hhh_gym(env_name='HHHGym-v0'):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet,
-                 trace_length):
+                 actionset: ActionSet):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
-        self.trace = DistributionTrace(trace_length)
+        self.trace = DistributionTrace()
         self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset)
         self.episode = 0
         self.current_step = 0
@@ -71,7 +60,6 @@ class HHHEnv(gym.Env):
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
             self.ds.set_config('sampling_rate', self.loop.SAMPLING_RATE)
             self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
-            self.ds.set_config('trace_length', len(self.trace))
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
