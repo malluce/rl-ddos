@@ -22,6 +22,7 @@ class PPOWrapAgent(PPOClipAgent):
                  actor_layers=(200, 100), value_layers=(200, 100),
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
+                 entropy_regularization=0.0
                  ):
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps)
         # set actor net
@@ -43,7 +44,7 @@ class PPOWrapAgent(PPOClipAgent):
         super().__init__(time_step_spec(), action_spec(), optimizer=self.optimizer,
                          actor_net=actor_net, value_net=value_net,
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
-                         num_epochs=num_epochs, name='ppo'
+                         num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
