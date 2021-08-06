@@ -91,6 +91,7 @@ sketch::result_type sketch::query(double const& phi, label::length const& min_pr
 	count_map discounts;
 	sketch::result_type result;
 
+    flush_batch();
 	waitfor_spcs_updates_finished();
 	for (auto h = int(HIERARCHY_SIZE); h >= int(min_prefix_length); --h)
 	{
