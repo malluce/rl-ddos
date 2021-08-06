@@ -346,6 +346,8 @@ class PpoTrainLoop(TrainLoop):
             num_steps=self.collect_steps)  # .. and NT steps across all environments
 
     def _init_replay_buffer(self):
+        # must be able to store all sampled steps each iteration (plus security margin)
+        self.replay_buf_size = self.collect_steps + 100
         self.replay_buffer = TFUniformReplayBuffer(
             self.agent.collect_data_spec,
             batch_size=self.num_parallel_envs,
