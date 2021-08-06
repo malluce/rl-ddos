@@ -8,14 +8,21 @@ from gyms.hhh.flowgen.distgen import FlowGroupSampler, NormalSampler, UniformSam
 
 @gin.configurable
 class TrafficTrace(ABC):
+    def __init__(self, maxtime):
+        self.maxtime = maxtime
+
     @abstractmethod
     def get_flow_group_samplers(self):
         pass
+
+    def get_max_time(self):
+        return self.maxtime
 
 
 @gin.configurable
 class T1(TrafficTrace):
     def __init__(self, num_benign, num_attack, maxtime):
+        super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
         self.maxtime = maxtime
@@ -41,6 +48,7 @@ class T1(TrafficTrace):
 class T2(TrafficTrace):
 
     def __init__(self, num_benign, num_attack, maxtime):
+        super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
         self.maxtime = maxtime
@@ -66,6 +74,7 @@ class T2(TrafficTrace):
 class T3(TrafficTrace):
 
     def __init__(self, num_benign=300, num_attack=150, maxtime=1000, maxaddr=0xff):
+        super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
         self.maxtime = maxtime
@@ -99,6 +108,7 @@ class T3(TrafficTrace):
 class THauke(TrafficTrace):
 
     def __init__(self, benign_flows, attack_flows, maxtime, maxaddr):
+        super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
         self.maxtime = maxtime

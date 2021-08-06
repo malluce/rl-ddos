@@ -41,7 +41,7 @@ class DistributionTrace(object):
         Has to be used before calling next() after next() returned step_finished=True.
         """
         flow_samplers = self.traffic_trace.get_flow_group_samplers()
-        trace_sampler = TraceSampler(flow_samplers)
+        trace_sampler = TraceSampler(flow_samplers, maxtime=self.traffic_trace.get_max_time())
         trace_sampler.init_flows()
 
         self.samples = trace_sampler.samples()
