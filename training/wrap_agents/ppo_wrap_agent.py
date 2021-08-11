@@ -17,14 +17,16 @@ from training.wrap_agents.util import get_optimizer
 class PPOWrapAgent(PPOClipAgent):
 
     def __init__(self, time_step_spec, action_spec,
-                 lr, lr_decay_steps, lr_decay_rate,  # learning rate
+                 lr, lr_decay_steps, lr_decay_rate, exp_min_lr, linear_decay_end_lr, linear_decay_steps,
+                 # learning rate
                  gamma, num_epochs, importance_ratio_clipping=0.2,
                  actor_layers=(200, 100), value_layers=(200, 100),
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
                  entropy_regularization=0.0
                  ):
-        self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps)
+        self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
+                                       linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
         # set actor net
         if use_actor_rnn:
             actor_net = ActorDistributionRnnNetwork(time_step_spec().observation, action_spec(),
