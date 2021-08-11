@@ -47,7 +47,7 @@ class T1(TrafficTrace):
 @gin.configurable
 class T2(TrafficTrace):
 
-    def __init__(self, num_benign, num_attack, maxtime):
+    def __init__(self, num_benign=25, num_attack=50, maxtime=1000):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
