@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import gin
 import tensorflow as tf
 from typing import Tuple
+import numpy as np
 
 import tf_agents
 from absl import logging
@@ -55,6 +56,7 @@ class TrainLoop(ABC):
         self.initial_collect_steps = initial_collect_steps
         self.log_interval = log_interval
         self.supports_action_histogram = supports_action_histogram
+        self.did_export_graph = False
 
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
         self.dirs = get_dirs(root_dir, Datastore.get_timestamp(), self._get_alg_name())
@@ -187,9 +189,10 @@ class TrainLoop(ABC):
 
         loss = self.agent.train(experience)
 
-        if tf.compat.v1.train.get_or_create_global_step() == 1:  # export graph
+        if tf.compat.v1.train.get_or_create_global_step() > 0 and not self.did_export_graph:  # export graph
             with self.train_summary_writer.as_default():
                 tf.summary.trace_export(name='graph export', step=0)
+            self.did_export_graph = True
         return loss
 
     def _get_experience(self):
@@ -343,10 +346,25 @@ class PpoTrainLoop(TrainLoop):
     def _init_drivers(self, collect_policy):
         # no initial collect driver,..
         logging.info(f'Initializing Step Driver with num_steps=N*T={self.collect_steps}')
+
+        def log_dist_params(step):
+            # TODO fix that global step is the same for several calls due to T
+            dist_params = step.policy_info['dist_params'][0]
+            stddev = dist_params['scale']
+            mean = dist_params['loc']
+            global_step = tf.compat.v1.train.get_or_create_global_step()
+            with tf.name_scope('DistParams/'):
+                tf.compat.v2.summary.scalar(name='stddev median (over envs)', data=np.median(stddev), step=global_step)
+                tf.compat.v2.summary.scalar(name='stddev max (over envs)', data=np.max(stddev), step=global_step)
+                tf.compat.v2.summary.scalar(name='stddev min (over envs)', data=np.min(stddev), step=global_step)
+                tf.compat.v2.summary.scalar(name='mean median (over envs)', data=np.median(mean), step=global_step)
+                tf.compat.v2.summary.scalar(name='mean max (over envs)', data=np.max(mean), step=global_step)
+                tf.compat.v2.summary.scalar(name='mean min (over envs)', data=np.min(mean), step=global_step)
+
         self.collect_driver = DynamicStepDriver(
             self.train_env,
             collect_policy,
-            observers=[self.replay_buffer.add_batch] + self.train_metrics,
+            observers=[self.replay_buffer.add_batch, log_dist_params] + self.train_metrics,
             num_steps=self.collect_steps)  # .. and NT steps across all environments
 
     def _init_replay_buffer(self):
