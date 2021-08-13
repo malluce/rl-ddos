@@ -30,7 +30,7 @@ def register_hhh_gym(env_name='HHHGym-v0'):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet):
+                 actionset: ActionSet, gamma):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
@@ -42,11 +42,14 @@ class HHHEnv(gym.Env):
         self.action_space = self.loop.actionset.actionspace
         self.observation_space = self._observation_spec()
 
+        self.gamma = gamma
+
         self.seed()
-        self.figure = None
         self.obs_from_state = None
         self.terminated = False
         self.rewards = []
+        self.discounted_return_so_far = 0.0
+        self.undiscounted_return_so_far = 0.0
         self.rules = []
         self.precisions = []
         self.recalls = []
@@ -96,20 +99,30 @@ class HHHEnv(gym.Env):
             reward = state.precision * state.recall
         else:
             reward = (
-                    (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))
+                    (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))  # * (1 - state.fpr) ** 5  #
                     * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
             )
         return reward
 
     def _log_to_datastore(self, trace_ended, reward, state):
         if self.ds is not None:
-            self.ds.add_step(self.episode, self.current_step, reward, state)
+            self.discounted_return_so_far += self.gamma ** self.current_step * reward
+            self.undiscounted_return_so_far += reward
+            self.ds.add_step(self.episode, self.current_step, reward, self.discounted_return_so_far,
+                             self.undiscounted_return_so_far, state)
 
         if trace_ended and self.ds is not None:
+            # compute return
+            rewards = np.array(self.rewards)
+            discounts = np.array([self.gamma ** step for step in np.arange(0, len(rewards))])
+            return_discounted = np.dot(discounts.T, rewards)
+            return_undiscounted = np.sum(rewards)
+
             self.ds.add_episode(self.episode + 1, 0,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
-                                np.mean(self.hhh_distance_sums), np.mean(self.rewards))
+                                np.mean(self.hhh_distance_sums), np.mean(self.rewards), return_discounted,
+                                return_undiscounted)
 
         if trace_ended:
             self.ds.flush()
@@ -154,6 +167,8 @@ class HHHEnv(gym.Env):
         self.recalls = []
         self.fprs = []
         self.hhh_distance_sums = []
+        self.discounted_return_so_far = 0.0
+        self.undiscounted_return_so_far = 0.0
 
         return self._build_observation(previous_action=None)
 

@@ -15,10 +15,11 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
 from training.wrap_agents.util import get_optimizer
+from training.wrap_agents.wrap_agent import WrapAgent
 
 
 @gin.configurable
-class TD3WrapAgent(Td3Agent):
+class TD3WrapAgent(Td3Agent, WrapAgent):
 
     def __init__(self, time_step_spec, action_spec, actor_layers=(400, 300), critic_obs_layers=(400,),
                  critic_act_layers=None, critic_joint_layers=(300,),
@@ -38,6 +39,7 @@ class TD3WrapAgent(Td3Agent):
                  rnn_crt_lstm_size=(50,), rnn_crt_out_fc_layers=(200,)
                  ):
         # set actor net
+        self.gamma = gamma
         actor_net = None
         if use_act_rnn:
             actor_net = ActorRnnNetwork(time_step_spec.observation, action_spec,
@@ -86,3 +88,6 @@ class TD3WrapAgent(Td3Agent):
         actor_lr = self.actor_optimizer._decayed_lr(tf.float32)
         critic_lr = self.critic_optimizer._decayed_lr(tf.float32)
         return [(actor_lr, 'actor_lr'), (critic_lr, 'critic_lr')]
+
+    def get_gamma(self):
+        return self.gamma

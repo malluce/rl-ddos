@@ -10,15 +10,17 @@ import tensorflow as tf
 
 from agents.nets.dqn_q_network import QNetwork
 from training.wrap_agents.util import get_optimizer
+from training.wrap_agents.wrap_agent import WrapAgent
 
 
 @gin.configurable
-class DQNWrapAgent(DqnAgent):
+class DQNWrapAgent(DqnAgent, WrapAgent):
 
     def __init__(self, time_step_spec, action_spec, q_layers=(75, 40),
                  use_rnn=False, rnn_input_layers=(75, 40), rnn_lstm_size=(128, 128, 128), rnn_output_layers=(75, 40),
                  target_update_tau=1, target_update_period=5, gamma=0.99, lr=1e-3, lr_decay_steps=None,
                  lr_decay_rate=None, eps_greedy=0.1):
+        self.gamma = gamma
         # set q net
         if not use_rnn:
             self.q_net = QNetwork(time_step_spec.observation, action_spec, batch_normalization=True,
@@ -36,3 +38,6 @@ class DQNWrapAgent(DqnAgent):
 
     def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
         return [(self.optimizer._decayed_lr(tf.float32), 'lr')]
+
+    def get_gamma(self):
+        return self.gamma

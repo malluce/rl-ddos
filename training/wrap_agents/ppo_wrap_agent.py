@@ -11,10 +11,11 @@ from tf_agents.typing import types
 import tensorflow as tf
 
 from training.wrap_agents.util import get_optimizer
+from training.wrap_agents.wrap_agent import WrapAgent
 
 
 @gin.configurable
-class PPOWrapAgent(PPOClipAgent):
+class PPOWrapAgent(PPOClipAgent, WrapAgent):
 
     def __init__(self, time_step_spec, action_spec,
                  lr, lr_decay_steps, lr_decay_rate, exp_min_lr, linear_decay_end_lr, linear_decay_steps,
@@ -23,8 +24,9 @@ class PPOWrapAgent(PPOClipAgent):
                  actor_layers=(200, 100), value_layers=(200, 100),
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
-                 entropy_regularization=0.0
+                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95
                  ):
+        self.gamma = gamma
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
         # set actor net
@@ -46,7 +48,8 @@ class PPOWrapAgent(PPOClipAgent):
         super().__init__(time_step_spec(), action_spec(), optimizer=self.optimizer,
                          actor_net=actor_net, value_net=value_net,
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
-                         num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization
+                         num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization,
+                         use_gae=use_gae, lambda_value=gae_lambda
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
@@ -54,3 +57,6 @@ class PPOWrapAgent(PPOClipAgent):
 
     def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
         return [(self.optimizer._decayed_lr(tf.float32), 'lr')]
+
+    def get_gamma(self):
+        return self.gamma

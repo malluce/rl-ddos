@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 import gin
 import tensorflow as tf
-from typing import Tuple
+from typing import List, Tuple
 import numpy as np
 
 import tf_agents
@@ -22,6 +22,7 @@ from tf_agents.utils import common
 
 from agents.util import get_dirs
 from gyms.hhh.actionset import ActionSet
+from gyms.hhh.env import HHHEnv
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
 from training.wrap_agents.dqn_wrap_agent import DQNWrapAgent
@@ -44,7 +45,9 @@ class TrainLoop(ABC):
                  initial_collect_steps: int = 1200, log_interval: int = 600,
                  checkpoint_interval: int = 10000,
                  train_sequence_length: int = 1,
-                 supports_action_histogram: bool = True
+                 supports_action_histogram: bool = True,
+                 # env/agent param
+                 gamma: float = None  # return discount factor
                  ):
         self.train_sequence_length = train_sequence_length
         self.checkpoint_interval = checkpoint_interval
@@ -56,6 +59,7 @@ class TrainLoop(ABC):
         self.initial_collect_steps = initial_collect_steps
         self.log_interval = log_interval
         self.supports_action_histogram = supports_action_histogram
+        self.gamma = gamma
         self.did_export_graph = False
 
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
@@ -70,14 +74,14 @@ class TrainLoop(ABC):
         (self.replay_buffer, self.dataset_iterator) = (None, None)  # set in _init_replay_buffer
         (self.collect_driver, self.initial_collect_driver) = (None, None)  # set in _init_drivers
 
-        self.agent = self._get_agent()
+        self.agent = self._get_agent(gamma)
         self.ds_eval.commit_config(gin.operative_config_str())
 
         # set in _init_checkpointers
         (self.policy_checkpointer, self.train_checkpointer, self.rb_checkpointer) = (None, None, None)
 
     @abstractmethod
-    def _get_agent(self):
+    def _get_agent(self, gamma):
         pass
 
     @abstractmethod
@@ -90,7 +94,8 @@ class TrainLoop(ABC):
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
-            'actionset': actionset_selection
+            'actionset': actionset_selection,
+            'gamma': self.gamma
         }
         self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'])
         self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))
@@ -203,7 +208,7 @@ class TrainLoop(ABC):
         self.agent.initialize()
         eval_policy = self.agent.policy
         collect_policy = self.agent.collect_policy
-        self.agent.train = common.function(self.agent.train)  # TODO disable for PPO?
+        self.agent.train = common.function(self.agent.train)
 
         self._init_metrics()
         self._init_replay_buffer()
@@ -286,8 +291,8 @@ class Td3TrainLoop(TrainLoop):
     def _get_alg_name(self):
         return 'td3'
 
-    def _get_agent(self):
-        return TD3WrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec())
+    def _get_agent(self, gamma):
+        return TD3WrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec(), gamma=gamma)
 
 
 @gin.configurable
@@ -300,8 +305,8 @@ class DqnTrainLoop(TrainLoop):
     def _get_alg_name(self):
         return 'dqn'
 
-    def _get_agent(self):
-        return DQNWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec())
+    def _get_agent(self, gamma):
+        return DQNWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec(), gamma=gamma)
 
 
 @gin.configurable
@@ -315,8 +320,8 @@ class PpoTrainLoop(TrainLoop):
         self.collect_steps = collect_steps_per_iteration_per_env * num_parallel_envs  # N*T from PPO paper
         super().__init__(env_name=env_name, supports_action_histogram=True)
 
-    def _get_agent(self):
-        return PPOWrapAgent(self.train_env.time_step_spec, self.train_env.action_spec)
+    def _get_agent(self, gamma):
+        return PPOWrapAgent(self.train_env.time_step_spec, self.train_env.action_spec, gamma=gamma)
 
     def _get_alg_name(self):
         return 'ppo'

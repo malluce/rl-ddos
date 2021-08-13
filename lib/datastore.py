@@ -15,9 +15,12 @@ class Datastore(object):
     ENVIRONMENT_FILE = 'environment.csv'
     CONFIG_FILE = 'config.gin'
 
-    EPISODE_HEADER = 'Episode, Split, MeanRules, MeanPrec, MeanRecall, MeanFPR, MeanHHHDistSum, MeanReward'
+    EPISODE_HEADER = 'Episode, Split, MeanRules, MeanPrec, MeanRecall, MeanFPR, MeanHHHDistSum, MeanReward, ' \
+                     'ReturnDiscounted, ReturnUndiscounted '
 
-    STEP_HEADER = 'Episode, Step, Reward, Phi, MinPrefix, BlackSize, Precision, EstPrecision, Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax'
+    STEP_HEADER = 'Episode, Step, Reward, DiscountedReturnSoFar, UndiscountedReturnSoFar, Phi, MinPrefix, BlackSize, ' \
+                  'Precision, EstPrecision, ' \
+                  'Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax '
 
     @staticmethod
     def get_timestamp():
@@ -43,14 +46,17 @@ class Datastore(object):
         print(line.replace(',', ''))
 
     @staticmethod
-    def _format_episode(episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward):
-        return '{:7d}, {:7d}, {:8.3f}, {:7.5f}, {:9.5f}, {:9.5f}, {:9.5f}, {:9.5f}'.format(
-            episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward)
+    def _format_episode(episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward, return_discounted,
+                        return_undiscounted):
+        return '{:7d}, {:7d}, {:8.3f}, {:7.5f}, {:9.5f}, {:9.5f}, {:9.5f}, {:9.5f}, {:9.5f}, {:9.5f}'.format(
+            episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward, return_discounted,
+            return_undiscounted)
 
     @staticmethod
-    def _format_step(episode, split, reward, state):
-        return '{:5d}, {:5.1f}, {:7.3f}, {:7.5f}, {:3d}, {:5d}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:9.7f}, {:9.7f}, {:7.5f}, {:7.5f}'.format(
-            episode, split, reward, state.phi,
+    def _format_step(episode, split, reward, discounted_return_so_far, undiscounted_return_so_far, state):
+        return '{:5d}, {:5.1f}, {:7.3f}, {:7.3f},{:7.3f},{:7.5f}, {:3d}, {:5d}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, ' \
+               '{:5.3f}, {:5.3f}, {:9.7f}, {:9.7f}, {:7.5f}, {:7.5f}'.format(
+            episode, split, reward, discounted_return_so_far, undiscounted_return_so_far, state.phi,
             state.min_prefix, state.blacklist_size, state.precision,
             state.estimated_precision, state.recall, state.estimated_recall,
             state.fpr, state.estimated_fpr,
@@ -81,14 +87,17 @@ class Datastore(object):
     def add_step_header(self):
         Datastore._add(self.environment_file, Datastore.STEP_HEADER)
 
-    def add_episode(self, episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward):
+    def add_episode(self, episode, split, rules, precision, recall, fpr, hhh_distance_sum, reward, return_discounted,
+                    return_undiscounted):
         Datastore._add(self.episode_file, Datastore._format_episode(episode,
                                                                     split, rules, precision, recall, fpr,
-                                                                    hhh_distance_sum, reward))
+                                                                    hhh_distance_sum, reward, return_discounted,
+                                                                    return_undiscounted))
 
-    def add_step(self, episode, split, reward, state):
+    def add_step(self, episode, split, reward, discounted_return_so_far, undiscounted_return_so_far, state):
         Datastore._add(self.environment_file, Datastore._format_step(episode,
-                                                                     split, reward, state))
+                                                                     split, reward, discounted_return_so_far,
+                                                                     undiscounted_return_so_far, state))
 
     def add_step_line(self, line):
         Datastore._add(self.environment_file, line)
@@ -96,19 +105,6 @@ class Datastore(object):
     def flush(self):
         self.environment_file.flush()
         self.episode_file.flush()
-
-    def print_episode_header(self):
-        Datastore._print(Datastore.EPISODE_HEADER)
-
-    def print_step_header(self):
-        Datastore._print(Datastore.STEP_HEADER)
-
-    def print_episode(self, episode, split, rules, precision, recall, epsilon, reward):
-        Datastore._print(Datastore._format_episode(episode, split, rules,
-                                                   precision, recall, epsilon, reward))
-
-    def print_step(self, episode, trace, state):
-        Datastore._print(Datastore._format_step(episode, trace, state))
 
     def set_config(self, parameter, value):
         self.config[parameter] = value

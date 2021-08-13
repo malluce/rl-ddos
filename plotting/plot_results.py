@@ -22,28 +22,59 @@ def plot_training(environment_file_path: str):
     mean = grouped_by_episode.mean()
     quantiles = get_quantiles(grouped_by_episode)
     run_id = environment_file_path.split('/')[-4]
-    create_plots(mean, quantiles, title=f'training (all episodes) - {run_id}', x_label='episode', data_label='mean')
+    fig = create_plots(mean, quantiles, title=f'training (all episodes) \n {run_id}', x_label='episode',
+                       data_label='mean')
+
+    if 'UndiscountedReturnSoFar' in env_csv and 'DiscountedReturnSoFar' in env_csv:  # plot return
+        max_step = env_csv.loc[:, 'Step'].max()
+        last_steps = env_csv.loc[env_csv.loc[:, 'Step'] == max_step]
+        undiscounted_return = last_steps.loc[:, 'UndiscountedReturnSoFar']
+        discounted_return = last_steps.loc[:, 'DiscountedReturnSoFar']
+        assert undiscounted_return.shape[0] == discounted_return.shape[0]
+        ax = fig.add_subplot(2, 4, 8)
+        x = range(undiscounted_return.shape[0])
+        ax.plot(x, undiscounted_return, label='undiscounted')
+        ax.plot(x, discounted_return, label='discounted')
+        ax.set_title('Return')
+        ax.set_ylim(bottom=0)
+        ax.set_xlabel('episode')
+        plt.legend()
+
+    plt.show()
 
 
 def get_quantiles(data: pandas.DataFrame):
     return [(q, data.quantile(q)) for q in [0.2, 0.4, 0.6, 0.8]]
 
 
-def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is_one_bounded=False):
+def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is_one_bounded=False, title=None,
+         labels=None):
     ax: plt.Axes = fig.add_subplot(2, 4, x)
     x = range(data.shape[0])
-    for col in cols:
+    for idx, col in enumerate(cols):
         y = data.loc[:, col]
-        color = 'g'  # lines[-1].get_color()
-        for idx, quantile in enumerate(data_quantiles):
+        color = 'g' if idx == 0 else 'orange'  # lines[-1].get_color()
+        for quantile in data_quantiles:
             q, quantile_value = quantile
             alpha = 0.9 - 1.5 * abs(0.5 - q)
             y_err = quantile_value.loc[:, col]
-            ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q} quantile')
+            if labels is None:
+                ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q} quant')
+            else:
+                ax.plot(x, y_err, color=color, alpha=alpha)  # plot without label for discounted and undiscounted
             ax.fill_between(x, y, y_err, color=color, alpha=alpha)
+
         ax.set_xlabel(x_label)
-        ax.set_title(col)
-        ax.plot(x, y, 'navy', label=data_label)
+        if title is not None:
+            ax.set_title(title)
+        else:
+            ax.set_title(col)
+
+        median_color = 'navy' if idx == 0 else 'red'
+        if labels is None:
+            ax.plot(x, y, median_color, label=data_label)
+        else:
+            ax.plot(x, y, median_color, label=labels[idx])
     if is_one_bounded:
         ax.set_ylim(bottom=0, top=1.1)
     else:
@@ -71,8 +102,18 @@ def plot_episode_behavior(environment_file_path, last_x_episodes: int):
     last_median = last.median()
     last_quantiles = get_quantiles(last)
     run_id = environment_file_path.split('/')[-4]
-    create_plots(last_median, last_quantiles, title=f'last {last_x_episodes} eval episodes - {run_id}', x_label='step',
-                 data_label='median')
+    # plot common data
+    fig = create_plots(last_median, last_quantiles, title=f'last {last_x_episodes} eval episodes \n {run_id}',
+                       x_label='step',
+                       data_label='median')
+
+    if 'UndiscountedReturnSoFar' in env_csv and 'DiscountedReturnSoFar' in env_csv:
+        # plot return until step
+        handles, labels = plot(fig, last_median, last_quantiles, ['UndiscountedReturnSoFar', 'DiscountedReturnSoFar'],
+                               8, 'step',
+                               'median', title='Return until step', labels=['undiscounted', 'discounted'])
+        plt.legend(handles, labels)
+    plt.show()
 
 
 def create_plots(data, quantiles, title, x_label, data_label):
@@ -84,15 +125,17 @@ def create_plots(data, quantiles, title, x_label, data_label):
     plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label)
     plot(fig, data, quantiles, ['FPR'], 6, is_one_bounded=True, x_label=x_label, data_label=data_label)
     handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label)
+
     fig.suptitle(title)
+
     fig.tight_layout()
-    fig.legend(handles, labels, loc='lower right', bbox_to_anchor=(-0.05, 0.15, 1, 1))
-    plt.show()
+    fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.01, 0.01, 1, 1), ncol=3)
+    return fig
 
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210802-140720/datastore'
+    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210813-064436/datastore'
     train_path = os.path.join(ds_base, 'train1', 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
     plot_training(environment_file_path=train_path)

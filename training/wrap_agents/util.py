@@ -1,7 +1,8 @@
 import tensorflow
+
 from tensorflow.python.keras.optimizer_v2.learning_rate_schedule import ExponentialDecay, LearningRateSchedule, \
     PolynomialDecay
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, SGD
 
 
 def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_decay_end_lr=None,
@@ -18,7 +19,8 @@ def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_dec
     elif linear_decay_end_lr is not None:
         return Adam(PolynomialDecay(lr, linear_decay_steps, linear_decay_end_lr))
     else:
-        return Adam(lr)
+        # return Adam(lr)
+        return SGD(lr)
 
 
 class MinExpSchedule(LearningRateSchedule):
