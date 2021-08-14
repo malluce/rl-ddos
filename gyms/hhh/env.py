@@ -1,3 +1,4 @@
+import gin
 import gym
 import numpy as np
 
@@ -10,6 +11,7 @@ from gym.envs.registration import register
 from .actionset import ActionSet
 from .loop import Loop
 from .obs import Observation
+from .reward import RewardCalc
 from .state import State
 from gyms.hhh.flowgen.disttrace import DistributionTrace
 
@@ -27,10 +29,11 @@ def register_hhh_gym(env_name='HHHGym-v0'):
     return env_name
 
 
+@gin.configurable
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet, gamma):
+                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
@@ -43,6 +46,7 @@ class HHHEnv(gym.Env):
         self.observation_space = self._observation_spec()
 
         self.gamma = gamma
+        self.reward_calc = reward_calc
 
         self.seed()
         self.obs_from_state = None
@@ -73,7 +77,7 @@ class HHHEnv(gym.Env):
         trace_ended, state = self.loop.step(action)
 
         # reward
-        reward = self._calc_reward(state)
+        reward = self.reward_calc.calc_reward(state)
         self.rewards.append(reward)
 
         # data logging
@@ -91,18 +95,6 @@ class HHHEnv(gym.Env):
         observation = self._build_observation(previous_action=action)
 
         return observation, reward, trace_ended, {}
-
-    def _calc_reward(self, state):
-        if state.blacklist_size == 0:
-            # fpr is 0 (nothing blocked, so there are no false positives)
-            # precision and recall are 1 if there is no malicious packet, 0 otherwise
-            reward = state.precision * state.recall
-        else:
-            reward = (
-                    (state.precision ** 6) * sqrt(state.recall) * (1 - sqrt(state.fpr))  # * (1 - state.fpr) ** 5  #
-                    * (1.0 - 0.2 * sqrt(log2(state.blacklist_size)))
-            )
-        return reward
 
     def _log_to_datastore(self, trace_ended, reward, state):
         if self.ds is not None:
