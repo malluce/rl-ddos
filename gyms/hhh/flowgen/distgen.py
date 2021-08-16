@@ -77,21 +77,6 @@ class NormalSampler(Sampler):
         return self._crop(samples)
 
 
-class HHHEntry(object):
-
-    def __init__(self, other):
-        self.id = other.id
-        self.len = other.len
-        self.size = 1 << (HIERARCHY_SIZE - self.len)
-        self.end = self.id + self.size
-        self.lo = other.lo
-        self.hi = other.hi
-
-    def contains(self, other):
-        return (self.size > other.size and self.id <= other.id
-                and self.end >= other.end)
-
-
 class FlowGroupSampler(object):
 
     def __init__(self, num_flows, start_sampler, duration_sampler,
@@ -127,11 +112,21 @@ class FlowGroupSampler(object):
 
 class TraceSampler(object):
 
+    @staticmethod
+    def load(flow_grid, rate_grid, attack_grid):
+        sampler = TraceSampler(None)
+        sampler.flows = flow_grid
+        sampler.rate_grid = rate_grid
+        sampler.attack_grid = attack_grid
+        sampler.maxtime = sampler.flows[:, 1].max()
+        sampler.maxaddr = sampler.flows[:, 3].max()
+        sampler.num_samples = sampler.rate_grid.sum()
+        sampler.num_attack_samples = sampler.attack_grid.sum()
+        return sampler
+
     def __init__(self, flowsamplers, maxtime=None):
         self.flowsamplers = flowsamplers
         self.maxtime = maxtime
-        self.benign_flows = None
-        self.attack_flows = None
         self.flows = None
         self.rate_grid = None
         self.attack_grid = None
@@ -144,9 +139,11 @@ class TraceSampler(object):
         """
         self.flows = np.concatenate([s.sample() for s in self.flowsamplers])
 
+        # FIXME: Make this self.maxtime/maxaddr
         maxtime = self.flows[:, 1].max()
         maxaddr = self.flows[:, 3].max()
 
+        # FIXME: Remove if necessary
         if self.maxtime is not None:
             maxtime = min(self.maxtime, maxtime)
 
@@ -156,6 +153,7 @@ class TraceSampler(object):
         for f in self.flows:
             # Assign total rate to rate grid from flow start to flow end
             # for the respective address
+            # FIXME: this should be add and assign
             self.rate_grid[f[0]: f[1] + 1, f[3]] = f[4]
             # Same with attack rate
             self.attack_grid[f[0]: f[1] + 1, f[3]] = f[5]

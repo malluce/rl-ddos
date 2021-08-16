@@ -54,19 +54,12 @@ class HHHEnv(gym.Env):
         self.rewards = []
         self.discounted_return_so_far = 0.0
         self.undiscounted_return_so_far = 0.0
+        self.blacklists = []
         self.rules = []
         self.precisions = []
         self.recalls = []
         self.fprs = []
         self.hhh_distance_sums = []
-
-        if self.ds is not None:
-            self.ds.set_config('state_selection', str(state_obs_selection))
-            self.ds.set_config('actions', str(self.loop.actionset))
-            self.ds.set_config('sampling_rate', self.loop.SAMPLING_RATE)
-            self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
-            self.ds.set_config('sampling_rate', self.loop.SAMPLING_RATE)
-            self.ds.set_config('hhh_epsilon', self.loop.HHH_EPSILON)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -74,13 +67,14 @@ class HHHEnv(gym.Env):
 
     def step(self, action):
         # call loop.step
-        trace_ended, state = self.loop.step(action)
+        trace_ended, state, blacklist_history = self.loop.step(action)
 
         # reward
         reward = self.reward_calc.calc_reward(state)
         self.rewards.append(reward)
 
         # data logging
+        self.blacklists += blacklist_history
         self.rules.append(state.blacklist_size)
         self.precisions.append(state.precision)
         self.recalls.append(state.recall)
@@ -110,14 +104,23 @@ class HHHEnv(gym.Env):
             return_discounted = np.dot(discounts.T, rewards)
             return_undiscounted = np.sum(rewards)
 
+            self.ds.add_numpy_data(self.loop.trace.trace_sampler.flows,
+                                   'flows_{}'.format(self.episode + 1))
+            self.ds.add_numpy_data(self.loop.trace.trace_sampler.rate_grid,
+                                   'combined_{}'.format(self.episode + 1))
+            self.ds.add_numpy_data(self.loop.trace.trace_sampler.attack_grid,
+                                   'attack_{}'.format(self.episode + 1))
+            self.ds.add_blacklist([b.to_serializable() for b in self.blacklists],
+                                  'blacklist_{}'.format(self.episode + 1))
+
             self.ds.add_episode(self.episode + 1, 0,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
                                 np.mean(self.hhh_distance_sums), np.mean(self.rewards), return_discounted,
                                 return_undiscounted)
 
-        if trace_ended:
-            self.ds.flush()
+            if trace_ended:
+                self.ds.flush()
 
     def _build_observation(self, previous_action=None):
         action_observation, state_observation = (None, None)
@@ -159,6 +162,7 @@ class HHHEnv(gym.Env):
         self.recalls = []
         self.fprs = []
         self.hhh_distance_sums = []
+        self.blacklists = []
         self.discounted_return_so_far = 0.0
         self.undiscounted_return_so_far = 0.0
 

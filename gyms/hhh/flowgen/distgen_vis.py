@@ -1,13 +1,16 @@
 import argparse
+import json
 from ipaddress import IPv4Address
 
+import gzip
 import numpy as np
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as mgrid
 
-from gyms.hhh.flowgen.distgen import FlowGroupSampler, HHHEntry, TraceSampler, UniformSampler
+from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler
 from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke
+from gyms.hhh.label import Label
 
 
 class ProgressBar(object):
@@ -30,21 +33,51 @@ class ProgressBar(object):
         print(fmt.format('#' * round(self.displaysteps * p), round(100 * p)), end=e)
 
 
-def cmdline():
-    argp = argparse.ArgumentParser(description='Simulated HHH generation')
-    PHI = 0.57
-    argp.add_argument('--benign', type=int, default=50, help='Number of benign flows')
-    argp.add_argument('--attack', type=int, default=100, help='Number of attack flows')
-    argp.add_argument('--steps', type=int, default=1000, help='Number of time steps')
-    argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
-    argp.add_argument('--epsilon', type=float, default=0.0001, help='Error bound')
-    argp.add_argument('--phi', type=float, default=PHI, help='Query threshold')
-    argp.add_argument('--interval', type=int, default=10, help='Number of grid rows after which the HHH are reset')
-    argp.add_argument('--minprefix', type=int, default=21,  # default=ContinuousActionSet().phi_to_prefixlen(PHI),
-                      help='Minimum prefix length')
-    argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
+class HHHEntry(object):
 
-    return argp.parse_args()
+    @staticmethod
+    def copy(other):
+        return HHHEntry(other.id, other.len, other.lo, other.hi)
+
+    @staticmethod
+    def from_dict(d):
+        return HHHEntry(d['id'], d['len'], d['lo'], d['hi'])
+
+    def __init__(self, id, len, lo, hi):
+        self.id = id
+        self.len = len
+        self.size = Label.subnet_size(self.len)
+        self.end = self.id + self.size
+        self.lo = lo
+        self.hi = hi
+
+    def contains(self, other):
+        return (self.len < other.len
+                and other.id & Label.PREFIXMASK[self.len] == self.id)
+
+    def __str__(self):
+        return 'HHH(id: {}, len: {}, end: {}, lo: {}, hi: {})'.format(
+            self.id, self.len, self.end, self.lo, self.hi)
+
+
+def reduce_hhhs(hhhs):
+    # Subtract lower level frequencies from higher level HHHs
+    # to avoid overcounting
+    for i in range(len(hhhs)):
+        x = hhhs[i]
+        for y in hhhs[i + 1:]:
+            if y.contains(x):
+                y.hi = max(0, y.hi - x.hi)
+                y.lo = max(0, y.lo - x.lo)
+    return hhhs
+
+
+def render_hhhs(hhhs, grid, index):
+    # Render HHHs onto to a numpy grid with equally
+    # distributed item frequencies
+    for hhh in hhhs:
+        if hhh.hi > 0:
+            grid[index, hhh.id: hhh.end] += hhh.hi / hhh.size
 
 
 def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
@@ -65,26 +98,15 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
 
         # perform query and calculate hhh coverage
         if time_index % interval == interval - 1:
-            hhhs = h.query(phi, minprefix)
-            hhhs = [HHHEntry(_) for _ in hhhs]
-            hhhs = sorted(hhhs, key=lambda x: x.size)
+            # HHHs are sorted in descending order of prefix length
+            hhhs = [HHHEntry.copy(_) for _ in h.query(phi, minprefix)]
+            hhhs = reduce_hhhs(hhhs)
+            # Reset the HHH algorithm after querying
+            h.clear()
             print(f'===== time index {time_index} =====')
             for r in hhhs:
                 print(f'{str(IPv4Address(r.id)).rjust(15)}/{r.len} {r.lo, r.hi}')
-            for i in range(len(hhhs)):  # iterate over HHHs sorted by prefix length
-                x = hhhs[i]
-
-                for y in hhhs[i + 1:]:
-                    if y.contains(x):
-                        # decrement all f_max and f_min of HHHs contained in x
-                        y.hi = max(0, y.hi - x.hi)
-                        y.lo = max(0, y.lo - x.lo)
-
-                # Render the HHHs onto to the HHH grid with equally
-                # distributed item frequencies
-                for hhh in hhhs:
-                    if hhh.hi > 0:
-                        frequencies[time_index, hhh.id: hhh.end] += hhh.hi / hhh.size
+        render_hhhs(hhhs, frequencies, time_index)
         time_index += 1
 
         if bar.increment():
@@ -200,25 +222,78 @@ def plot(args, flows, rate_grid, attack_grid, hhh_grid=None):
     plt.show()
 
 
+def load_numpy(filename):
+    with gzip.GzipFile(filename, 'r') as f:
+        return np.load(f)
+
+
+def load_tracesampler(flow_file, rate_grid_file, attack_grid_file):
+    return TraceSampler.load(load_numpy(flow_file), load_numpy(rate_grid_file),
+                             load_numpy(attack_grid_file))
+
+
+def render_blacklist_history(blacklist_file, maxtime, maxaddr):
+    with open(blacklist_file, 'r') as f:
+        episode_blacklist = json.load(f)
+    hhhgrid = np.zeros((300, maxaddr + 1))
+    for time_index in range(len(episode_blacklist)):
+        hhhs = [HHHEntry.from_dict(_) for _ in sorted(episode_blacklist[time_index],
+                                                      key=lambda x: x['len'], reverse=True)]
+        render_hhhs(hhhs, hhhgrid, time_index)
+    return hhhgrid
+
+
+def cmdline():
+    argp = argparse.ArgumentParser(description='Simulated HHH generation')
+    argp.add_argument('flow_file', type=str, default=None, nargs='?',
+                      help='Gzip-compressed numpy file containing flow information')
+    argp.add_argument('rate_grid_file', type=str, default=None, nargs='?',
+                      help='Gzip-compressed numpy file containing combined rate information')
+    argp.add_argument('attack_grid_file', type=str, default=None, nargs='?',
+                      help='Gzip-compressed numpy file containing attack rate information')
+    argp.add_argument('blacklist_file', type=str, default=None, nargs='?', help='File containing blacklist information')
+    argp.add_argument('--benign', type=int, default=500, help='Number of benign flows')
+    argp.add_argument('--attack', type=int, default=1000, help='Number of attack flows')
+    argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
+    argp.add_argument('--maxaddr', type=int, default=0xfff, help='Size of address space')
+    argp.add_argument('--epsilon', type=float, default=.005, help='Error bound')
+    argp.add_argument('--phi', type=float, default=.02, help='Query threshold')
+    argp.add_argument('--minprefix', type=int, default=0, help='Minimum prefix length')
+    argp.add_argument('--interval', type=int, default=1, help='HHH query interval')
+    argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
+
+    args = argp.parse_args()
+
+    if (args.flow_file is not None and (args.rate_grid_file is None
+                                        or args.attack_grid_file is None)):
+        raise ValueError('flow_file requres rate_grid_file and attack_grid_file')
+
+    return args
+
+
 def main():
     args = cmdline()
 
-    maxaddr = args.maxaddr
-    maxtime = args.steps
+    if args.flow_file is None:
+        trace = T3(args.benign, args.attack, args.steps, args.maxaddr).get_flow_group_samplers()
+        trace_sampler = TraceSampler(trace, args.steps)
+        trace_sampler.init_flows()
+    else:
+        trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
+                                          args.attack_grid_file)
 
-    flowsamplers = T3().get_flow_group_samplers()
-
-    trace_sampler = TraceSampler(flowsamplers, maxtime)
-    trace_sampler.init_flows()
-
-    if not args.nohhh:
+    if args.blacklist_file:
+        hhh_grid = render_blacklist_history(args.blacklist_file,
+                                            trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
+    elif not args.nohhh:
         print('Calculating HHHs...')
         hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
                                args.minprefix, args.interval)
     else:
         hhh_grid = None
 
-    plot(args, trace_sampler.flows, trace_sampler.rate_grid, trace_sampler.attack_grid, hhh_grid)
+    plot(args, trace_sampler.flows, trace_sampler.rate_grid,
+         trace_sampler.attack_grid, hhh_grid)
 
 
 if __name__ == '__main__':

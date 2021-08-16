@@ -27,6 +27,10 @@ class Blacklist(object):
     def __len__(self):
         return len(self.hhhs)
 
+    def to_serializable(self):
+        return [{'id': h.id, 'len': h.len, 'hi': h.hi, 'lo': h.lo}
+                for h in self.hhhs]
+
 
 @gin.configurable
 class Loop(object):
@@ -63,49 +67,48 @@ class Loop(object):
         self.weight = 1.0 / sampling_rate
         self.action_interval = action_interval
         self.blacklist = Blacklist([])
+        self.blacklist_history = []
         self.hhh = HHHAlgo(epsilon)
         self.trace_ended = False
-        self.packets = []
 
     def reset(self):
         self.blacklist = Blacklist([])
         self.hhh.clear()
         self.state = self.create_state_fn()
         self.trace_ended = False
-        self.packets = []
 
     def step(self, action):
         s = self.state
+        self.blacklist_history = []
 
         if s.trace_start == 1.0:
             s.trace_start = 0.0
             time_index_finished = False
             interval = 0
 
+            # Initialize the HHH instance with pre-sampled items
             while not (time_index_finished and interval == self.action_interval):
-                # pre-sample without incrementing the
-                # trace counter when initiating a new
-                # episode
                 p, time_index_finished = self.trace.next()
                 self.hhh.update(p.ip)
 
                 if time_index_finished:
                     interval += 1
+                    self.blacklist_history.append(self.blacklist)
         else:
             s.rewind()
 
         s.phi, s.min_prefix = self.actionset.resolve(action)
 
-        # Sorting avoids double-checking the same
-        # IP range when determining hhh coverage
-        b = sorted(self.hhh.query(s.phi, s.min_prefix), key=lambda _: _.len)
+        # Reverse order to sort by HHH size in descending order
+        # Avoids double checking IP coverage
+        hhhs = self.hhh.query(s.phi, s.min_prefix)[::-1]
 
-        self._calc_blocklist_distr(b, s)
+        self._calc_blocklist_distr(hhhs, s)
 
-        self.blacklist = Blacklist(b)
+        self.blacklist = Blacklist(hhhs)
         s.blacklist_size = len(self.blacklist)
 
-        self._calc_hhh_distance_metrics(b, s)
+        self._calc_hhh_distance_metrics(hhhs, s)
 
         # All necessary monitoring information has been extracted from
         # the HHH instance in this step. Reset the HHH algorithm to
@@ -118,10 +121,10 @@ class Loop(object):
         while not (time_index_finished and interval == self.action_interval):
             try:
                 p, time_index_finished = self.trace.next()
-                self.packets.append(p)
 
                 if time_index_finished:
                     interval += 1
+                    self.blacklist_history.append(self.blacklist)
             except StopIteration:
                 self.trace_ended = True
                 break
@@ -161,7 +164,7 @@ class Loop(object):
 
         s.complete()
 
-        return self.trace_ended, self.state
+        return self.trace_ended, self.state, self.blacklist_history
 
     def _calc_hhh_distance_metrics(self, b, s):
         H = list(sorted(b, key=lambda _: _.id))

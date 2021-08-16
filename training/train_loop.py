@@ -47,7 +47,9 @@ class TrainLoop(ABC):
                  train_sequence_length: int = 1,
                  supports_action_histogram: bool = True,
                  # env/agent param
-                 gamma: float = None  # return discount factor
+                 gamma: float = None,  # return discount factor
+                 # log params
+                 collect_raw: bool = False  # whether to collect numpy data
                  ):
         self.train_sequence_length = train_sequence_length
         self.checkpoint_interval = checkpoint_interval
@@ -61,11 +63,12 @@ class TrainLoop(ABC):
         self.supports_action_histogram = supports_action_histogram
         self.gamma = gamma
         self.did_export_graph = False
+        self.collect_raw = collect_raw
 
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
         self.dirs = get_dirs(root_dir, Datastore.get_timestamp(), self._get_alg_name())
         self._init_envs(actionset_selection, self.dirs, env_name, state_obs_selection,
-                        use_prev_action_as_obs)
+                        use_prev_action_as_obs, collect_raw)
 
         (self.train_summary_writer, self.eval_summary_writer) = (None, None)  # set in _init_summary_writers
         self._init_summary_writers(self.dirs)
@@ -89,19 +92,19 @@ class TrainLoop(ABC):
         pass
 
     def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection,
-                   use_prev_action_as_obs):
-        self.ds_eval = Datastore(dirs['root'], 'eval')
+                   use_prev_action_as_obs, collect_raw):
+        self.ds_eval = Datastore(dirs['root'], 'eval', collect_raw)
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
             'actionset': actionset_selection,
             'gamma': self.gamma
         }
-        self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'])
+        self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'], collect_raw=collect_raw)
         self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))
 
-    def _get_train_env(self, env_name, gym_kwargs, root_dir):
-        ds_train = Datastore(root_dir, 'train')
+    def _get_train_env(self, env_name, gym_kwargs, root_dir, collect_raw):
+        ds_train = Datastore(root_dir, 'train', collect_raw)
         return TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': ds_train, **gym_kwargs}))
 
     def _init_summary_writers(self, dirs):
@@ -326,10 +329,10 @@ class PpoTrainLoop(TrainLoop):
     def _get_alg_name(self):
         return 'ppo'
 
-    def _get_train_env(self, env_name, gym_kwargs, root_dir):
+    def _get_train_env(self, env_name, gym_kwargs, root_dir, collect_raw):
         # override to support parallel envs
         load = lambda name, root_path, sub_path: suite_gym.load(name, gym_kwargs={
-            'data_store': Datastore(root_path, subdir=sub_path), **gym_kwargs})
+            'data_store': Datastore(root_path, subdir=sub_path, collect_raw=collect_raw), **gym_kwargs})
 
         return TFPyEnvironment(ParallelPyEnvironment(
             # i=i to bind immediately, see https://docs.python-guide.org/writing/gotchas/#late-binding-closures

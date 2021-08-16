@@ -41,11 +41,11 @@ class DistributionTrace(object):
         Has to be used before calling next() after next() returned step_finished=True.
         """
         flow_samplers = self.traffic_trace.get_flow_group_samplers()
-        trace_sampler = TraceSampler(flow_samplers, maxtime=self.traffic_trace.get_max_time())
-        trace_sampler.init_flows()
+        self.trace_sampler = TraceSampler(flow_samplers, maxtime=self.traffic_trace.get_max_time())
+        self.trace_sampler.init_flows()
 
-        self.samples = trace_sampler.samples()
-        self.N = trace_sampler.num_samples
+        self.samples = self.trace_sampler.samples()
+        self.N = self.trace_sampler.num_samples
         print(f'number of packets next episode: {self.N}')
 
     def __len__(self):
