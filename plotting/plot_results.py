@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -48,7 +49,7 @@ def get_quantiles(data: pandas.DataFrame):
 
 
 def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is_one_bounded=False, title=None,
-         labels=None):
+         labels=None, mean_for_title=None):
     ax: plt.Axes = fig.add_subplot(2, 4, x)
     x = range(data.shape[0])
     for idx, col in enumerate(cols):
@@ -65,10 +66,10 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is
             ax.fill_between(x, y, y_err, color=color, alpha=alpha)
 
         ax.set_xlabel(x_label)
-        if title is not None:
-            ax.set_title(title)
-        else:
-            ax.set_title(col)
+
+        base_title = title if title is not None else col
+        title = f'{base_title} (avg={mean_for_title})' if mean_for_title is not None else base_title
+        ax.set_title(title)
 
         median_color = 'navy' if idx == 0 else 'red'
         if labels is None:
@@ -100,12 +101,13 @@ def plot_episode_behavior(environment_file_path, last_x_episodes: int):
     eps_to_show = unique_eps[len(unique_eps) - last_x_episodes:]
     last = get_rows_with_episode_in(eps_to_show)
     last_median = last.median()
+    last_means = last.mean()
     last_quantiles = get_quantiles(last)
     run_id = environment_file_path.split('/')[-4]
     # plot common data
     fig = create_plots(last_median, last_quantiles, title=f'last {last_x_episodes} eval episodes \n {run_id}',
                        x_label='step',
-                       data_label='median')
+                       data_label='median', means_for_title=last_means)
 
     if 'UndiscountedReturnSoFar' in env_csv and 'DiscountedReturnSoFar' in env_csv:
         # plot return until step
@@ -116,15 +118,24 @@ def plot_episode_behavior(environment_file_path, last_x_episodes: int):
     plt.show()
 
 
-def create_plots(data, quantiles, title, x_label, data_label):
+def create_plots(data, quantiles, title, x_label, data_label, means_for_title=None):
     fig: plt.Figure = plt.figure(figsize=(16, 8))
+    title_means = defaultdict(lambda: None)
+    if means_for_title is not None:
+        for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward']:
+            title_means[col] = means_for_title[col].mean()
     plot(fig, data, quantiles, ['Phi'], 1, is_one_bounded=True, x_label=x_label, data_label=data_label)
     plot(fig, data, quantiles, ['MinPrefix'], 2, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['Precision'], 3, is_one_bounded=True, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['Recall'], 4, is_one_bounded=True, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['FPR'], 6, is_one_bounded=True, x_label=x_label, data_label=data_label)
-    handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['Precision'], 3, is_one_bounded=True, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['Precision'])
+    plot(fig, data, quantiles, ['Recall'], 4, is_one_bounded=True, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['Recall'])
+    plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['BlackSize'])
+    plot(fig, data, quantiles, ['FPR'], 6, is_one_bounded=True, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['FPR'])
+    handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label,
+                           mean_for_title=title_means['Reward'])
 
     fig.suptitle(title)
 
@@ -135,7 +146,7 @@ def create_plots(data, quantiles, title, x_label, data_label):
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210813-064436/datastore'
+    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210819-100223/datastore'
     train_path = os.path.join(ds_base, 'train1', 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
     plot_training(environment_file_path=train_path)
