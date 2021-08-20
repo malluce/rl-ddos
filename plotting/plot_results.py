@@ -68,7 +68,8 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is
         ax.set_xlabel(x_label)
 
         base_title = title if title is not None else col
-        title = f'{base_title} (avg={mean_for_title})' if mean_for_title is not None else base_title
+
+        title = '{} (avg={:3.2f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
         ax.set_title(title)
 
         median_color = 'navy' if idx == 0 else 'red'
@@ -146,8 +147,8 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210819-100223/datastore'
+    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210807-064458/datastore'
     train_path = os.path.join(ds_base, 'train1', 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
     plot_training(environment_file_path=train_path)
-    plot_episode_behavior(environment_file_path=eval_path, last_x_episodes=5)
+    plot_episode_behavior(environment_file_path=eval_path, last_x_episodes=15)
