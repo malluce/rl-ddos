@@ -1,4 +1,4 @@
-from gyms.hhh.reward import DefaultRewardCalc, HeavyFPRPenalty, RewardCalc
+from gyms.hhh.reward import DefaultRewardCalc, MultiplicativeReward, RewardCalc
 from plotting.reward.plot_reward_components import plot_contrib_factors
 from plotting.reward.plot_rewards import plot_reward
 
@@ -9,5 +9,5 @@ def plot_reward_function(reward_func: RewardCalc):
 
 
 if __name__ == '__main__':
-    reward = HeavyFPRPenalty()
+    reward = MultiplicativeReward()
     plot_reward_function(reward)
