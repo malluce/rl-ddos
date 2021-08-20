@@ -153,10 +153,9 @@ class TraceSampler(object):
         for f in self.flows:
             # Assign total rate to rate grid from flow start to flow end
             # for the respective address
-            # FIXME: this should be add and assign
-            self.rate_grid[f[0]: f[1] + 1, f[3]] = f[4]
+            self.rate_grid[f[0]: f[1] + 1, f[3]] += f[4]
             # Same with attack rate
-            self.attack_grid[f[0]: f[1] + 1, f[3]] = f[5]
+            self.attack_grid[f[0]: f[1] + 1, f[3]] += f[5]
 
         self.num_samples = self.rate_grid.sum()
         self.num_attack_samples = self.attack_grid.sum()
