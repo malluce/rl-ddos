@@ -9,7 +9,7 @@ import numpy as np
 import tf_agents
 from absl import logging
 from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
-
+import tensorflow_probability as tfp
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
 from tf_agents.environments import parallel_py_environment, suite_gym, tf_py_environment
 from tf_agents.environments.parallel_py_environment import ParallelPyEnvironment
@@ -21,7 +21,7 @@ from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuf
 from tf_agents.utils import common
 
 from agents.util import get_dirs
-from gyms.hhh.actionset import ActionSet
+from gyms.hhh.actionset import ActionSet, TupleActionSet
 from gyms.hhh.env import HHHEnv
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
@@ -355,19 +355,26 @@ class PpoTrainLoop(TrainLoop):
         # no initial collect driver,..
         logging.info(f'Initializing Step Driver with num_steps=N*T={self.collect_steps}')
 
-        def log_dist_params(step):
-            # TODO fix that global step is the same for several calls due to T
-            dist_params = step.policy_info['dist_params'][0]
-            stddev = dist_params['scale']
-            mean = dist_params['loc']
+        def log_dist_params(step):  # TODO fix that global step is the same for several calls due to T
             global_step = tf.compat.v1.train.get_or_create_global_step()
+
+            # phi params
+            dist_params_phi = step.policy_info['dist_params'][0]
+            stddev = dist_params_phi['scale']
+            mean = dist_params_phi['loc']
             with tf.name_scope('DistParams/'):
-                tf.compat.v2.summary.scalar(name='stddev median (over envs)', data=np.median(stddev), step=global_step)
-                tf.compat.v2.summary.scalar(name='stddev max (over envs)', data=np.max(stddev), step=global_step)
-                tf.compat.v2.summary.scalar(name='stddev min (over envs)', data=np.min(stddev), step=global_step)
-                tf.compat.v2.summary.scalar(name='mean median (over envs)', data=np.median(mean), step=global_step)
-                tf.compat.v2.summary.scalar(name='mean max (over envs)', data=np.max(mean), step=global_step)
-                tf.compat.v2.summary.scalar(name='mean min (over envs)', data=np.min(mean), step=global_step)
+                tf.compat.v2.summary.scalar(name='phi stddev median', data=np.median(stddev), step=global_step)
+                tf.compat.v2.summary.scalar(name='phi mean median', data=np.median(mean), step=global_step)
+
+            # L params
+            logits = step.policy_info['dist_params'][1]['logits']
+            categorical_distr = tfp.distributions.Categorical(logits=logits)
+            probs = categorical_distr.probs_parameter()
+            mean_probs = np.mean(probs, axis=0)
+            most_likely_min_prefix = TupleActionSet().resolve((0, np.argmax(mean_probs)))[1]
+            with tf.name_scope('DistParams/'):
+                tf.compat.v2.summary.scalar(name='most likely L', data=most_likely_min_prefix,
+                                            step=global_step)
 
         self.collect_driver = DynamicStepDriver(
             self.train_env,
