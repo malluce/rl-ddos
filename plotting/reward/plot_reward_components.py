@@ -13,7 +13,7 @@ def plot_contrib_factors(reward_calc: RewardCalc):
     plt.rcParams.update({'font.size': 18})
 
     def plot_zero_one():
-        ax = fig.add_subplot(121)  # zero-one-axis for fpr, recall, precision
+        ax = fig.add_subplot(211)  # zero-one-axis for fpr, recall, precision
         x = np.linspace(0, 1, 1000)
         weighted_prec = ('precision factor', reward_calc.weighted_precision(x))
         weighted_fpr = ('fpr factor', reward_calc.weighted_fpr(x))
@@ -28,7 +28,7 @@ def plot_contrib_factors(reward_calc: RewardCalc):
         ax.legend()
 
     def plot_blacklist():
-        ax = fig.add_subplot(122)  # for blacklist size
+        ax = fig.add_subplot(212)  # for blacklist size
 
         x = np.linspace(0, 100, 1000, dtype=np.int)
         weighted_bl = reward_calc.weighted_bl_size(x)
@@ -45,5 +45,6 @@ def plot_contrib_factors(reward_calc: RewardCalc):
     plt.show()
 
 
-reward_calc = DefaultRewardCalc()
-plot_contrib_factors(reward_calc)
+if __name__ == '__main__':
+    reward_calc = DefaultRewardCalc()
+    plot_contrib_factors(reward_calc)
