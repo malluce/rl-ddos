@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler
-from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke
+from gyms.hhh.flowgen.traffic_traces import T2, T3, T4, THauke
 from gyms.hhh.label import Label
 
 
@@ -235,7 +235,7 @@ def load_tracesampler(flow_file, rate_grid_file, attack_grid_file):
 def render_blacklist_history(blacklist_file, maxtime, maxaddr):
     with open(blacklist_file, 'r') as f:
         episode_blacklist = json.load(f)
-    hhhgrid = np.zeros((300, maxaddr + 1))
+    hhhgrid = np.zeros((maxtime, maxaddr + 1))
     for time_index in range(len(episode_blacklist)):
         hhhs = [HHHEntry.from_dict(_) for _ in sorted(episode_blacklist[time_index],
                                                       key=lambda x: x['len'], reverse=True)]
@@ -252,21 +252,23 @@ def cmdline():
     argp.add_argument('attack_grid_file', type=str, default=None, nargs='?',
                       help='Gzip-compressed numpy file containing attack rate information')
     argp.add_argument('blacklist_file', type=str, default=None, nargs='?', help='File containing blacklist information')
-    argp.add_argument('--benign', type=int, default=500, help='Number of benign flows')
-    argp.add_argument('--attack', type=int, default=1000, help='Number of attack flows')
+    BENIGN = 600  # 300
+    ATTACK = 300  # 150
+    argp.add_argument('--benign', type=int, default=BENIGN, help='Number of benign flows')
+    argp.add_argument('--attack', type=int, default=ATTACK, help='Number of attack flows')
     argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
-    argp.add_argument('--maxaddr', type=int, default=0xfff, help='Size of address space')
+    argp.add_argument('--maxaddr', type=int, default=0xff, help='Size of address space')
     argp.add_argument('--epsilon', type=float, default=.005, help='Error bound')
-    argp.add_argument('--phi', type=float, default=.02, help='Query threshold')
-    argp.add_argument('--minprefix', type=int, default=0, help='Minimum prefix length')
-    argp.add_argument('--interval', type=int, default=1, help='HHH query interval')
+    argp.add_argument('--phi', type=float, default=.25, help='Query threshold')
+    argp.add_argument('--minprefix', type=int, default=23, help='Minimum prefix length')
+    argp.add_argument('--interval', type=int, default=10, help='HHH query interval')
     argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
 
     args = argp.parse_args()
 
     if (args.flow_file is not None and (args.rate_grid_file is None
                                         or args.attack_grid_file is None)):
-        raise ValueError('flow_file requres rate_grid_file and attack_grid_file')
+        raise ValueError('flow_file requires rate_grid_file and attack_grid_file')
 
     return args
 
@@ -275,9 +277,10 @@ def main():
     args = cmdline()
 
     if args.flow_file is None:
-        trace = T3(args.benign, args.attack, args.steps, args.maxaddr).get_flow_group_samplers()
+        trace = T4(args.benign, args.attack, args.steps, args.maxaddr).get_flow_group_samplers()
         trace_sampler = TraceSampler(trace, args.steps)
         trace_sampler.init_flows()
+        print(trace_sampler.num_samples)
     else:
         trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
                                           args.attack_grid_file)
