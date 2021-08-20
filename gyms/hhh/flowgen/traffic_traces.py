@@ -105,6 +105,58 @@ class T3(TrafficTrace):
 
 
 @gin.configurable
+class T4(TrafficTrace):
+
+    def __init__(self, num_benign=300, num_attack=150, maxtime=1000, maxaddr=0xff):
+        super().__init__(maxtime)
+        self.num_benign = num_benign
+        self.num_attack = num_attack
+        self.maxtime = maxtime
+        self.maxaddr = maxaddr
+
+    def get_flow_group_samplers(self):
+        return [
+            # 1st set of benign flows
+            FlowGroupSampler(self.num_benign,
+                             UniformSampler(0, 0.95 * self.maxtime),
+                             WeibullSampler(3 / 2,
+                                            (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * self.maxtime),
+                             NormalSampler(1 / 2 * self.maxaddr, .17 * self.maxaddr, 1, self.maxaddr),
+                             attack=False),
+            # direct attack 1
+            FlowGroupSampler(self.num_attack // 5,
+                             UniformSampler(0, 1),
+                             UniformSampler(0.3 * self.maxtime, 0.6 * self.maxtime),
+                             UniformSampler(0.05, 0.35 * self.maxaddr),
+                             attack=True),
+            # direct attack 2
+            FlowGroupSampler(self.num_attack // 5,
+                             UniformSampler(0, 1),
+                             UniformSampler(0.3 * self.maxtime, 0.6 * self.maxtime),
+                             UniformSampler(0.55 * self.maxaddr, 0.85 * self.maxaddr),
+                             attack=True),
+            # 1st refl/ampl
+            FlowGroupSampler(self.num_attack // 5,
+                             UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
+                             UniformSampler(0.9 * self.maxtime, self.maxtime),
+                             UniformSampler(0.3 * self.maxaddr, 0.32 * self.maxaddr),
+                             attack=True),
+            # 2nd refl/ampl
+            FlowGroupSampler(self.num_attack // 5,
+                             UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
+                             UniformSampler(0.9 * self.maxtime, self.maxtime),
+                             UniformSampler(0.8 * self.maxaddr, 0.82 * self.maxaddr),
+                             attack=True),
+            # 3rd refl/ampl
+            FlowGroupSampler(self.num_attack // 5,
+                             UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
+                             UniformSampler(0.9 * self.maxtime, self.maxtime),
+                             UniformSampler(0.1 * self.maxaddr, 0.12 * self.maxaddr),
+                             attack=True)
+        ]
+
+
+@gin.configurable
 class THauke(TrafficTrace):
 
     def __init__(self, benign_flows, attack_flows, maxtime, maxaddr):
