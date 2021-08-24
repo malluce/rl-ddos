@@ -19,8 +19,8 @@ def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_dec
     elif linear_decay_end_lr is not None:
         return Adam(PolynomialDecay(lr, linear_decay_steps, linear_decay_end_lr))
     else:
-        # return Adam(lr)
-        return SGD(lr)
+        return Adam(lr)
+        # return SGD(lr) # TODO add SGD as option?
 
 
 class MinExpSchedule(LearningRateSchedule):
