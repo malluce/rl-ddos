@@ -18,13 +18,15 @@ from training.wrap_agents.wrap_agent import WrapAgent
 class PPOWrapAgent(PPOClipAgent, WrapAgent):
 
     def __init__(self, time_step_spec, action_spec,
-                 lr, lr_decay_steps, lr_decay_rate, exp_min_lr, linear_decay_end_lr, linear_decay_steps,
+                 lr, lr_decay_steps=None, lr_decay_rate=None, exp_min_lr=None, linear_decay_end_lr=None,
+                 linear_decay_steps=None,
                  # learning rate
-                 gamma, num_epochs, importance_ratio_clipping=0.2,
+                 gamma=0.99, num_epochs=5, importance_ratio_clipping=0.2,
                  actor_layers=(200, 100), value_layers=(200, 100),
+                 actor_act_func=tf.keras.activations.tanh, value_act_func=tf.keras.activations.tanh,
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
-                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95
+                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False
                  ):
         self.gamma = gamma
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
@@ -33,23 +35,26 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
         if use_actor_rnn:
             actor_net = ActorDistributionRnnNetwork(time_step_spec().observation, action_spec(),
                                                     input_fc_layer_params=act_rnn_in_layers, lstm_size=act_rnn_lstm,
-                                                    output_fc_layer_params=act_rnn_out_layers)
+                                                    output_fc_layer_params=act_rnn_out_layers,
+                                                    activation_fn=actor_act_func)
         else:
             actor_net = ActorDistributionNetwork(time_step_spec().observation, action_spec(),
-                                                 fc_layer_params=actor_layers)
+                                                 fc_layer_params=actor_layers, activation_fn=actor_act_func)
 
         # set value net
         if use_value_rnn:
             value_net = ValueRnnNetwork(time_step_spec().observation, input_fc_layer_params=val_rnn_in_layers,
-                                        lstm_size=val_rnn_lstm, output_fc_layer_params=val_rnn_out_layers)
+                                        lstm_size=val_rnn_lstm, output_fc_layer_params=val_rnn_out_layers,
+                                        activation_fn=value_act_func)
         else:
-            value_net = ValueNetwork(time_step_spec().observation, fc_layer_params=value_layers)
+            value_net = ValueNetwork(time_step_spec().observation, fc_layer_params=value_layers,
+                                     activation_fn=value_act_func)
 
         super().__init__(time_step_spec(), action_spec(), optimizer=self.optimizer,
                          actor_net=actor_net, value_net=value_net,
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
                          num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization,
-                         use_gae=use_gae, lambda_value=gae_lambda
+                         use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
