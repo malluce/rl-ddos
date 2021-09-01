@@ -22,6 +22,8 @@ private:
 	typedef hh::space_saving space_saving;
 	typedef size_t thread_id;
 
+	typedef vector< tuple<int, hh::item::id, hh::item::counter> > tuple_list;
+
 	constexpr static unsigned int PARALELLISM = 6;
 	constexpr static queue_size_type QUEUE_SIZE = PARALELLISM * 128;
 	constexpr static queue_size_type BATCH_SIZE = 10;
@@ -38,6 +40,7 @@ public:
 	void update(const item::id& item_id, const item::counter& count = 1, bool const& flush = false);
 	result_type query(double const& phi, hhh::label::length const& min_prefix_length = 0);
 	void clear();
+	tuple_list query_all();
 
 private:
 	void waitfor_spcs_updates_finished();

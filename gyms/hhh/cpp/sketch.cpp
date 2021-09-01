@@ -1,6 +1,9 @@
 #include <iostream>
 #include <utility>
 
+#include <tuple>
+#include <vector>
+
 #include "sketch.h"
 
 using namespace hhh;
@@ -126,4 +129,31 @@ void sketch::clear()
 	total = item::counter(0);
 	for (auto& s : spcs_instances)
 		s.clear();
+}
+
+sketch::tuple_list sketch::query_all()
+{
+	auto threshold = item::counter(0);
+
+    tuple_list results;
+
+    flush_batch();
+	waitfor_spcs_updates_finished();
+
+	for (auto h = int(HIERARCHY_SIZE); h >= 0; --h)
+	{
+	    //std::cout << "hierarchy level=" << h << std::endl;
+		auto [begin, end] = spcs_instances[h].query(threshold);
+
+		for (auto& hh = begin; hh != end; ++hh) {
+			auto& item_id = hh->item_id;
+			auto& count = hh->count;
+			results.push_back( tuple<int, hh::item::id, hh::item::counter>(h, item_id, count) );
+            /*std::cout << "item_id=0x" << std::hex << item_id << std::dec
+            << "(count="  << count
+            << ",error=" << hh->error << ")"
+            << std::endl;*/
+		}
+	}
+	return results;
 }

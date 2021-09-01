@@ -30,5 +30,6 @@ PYBIND11_MODULE(hhhmodule, m)
 			py::arg("id"), py::arg("count") = 1, py::arg("flush") = false)
 		.def("query", &hhh::sketch::query,
 			py::arg("phi"), py::arg("min_prefix_length") = 0)
-		.def("clear", &hhh::sketch::clear);
+		.def("clear", &hhh::sketch::clear)
+		.def("query_all", &hhh::sketch::query_all);
 }
