@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 from gyms.hhh.flowgen.disttrace import DistributionTrace
 from gyms.hhh.flowgen.traffic_traces import T3, T4
-from gyms.hhh.images import generate_hhh_image
+from gyms.hhh.images import generate_filter_image, generate_hhh_image
 
 hhh = HHHAlgo(0.0001)
 t = DistributionTrace(traffic_trace=T4(maxaddr=0xffff))
@@ -20,16 +20,23 @@ for packet, step_finished in t:
     if fin_cnt >= 300:
         hhh.update(packet.ip, 100)
 
-# for _ in range(1000):
-#    hhh.update(int(random.gauss(0x8000, 0.4)), 1)
 
-# for _ in range(1000):
-#    hhh.update(random.randint(0, 0x8000), 1)
+def test_hhh_image(hhh):
+    return generate_hhh_image(hhh)
 
-image = generate_hhh_image(hhh)
 
+def test_filter_image(hhh):
+    hhhs = hhh.query(0.3, 18)
+    return generate_filter_image(hhhs)
+
+
+filter_img = test_filter_image(hhh)
+hhh_img = test_hhh_image(hhh)
 mpl.rcParams['figure.dpi'] = 300
-plt.imshow(image, cmap='gist_gray', interpolation='nearest')  # , #cmap='viridis')
+plt.imshow(filter_img, cmap='gist_gray', interpolation='nearest')  # , #cmap='viridis')
+plt.show()
+
+plt.imshow(hhh_img, cmap='gist_gray', interpolation='nearest')  # , #cmap='viridis')
 plt.show()
 
 # print('=== BLOCKLIST ===')
