@@ -54,7 +54,8 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                          actor_net=actor_net, value_net=value_net,
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
                          num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization,
-                         use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars
+                         use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars,
+                         debug_summaries=sum_grad_vars
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:

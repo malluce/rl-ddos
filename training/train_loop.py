@@ -385,6 +385,7 @@ class PpoTrainLoop(TrainLoop):
     def _init_replay_buffer(self):
         # must be able to store all sampled steps each iteration (plus security margin)
         self.replay_buf_size = self.collect_steps + 100
+        # [N=#envs, T=#steps per env, ...]
         self.replay_buffer = TFUniformReplayBuffer(
             self.agent.collect_data_spec,
             batch_size=self.num_parallel_envs,
