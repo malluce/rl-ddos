@@ -26,7 +26,7 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                  actor_act_func=tf.keras.activations.tanh, value_act_func=tf.keras.activations.tanh,
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
-                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False
+                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False, gradient_clip=None
                  ):
         self.gamma = gamma
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
@@ -40,6 +40,13 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
         #                                         tf.keras.layers.Flatten()]),
         #     'vector': tf.keras.layers.Dense(5)
         # }
+
+        print(time_step_spec().observation)
+
+        # if time_step_spec().observation contains image
+        #   set preprocessing_*=<ppo wrap params>
+        # else
+        #   set preprocessing_*=None
 
         # set actor net
         if use_actor_rnn:
@@ -65,7 +72,7 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
                          num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization,
                          use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars,
-                         debug_summaries=sum_grad_vars
+                         debug_summaries=sum_grad_vars, gradient_clipping=gradient_clip
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
