@@ -23,6 +23,7 @@ from tf_agents.utils import common
 from agents.util import get_dirs
 from gyms.hhh.actionset import ActionSet, TupleActionSet
 from gyms.hhh.env import HHHEnv
+from gyms.hhh.images import ImageGenerator
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
 from training.wrap_agents.dqn_wrap_agent import DQNWrapAgent
@@ -49,7 +50,8 @@ class TrainLoop(ABC):
                  # env/agent param
                  gamma: float = None,  # return discount factor
                  # log params
-                 collect_raw: bool = False  # whether to collect numpy data
+                 collect_raw: bool = False,  # whether to collect numpy data
+                 image_gen: ImageGenerator = None
                  ):
         self.train_sequence_length = train_sequence_length
         self.checkpoint_interval = checkpoint_interval
@@ -68,7 +70,7 @@ class TrainLoop(ABC):
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
         self.dirs = get_dirs(root_dir, Datastore.get_timestamp(), self._get_alg_name())
         self._init_envs(actionset_selection, self.dirs, env_name, state_obs_selection,
-                        use_prev_action_as_obs, collect_raw)
+                        use_prev_action_as_obs, collect_raw, image_gen)
 
         (self.train_summary_writer, self.eval_summary_writer) = (None, None)  # set in _init_summary_writers
         self._init_summary_writers(self.dirs)
@@ -92,13 +94,14 @@ class TrainLoop(ABC):
         pass
 
     def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection,
-                   use_prev_action_as_obs, collect_raw):
+                   use_prev_action_as_obs, collect_raw, image_gen):
         self.ds_eval = Datastore(dirs['root'], 'eval', collect_raw)
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
             'actionset': actionset_selection,
-            'gamma': self.gamma
+            'gamma': self.gamma,
+            'image_gen': image_gen
         }
         self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'], collect_raw=collect_raw)
         self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))

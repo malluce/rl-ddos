@@ -110,6 +110,8 @@ class BaseObservations(Observation):
                          0.2 * random(), 1.0 * randint(16, 32), 0.0])
 
 
+# TODO image observation? those are different from vector observations, since it requires modified NN...
+
 class State(object):
 
     def __init__(self, selection):
@@ -144,6 +146,8 @@ class State(object):
         self.hhh_min = 0
         self.hhh_max = 0
         self.bl_dist = np.zeros(16)
+        self.hhh_image = None
+        self.filter_image = None
 
     def complete(self):
         self._estimate_packet_counters()

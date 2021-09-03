@@ -8,6 +8,8 @@ from gym.spaces import Box, Discrete, MultiDiscrete
 from math import log2, log10, sqrt, exp
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
+
+from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
 from gyms.hhh.state import State
 
@@ -56,7 +58,8 @@ class Loop(object):
 
         return n * m * d + n * Loop.gauss(m - 1) + m * Loop.gauss(n - 1)
 
-    def __init__(self, trace, create_state_fn, actionset, epsilon=HHH_EPSILON, sampling_rate=SAMPLING_RATE,
+    def __init__(self, trace, create_state_fn, actionset, image_gen: ImageGenerator = None, epsilon=HHH_EPSILON,
+                 sampling_rate=SAMPLING_RATE,
                  action_interval=ACTION_INTERVAL):
         self.create_state_fn = create_state_fn
         self.state = create_state_fn()
@@ -70,6 +73,7 @@ class Loop(object):
         self.blacklist_history = []
         self.hhh = HHHAlgo(epsilon)
         self.trace_ended = False
+        self.image_gen = image_gen
 
     def reset(self):
         self.blacklist = Blacklist([])
@@ -109,6 +113,10 @@ class Loop(object):
         s.blacklist_size = len(self.blacklist)
 
         self._calc_hhh_distance_metrics(hhhs, s)
+
+        if self.image_gen is not None:
+            s.hhh_image = self.image_gen.generate_hhh_image(self.hhh)
+            s.filter_image = self.image_gen.generate_filter_image(hhhs)
 
         # All necessary monitoring information has been extracted from
         # the HHH instance in this step. Reset the HHH algorithm to

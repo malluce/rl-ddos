@@ -1,6 +1,8 @@
+from collections import OrderedDict
 from typing import Any, List, Optional, Tuple
 
 import gin
+from tensorflow.python.keras.layers import Lambda
 from tf_agents.agents.ppo.ppo_clip_agent import PPOClipAgent
 from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
@@ -32,40 +34,84 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
 
-        # TODO add preprocessing_layers to process image; preprocessing_combiner to combine result with "normal" inputs
-        # like below (https://www.tensorflow.org/agents/tutorials/8_networks_tutorial?hl=en)
-        # dict keys should match env obs space dict keys
-        # preprocessing_layers = {
-        #     'image': tf.keras.models.Sequential([tf.keras.layers.Conv2D(8, 4),
-        #                                         tf.keras.layers.Flatten()]),
-        #     'vector': tf.keras.layers.Dense(5)
-        # }
+        obs_spec = time_step_spec().observation
+        if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec and 'filter_image' in obs_spec:
+            print('setting up CNNs!')
+            hhh_cnn = tf.keras.models.Sequential([
+                # B,17,512,1
+                tf.keras.layers.Conv2D(16, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
+                # B,16,255,16
+                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+                # B,16,127,16
+                tf.keras.layers.Conv2D(32, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
+                # B,15,62,32
+                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+                # B,15,31,32
+                tf.keras.layers.Conv2D(64, (3, 3), activation=tf.keras.activations.relu, strides=3),
+                # B,5,10,64
+                tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
+                # B,2,4,64
+                tf.keras.layers.Flatten(),
+                # B,512
+                tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
+            ])
 
-        print(time_step_spec().observation)
+            filter_cnn = tf.keras.models.Sequential([
+                # B,17,512,1
+                tf.keras.layers.Conv2D(16, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
+                # B,16,255,16
+                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+                # B,16,127,16
+                tf.keras.layers.Conv2D(32, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
+                # B,15,62,32
+                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+                # B,15,31,32
+                tf.keras.layers.Conv2D(64, (3, 3), activation=tf.keras.activations.relu, strides=3),
+                # B,5,10,64
+                tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
+                # B,2,4,64
+                tf.keras.layers.Flatten(),
+                # B,512
+                tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
+            ])
 
-        # if time_step_spec().observation contains image
-        #   set preprocessing_*=<ppo wrap params>
-        # else
-        #   set preprocessing_*=None
+            preprocessing_layers = {
+                'vector': Lambda(lambda x: x),  # pass-through layer
+                'hhh_image': hhh_cnn,
+                'filter_image': filter_cnn
+            }
+            preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
+        else:
+            print('not using CNNs')
+            preprocessing_layers = None
+            preprocessing_combiner = None
 
         # set actor net
         if use_actor_rnn:
             actor_net = ActorDistributionRnnNetwork(time_step_spec().observation, action_spec(),
                                                     input_fc_layer_params=act_rnn_in_layers, lstm_size=act_rnn_lstm,
                                                     output_fc_layer_params=act_rnn_out_layers,
-                                                    activation_fn=actor_act_func)
+                                                    activation_fn=actor_act_func,
+                                                    preprocessing_layers=preprocessing_layers,
+                                                    preprocessing_combiner=preprocessing_combiner)
         else:
             actor_net = ActorDistributionNetwork(time_step_spec().observation, action_spec(),
-                                                 fc_layer_params=actor_layers, activation_fn=actor_act_func)
+                                                 fc_layer_params=actor_layers, activation_fn=actor_act_func,
+                                                 preprocessing_layers=preprocessing_layers,
+                                                 preprocessing_combiner=preprocessing_combiner)
 
         # set value net
         if use_value_rnn:
             value_net = ValueRnnNetwork(time_step_spec().observation, input_fc_layer_params=val_rnn_in_layers,
                                         lstm_size=val_rnn_lstm, output_fc_layer_params=val_rnn_out_layers,
-                                        activation_fn=value_act_func)
+                                        activation_fn=value_act_func,
+                                        preprocessing_layers=preprocessing_layers,
+                                        preprocessing_combiner=preprocessing_combiner)
         else:
             value_net = ValueNetwork(time_step_spec().observation, fc_layer_params=value_layers,
-                                     activation_fn=value_act_func)
+                                     activation_fn=value_act_func,
+                                     preprocessing_layers=preprocessing_layers,
+                                     preprocessing_combiner=preprocessing_combiner)
 
         super().__init__(time_step_spec(), action_spec(), optimizer=self.optimizer,
                          actor_net=actor_net, value_net=value_net,

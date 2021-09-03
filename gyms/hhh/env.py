@@ -9,6 +9,7 @@ from math import log2, sqrt
 from gym.envs.registration import register
 
 from .actionset import ActionSet
+from .images import ImageGenerator
 from .loop import Loop
 from .obs import Observation
 from .reward import RewardCalc
@@ -33,14 +34,15 @@ def register_hhh_gym(env_name='HHHGym-v0'):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc):
+                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
         self.trace = DistributionTrace()
-        self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset)
+        self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset, image_gen=image_gen)
         self.episode = 0
         self.current_step = 0
+        self.image_gen = image_gen
 
         self.action_space = self.loop.actionset.actionspace
         self.observation_space = self._observation_spec()
@@ -124,17 +126,36 @@ class HHHEnv(gym.Env):
 
     def _build_observation(self, previous_action=None):
         action_observation, state_observation = (None, None)
+        hhh_img_obs, filter_img_obs = (None, None)
+        use_images = self.image_gen is not None
         if previous_action is None:
             state_observation = self.loop.state.get_initialization()
             if self.use_prev_action_as_obs:
                 action_observation = maybe_cast_to_arr(self.loop.actionset.get_initialization())
+            if use_images:
+                hhh_img_obs = np.zeros(self.observation_space['hhh_image'].shape, dtype=np.float32)
+                filter_img_obs = np.zeros(self.observation_space['filter_image'].shape, dtype=np.float32)
         else:
             state_observation = self.loop.state.get_features()
             if self.use_prev_action_as_obs:
                 action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
+            if use_images:
+                hhh_img_obs = self.loop.state.hhh_image
+                filter_img_obs = self.loop.state.filter_image
+        if not self.use_prev_action_as_obs:
+            vector_obs = state_observation
+        else:
+            vector_obs = np.concatenate((state_observation, action_observation))
 
-        return state_observation if not self.use_prev_action_as_obs else np.concatenate((state_observation,
-                                                                                         action_observation))
+        if use_images:
+            assert hhh_img_obs is not None and filter_img_obs is not None
+            return {
+                'vector': vector_obs,
+                'hhh_image': hhh_img_obs,
+                'filter_image': filter_img_obs
+            }
+        else:
+            return vector_obs
 
     def _observation_spec(self):
         if self.use_prev_action_as_obs:
@@ -146,10 +167,18 @@ class HHHEnv(gym.Env):
             lb = self.loop.state.get_lower_bounds()
             ub = self.loop.state.get_upper_bounds()
 
-        return spaces.Box(  # TODO Tuple or Dict space for image
-            lb, ub,
-            dtype=np.float32
-        )
+        # all non-image observations
+        vector_spec = spaces.Box(lb, ub, dtype=np.float32)
+
+        if self.image_gen is not None:
+            hhh_img_spec = self.image_gen.get_hhh_img_spec()
+            filter_img_spec = self.image_gen.get_filter_img_spec()
+            return spaces.Dict({'vector': vector_spec,
+                                'hhh_image': hhh_img_spec,
+                                'filter_image': filter_img_spec
+                                })
+        else:
+            return vector_spec
 
     def reset(self):
         self.episode += 1
