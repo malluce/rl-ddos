@@ -146,7 +146,7 @@ class HHHEnv(gym.Env):
             lb = self.loop.state.get_lower_bounds()
             ub = self.loop.state.get_upper_bounds()
 
-        return spaces.Box(
+        return spaces.Box(  # TODO Tuple or Dict space for image
             lb, ub,
             dtype=np.float32
         )

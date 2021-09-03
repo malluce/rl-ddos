@@ -31,6 +31,16 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
         self.gamma = gamma
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
+
+        # TODO add preprocessing_layers to process image; preprocessing_combiner to combine result with "normal" inputs
+        # like below (https://www.tensorflow.org/agents/tutorials/8_networks_tutorial?hl=en)
+        # dict keys should match env obs space dict keys
+        # preprocessing_layers = {
+        #     'image': tf.keras.models.Sequential([tf.keras.layers.Conv2D(8, 4),
+        #                                         tf.keras.layers.Flatten()]),
+        #     'vector': tf.keras.layers.Dense(5)
+        # }
+
         # set actor net
         if use_actor_rnn:
             actor_net = ActorDistributionRnnNetwork(time_step_spec().observation, action_spec(),
