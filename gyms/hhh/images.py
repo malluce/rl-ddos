@@ -7,7 +7,7 @@ ADDRESS_SPACE = 16  # the size of the address space, hierarchy levels are [ADDRE
 IMAGE_SIZE = 15  # 8  # the image size (pixels, width=height) in multiples of ADDRESS_SPACE+1
 
 # if the maximum pixel value is at least SQUASH_THRESHOLD times larger than the 2nd smallest value, then
-# values will be squashed together (smallest value will (likely) be 0, so take 2nd smallest)
+# values will be squashed together with log (smallest value will (likely) be 0, so take 2nd smallest)
 SQUASH_THRESHOLD = 1
 
 
@@ -82,7 +82,9 @@ def generate_hhh_image(hhh_algo, img_size=IMAGE_SIZE, address_space=ADDRESS_SPAC
 
     # stretch y-axis to match the x-axis (square image)
     image = np.repeat(image, img_size, axis=0)
-    # TODO possibly apply colormap and expand dims
+
+    # output (width, height, channels=1)
+    image = np.expand_dims(image, 2)
     print(f'[hhh] query_all and CNN image (shape {image.shape}) build time={time.time() - start}')
     return image
 
