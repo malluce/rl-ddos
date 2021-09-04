@@ -1,7 +1,7 @@
 import gin
 import tf_agents
 from absl import app, flags, logging
-import tensorflow as tf
+import tensorflow
 import dask
 from gyms.hhh.env import register_hhh_gym
 from training.train_loop import get_train_loop
@@ -12,16 +12,27 @@ FLAGS = flags.FLAGS
 
 def main(_):
     env_name = register_hhh_gym()
+
     logging.set_verbosity(logging.INFO)
-    tf.get_logger().setLevel('INFO')
-    physical_devices = tf.config.list_physical_devices('GPU')
+    tensorflow.get_logger().setLevel('INFO')
+
+    physical_devices = tensorflow.config.list_physical_devices('GPU')
     for gpu in physical_devices:  # don't allocate all available mem on start, but grow by demand
-        tf.config.experimental.set_memory_growth(gpu, True)
+        tensorflow.config.experimental.set_memory_growth(gpu, True)
+
+    # register activation functions to use in gin config file
+    gin.external_configurable(tensorflow.keras.activations.relu, 'tf.keras.activations.relu')
+    gin.external_configurable(tensorflow.keras.activations.tanh, 'tf.keras.activations.tanh')
+
     for gin_file in FLAGS.gin_file:
         gin.parse_config_file(gin_file)
+
     gin.config._OPERATIVE_CONFIG_LOCK = dask.utils.SerializableLock()  # required for PPO when instantiating envs
+
     tf_agents.system.multiprocessing.enable_interactive_mode()
+
     get_train_loop(env_name=env_name).train()
+
     return 0
 
 
