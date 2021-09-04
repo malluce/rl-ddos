@@ -1,39 +1,43 @@
-# env params
+# basic params
+get_train_loop.alg_name='ppo'
 TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.eval_interval = 6000
+TrainLoop.num_eval_episodes = 5
+TrainLoop.log_interval = 600
+
+# debug
+TrainLoop.collect_raw = False # TODO warn
+PPOWrapAgent.sum_grad_vars=False # TODO warn
+
+# state
 TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
+
+# action
 TrainLoop.actionset_selection=@TupleActionSet()
-
-# images
-#TrainLoop.image_gen=@ImageGenerator()
-#ImageGenerator.img_width_px=512 # (17,512,1)
-#ImageGenerator.address_space=16
-#ImageGenerator.hhh_squash_threshold=1
-#ImageGenerator.max_pixel_value=1
-
-
-
-# trace settings
-DistributionTrace.traffic_trace = @T1()
-#T4.num_benign=600
-#T4.num_attack=300
-#T4.maxtime=600
-#T4.maxaddr=0xfff
-Loop.action_interval=10
 
 # reward
 HHHEnv.reward_calc=@DefaultRewardCalc()
 
+# trace settings
+DistributionTrace.traffic_trace = @T4()
+Loop.action_interval=10
+
+# generic params
 TrainLoop.gamma=0
-
-TrainLoop.collect_raw = False # TODO warn
-PPOWrapAgent.sum_grad_vars=False # TODO warn
-
-
-
+PPOWrapAgent.use_gae=True
+PPOWrapAgent.gae_lambda=0.95
+TrainLoop.num_iterations = 300000
 PPOWrapAgent.gradient_clip=0.5 # TODO disable again, only for RNN test
 
-# act func for RNN/FFNN, not CNN preprocessing (currently ReLu by default)
+# PPO-specific params
+PPOWrapAgent.lr=1e-6
+PPOWrapAgent.num_epochs=10
+PPOWrapAgent.importance_ratio_clipping=0.1
+PpoTrainLoop.num_parallel_envs = 1 # N
+PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
+
+# act func for RNN/FFNN
 actor_act_func=@tf.keras.activations.relu
 value_act_func=@tf.keras.activations.relu
 
@@ -51,21 +55,4 @@ PPOWrapAgent.val_rnn_out_layers=(64,)
 #PPOWrapAgent.actor_layers=(64,64) # (200, 100)
 #PPOWrapAgent.value_layers=(64,64) # (200, 100)
 
-PPOWrapAgent.use_gae=True
-PPOWrapAgent.gae_lambda=0.95
-
-
-# agent params
-get_train_loop.alg_name='ppo'
-PPOWrapAgent.lr=1e-6
-PPOWrapAgent.num_epochs=10
-PPOWrapAgent.importance_ratio_clipping=0.1
-
-# train params
-TrainLoop.eval_interval = 6000
-TrainLoop.num_eval_episodes = 5
-TrainLoop.log_interval = 600
-
-TrainLoop.num_iterations = 300000
-PpoTrainLoop.num_parallel_envs = 1 # N
-PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
+# CNN parameters see ppo-cnn.gin

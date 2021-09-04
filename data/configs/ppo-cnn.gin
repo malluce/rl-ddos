@@ -1,0 +1,44 @@
+# uncomment to use image state, all following parameters are only relevant if enables
+TrainLoop.image_gen=@ImageGenerator()
+
+ImageGenerator.img_width_px=512 # (17,512,1)
+ImageGenerator.address_space=16
+ImageGenerator.hhh_squash_threshold=1
+ImageGenerator.max_pixel_value=1
+
+PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
+
+common_cnn_spec =(
+     (
+         [8, 16, 32],             # conv filters
+         [(2, 4), (2, 4), (3, 3)], # conv kernel sizes
+         [(1, 2), (1, 2), 3]       # conv strides
+     ),
+    (
+         [(1, 2), (1, 2), 3], # pool sizes
+         [(1, 2), (1, 2), 2]  # pool strides
+    ),
+    64 # fc units after flatten
+)
+
+PPOWrapAgent.hhh_cnn_spec=%common_cnn_spec
+PPOWrapAgent.filter_cnn_spec=%common_cnn_spec
+
+#[
+#        # B,17,512,1
+#        @tf.keras.layers.Conv2D(16, (2, 4), activation=@tf.keras.activations.relu, strides=(1, 2)),
+#        # B,16,255,16
+#        @tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+#        # B,16,127,16
+#        @tf.keras.layers.Conv2D(32, (2, 4), activation=@tf.keras.activations.relu, strides=(1, 2)),
+#        # B,15,62,32
+#        @tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
+#        # B,15,31,32
+#        @tf.keras.layers.Conv2D(64, (3, 3), activation=@tf.keras.activations.relu, strides=3),
+#        # B,5,10,64
+#        @tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
+#        # B,2,4,64
+#        @tf.keras.layers.Flatten(),
+#        # B,512
+#        @tf.keras.layers.Dense(64, activation=@tf.keras.activations.relu)
+#]

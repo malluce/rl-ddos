@@ -20,9 +20,17 @@ def main(_):
     for gpu in physical_devices:  # don't allocate all available mem on start, but grow by demand
         tensorflow.config.experimental.set_memory_growth(gpu, True)
 
-    # register activation functions to use in gin config file
+    # register external functions/classes to use in gin config file
+    # activations
     gin.external_configurable(tensorflow.keras.activations.relu, 'tf.keras.activations.relu')
     gin.external_configurable(tensorflow.keras.activations.tanh, 'tf.keras.activations.tanh')
+
+    # sequential model and layers for CNN
+    gin.external_configurable(tensorflow.keras.models.Sequential, 'tf.keras.models.Sequential')
+    gin.external_configurable(tensorflow.keras.layers.Conv2D, 'tf.keras.layers.Conv2D')
+    gin.external_configurable(tensorflow.keras.layers.MaxPool2D, 'tf.keras.layers.MaxPool2D')
+    gin.external_configurable(tensorflow.keras.layers.Flatten, 'tf.keras.layers.Flatten')
+    gin.external_configurable(tensorflow.keras.layers.Dense, 'tf.keras.layers.Dense')
 
     for gin_file in FLAGS.gin_file:
         gin.parse_config_file(gin_file)

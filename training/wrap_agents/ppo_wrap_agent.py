@@ -28,52 +28,23 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                  actor_act_func=tf.keras.activations.tanh, value_act_func=tf.keras.activations.tanh,
                  use_actor_rnn=False, act_rnn_in_layers=(128, 64), act_rnn_lstm=(64,), act_rnn_out_layers=(128, 64),
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
-                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False, gradient_clip=None
+                 entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False, gradient_clip=None,
+                 cnn_act_func=tf.keras.activations.relu,
+                 # CNN specs are 3-tuples of the following contents (all lists must have same length)
+                 # ( ([conv_filters], [conv_kernel_sizes], [conv_strides]), ([pool_sizes], [pool_strides]), fc_units )
+                 hhh_cnn_spec=None, filter_cnn_spec=None
                  ):
         self.gamma = gamma
+        self.cnn_act_func = cnn_act_func
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
 
         obs_spec = time_step_spec().observation
         if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec and 'filter_image' in obs_spec:
             print('setting up CNNs!')
-            hhh_cnn = tf.keras.models.Sequential([
-                # B,17,512,1
-                tf.keras.layers.Conv2D(16, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
-                # B,16,255,16
-                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-                # B,16,127,16
-                tf.keras.layers.Conv2D(32, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
-                # B,15,62,32
-                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-                # B,15,31,32
-                tf.keras.layers.Conv2D(64, (3, 3), activation=tf.keras.activations.relu, strides=3),
-                # B,5,10,64
-                tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
-                # B,2,4,64
-                tf.keras.layers.Flatten(),
-                # B,512
-                tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
-            ])
 
-            filter_cnn = tf.keras.models.Sequential([
-                # B,17,512,1
-                tf.keras.layers.Conv2D(16, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
-                # B,16,255,16
-                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-                # B,16,127,16
-                tf.keras.layers.Conv2D(32, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
-                # B,15,62,32
-                tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-                # B,15,31,32
-                tf.keras.layers.Conv2D(64, (3, 3), activation=tf.keras.activations.relu, strides=3),
-                # B,5,10,64
-                tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
-                # B,2,4,64
-                tf.keras.layers.Flatten(),
-                # B,512
-                tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
-            ])
+            hhh_cnn = self.build_cnn_from_spec(hhh_cnn_spec)
+            filter_cnn = self.build_cnn_from_spec(filter_cnn_spec)
 
             preprocessing_layers = {
                 'vector': Lambda(lambda x: x),  # pass-through layer
@@ -120,6 +91,25 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                          use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars,
                          debug_summaries=sum_grad_vars, gradient_clipping=gradient_clip
                          )
+
+    def build_cnn_from_spec(self, cnn_spec):
+        conv_layers, pool_layers, fc_units = cnn_spec
+        conv_filters, conv_kernel_sizes, conv_strides = conv_layers
+        pool_sizes, pool_strides = pool_layers
+        assert len(conv_filters) == len(conv_kernel_sizes) == len(conv_strides) == len(pool_sizes) == \
+               len(pool_strides)
+        keras_layers = []
+        # alternating conv and max pool layers
+        for filters, kernel_size, stride, pool_size, pool_stride in zip(conv_filters, conv_kernel_sizes,
+                                                                        conv_strides, pool_sizes, pool_strides):
+            keras_layers.append(
+                tf.keras.layers.Conv2D(filters, kernel_size, activation=self.cnn_act_func, strides=stride)
+            )
+            keras_layers.append(tf.keras.layers.MaxPool2D(pool_size=pool_size, strides=pool_stride))
+        # flatten and dense at the end
+        keras_layers.append(tf.keras.layers.Flatten())
+        keras_layers.append(tf.keras.layers.Dense(fc_units, activation=self.cnn_act_func))
+        return tf.keras.models.Sequential(keras_layers)
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
         pass
