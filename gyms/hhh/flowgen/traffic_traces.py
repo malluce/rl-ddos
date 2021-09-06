@@ -21,11 +21,12 @@ class TrafficTrace(ABC):
 
 @gin.configurable
 class T1(TrafficTrace):
-    def __init__(self, num_benign=25, num_attack=50, maxtime=600):
+    def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
         self.maxtime = maxtime
+        assert maxaddr == 0xffff
 
     def get_flow_group_samplers(self):
         return [
@@ -33,13 +34,13 @@ class T1(TrafficTrace):
             FlowGroupSampler(self.num_benign,
                              UniformSampler(0, 1),
                              UniformSampler(self.maxtime, self.maxtime + 1),
-                             UniformSampler(0x000, 0x7ff),  # subnet 0.0.0.0/21
+                             UniformSampler(0x000, 0x7fff),
                              attack=False),
             # 1st set of attack flows
             FlowGroupSampler(self.num_attack,
                              UniformSampler(0, 1),
                              UniformSampler(self.maxtime, self.maxtime + 1),  #
-                             UniformSampler(0x800, 0xfff),  # subnet 0.0.8.0/21
+                             UniformSampler(0x8000, 0xffff),
                              attack=True)
         ]
 
@@ -47,11 +48,12 @@ class T1(TrafficTrace):
 @gin.configurable
 class T2(TrafficTrace):
 
-    def __init__(self, num_benign=50, num_attack=100, maxtime=600):
+    def __init__(self, num_benign=50, num_attack=100, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
         self.maxtime = maxtime
+        assert maxaddr == 0xffff
 
     def get_flow_group_samplers(self):
         return [
@@ -59,13 +61,13 @@ class T2(TrafficTrace):
             FlowGroupSampler(self.num_benign,
                              UniformSampler(0, 1),
                              UniformSampler(self.maxtime, self.maxtime + 1),
-                             UniformSampler(0x000, 0x7ff),  # subnet 0.0.0.0/21
+                             UniformSampler(0x000, 0x7fff),
                              attack=False),
             # 1st set of attack flows
             FlowGroupSampler(self.num_attack,
                              UniformSampler(0, 1),
                              UniformSampler(self.maxtime / 4, self.maxtime / 2),  #
-                             UniformSampler(0x800, 0xfff),  # subnet 0.0.8.0/21
+                             UniformSampler(0x8000, 0xffff),
                              attack=True)
         ]
 
@@ -73,7 +75,7 @@ class T2(TrafficTrace):
 @gin.configurable
 class T3(TrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xff):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -107,7 +109,7 @@ class T3(TrafficTrace):
 @gin.configurable
 class T4(TrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xff):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
