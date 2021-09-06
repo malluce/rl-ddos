@@ -109,6 +109,9 @@ class DirectResolveActionSet(ActionSet):
     Used for eval purposes, where actions are not used as observations (e.g., actions are chosen randomly or fixed)
     """
 
+    def __init__(self):
+        self.actionspace = Tuple((Box(-1.0, 1.0, shape=(), dtype=np.float32), Discrete(17)))
+
     def resolve(self, action):
         return action[0], action[1]
 
