@@ -1,4 +1,4 @@
-# uncomment to use image state, all following parameters are only relevant if enables
+# uncomment to use image state, all following parameters are only relevant if enabled
 TrainLoop.image_gen=@ImageGenerator()
 
 ImageGenerator.img_width_px=512 # (17,512,1)
@@ -8,7 +8,7 @@ ImageGenerator.max_pixel_value=1
 
 PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
 
-common_cnn_spec =(
+PPOWrapAgent.cnn_spec=(
      (
          [8, 16, 32],             # conv filters
          [(2, 4), (2, 4), (3, 3)], # conv kernel sizes
@@ -21,9 +21,7 @@ common_cnn_spec =(
     64 # fc units after flatten
 )
 
-PPOWrapAgent.hhh_cnn_spec=%common_cnn_spec
-PPOWrapAgent.filter_cnn_spec=%common_cnn_spec
-
+# CNN Configuration 1
 #[
 #        # B,17,512,1
 #        @tf.keras.layers.Conv2D(16, (2, 4), activation=@tf.keras.activations.relu, strides=(1, 2)),

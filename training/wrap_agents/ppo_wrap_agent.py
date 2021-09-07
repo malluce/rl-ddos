@@ -32,7 +32,7 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                  cnn_act_func=tf.keras.activations.relu,
                  # CNN specs are 3-tuples of the following contents (all lists must have same length)
                  # ( ([conv_filters], [conv_kernel_sizes], [conv_strides]), ([pool_sizes], [pool_strides]), fc_units )
-                 hhh_cnn_spec=None, filter_cnn_spec=None
+                 cnn_spec=None
                  ):
         self.gamma = gamma
         self.cnn_act_func = cnn_act_func
@@ -40,20 +40,18 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
 
         obs_spec = time_step_spec().observation
-        if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec and 'filter_image' in obs_spec:
-            print('setting up CNNs!')
+        if type(obs_spec) is OrderedDict and 'image' in obs_spec:
+            print('setting up CNN!')
 
-            hhh_cnn = self.build_cnn_from_spec(hhh_cnn_spec)
-            filter_cnn = self.build_cnn_from_spec(filter_cnn_spec)
+            cnn = self.build_cnn_from_spec(cnn_spec)
 
             preprocessing_layers = {
                 'vector': Lambda(lambda x: x),  # pass-through layer
-                'hhh_image': hhh_cnn,
-                'filter_image': filter_cnn
+                'image': cnn
             }
             preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
         else:
-            print('not using CNNs')
+            print('not using CNN')
             preprocessing_layers = None
             preprocessing_combiner = None
 

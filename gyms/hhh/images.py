@@ -50,6 +50,18 @@ class ImageGenerator:
     def _shape_to_gym_spec(self, shape):
         return spaces.Box(0.0, self.max_pixel_value, shape=shape, dtype=np.float32)
 
+    def get_img_spec(self):
+        filter_img_spec = self.get_filter_img_spec()
+        hhh_img_spec = self.get_hhh_img_spec()
+        assert filter_img_spec == hhh_img_spec
+        concatenated_img_shape = hhh_img_spec.shape[:-1] + (2,)  # two-channel instead of one channel
+        return self._shape_to_gym_spec(concatenated_img_shape)
+
+    def generate_image(self, hhh_algo, hhh_query_result):
+        hhh_image = self.generate_hhh_image(hhh_algo)
+        filter_image = self.generate_filter_image(hhh_query_result)
+        return np.concatenate((hhh_image, filter_image), axis=-1)  # return two-channel image
+
     def generate_hhh_image(self, hhh_algo):
         # start = time.time()
 
@@ -73,7 +85,7 @@ class ImageGenerator:
         split_by_level = np.split(res[:, 1:], np.sort(unique_indices)[1:])[::-1]
 
         # the bounds of the bins to separate the address space (x-axis)
-        bounds = self.get_x_axis_bounds(max_addr)
+        bounds = self._get_x_axis_bounds(max_addr)
 
         # init output image (x-axis=address bins, y-axis=hierarchy levels)
         image = np.zeros((len(split_by_level), self.img_width_px), dtype=np.float32)
@@ -124,7 +136,7 @@ class ImageGenerator:
         rules = np.asarray(list(map(lambda x: (x.id, x.len), hhh_query_result)))
 
         # the bounds of the bins to separate the address space (x-axis)
-        bounds = self.get_x_axis_bounds(max_addr)
+        bounds = self._get_x_axis_bounds(max_addr)
 
         # init output image (x-axis=address bins, y-axis=hierarchy levels)
         image = np.zeros((self.address_space + 1, self.img_width_px), dtype=np.float32)
@@ -161,7 +173,7 @@ class ImageGenerator:
         # print(f'[filter] CNN image (shape {image.shape}) build time={time.time() - start}')
         return image
 
-    def get_x_axis_bounds(self, max_addr):
+    def _get_x_axis_bounds(self, max_addr):
         step_size = int((max_addr + 1) / self.img_width_px)
         bounds = np.arange(0, max_addr + 1 + step_size, step=step_size, dtype=np.int)
         assert bounds[-1] == max_addr + 1

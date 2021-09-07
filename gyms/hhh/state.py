@@ -97,7 +97,9 @@ class BaseObservations(Observation):
     def get_observation(self, state):
         return np.array([state.trace_start, state.min_prefix,
                          state.estimated_precision, state.estimated_recall,
-                         state.blacklist_size, state.episode_progress])
+                         state.blacklist_size,
+                         state.episode_progress
+                         ])
 
     def get_lower_bound(self):
         return np.array([0.0, 16.0, 0.0, 0.0, 0.0, 0.0])
@@ -146,8 +148,7 @@ class State(object):
         self.hhh_min = 0
         self.hhh_max = 0
         self.bl_dist = np.zeros(16)
-        self.hhh_image = None
-        self.filter_image = None
+        self.image = None
 
     def complete(self):
         self._estimate_packet_counters()

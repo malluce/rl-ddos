@@ -115,8 +115,7 @@ class Loop(object):
         self._calc_hhh_distance_metrics(hhhs, s)
 
         if self.image_gen is not None:
-            s.hhh_image = self.image_gen.generate_hhh_image(self.hhh)
-            s.filter_image = self.image_gen.generate_filter_image(hhhs)
+            s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
 
         # All necessary monitoring information has been extracted from
         # the HHH instance in this step. Reset the HHH algorithm to
