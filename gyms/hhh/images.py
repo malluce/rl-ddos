@@ -73,7 +73,7 @@ class ImageGenerator:
         split_by_level = np.split(res[:, 1:], np.sort(unique_indices)[1:])[::-1]
 
         # the bounds of the bins to separate the address space (x-axis)
-        bounds = np.linspace(0, max_addr, num=self.img_width_px, dtype=np.int)
+        bounds = self.get_x_axis_bounds(max_addr)
 
         # init output image (x-axis=address bins, y-axis=hierarchy levels)
         image = np.zeros((len(split_by_level), self.img_width_px), dtype=np.float32)
@@ -81,32 +81,24 @@ class ImageGenerator:
         # iterate over all hierarchy levels and the corresponding item lists
         for level, l in enumerate(split_by_level):
             # bin the item lists according to the IP address
-            l_binned = np.digitize(l[:, 0], bins=bounds)
+            l_binned = np.digitize(l[:, 0], bins=bounds) - 1
 
             shifted_level = level + self.address_space  # in [ADDRESS_SPACE, 32]
             if shifted_level != 32:  # if not at the bottom, consider possible adjacent bins in subnet
                 subnet_size = Label.subnet_size(level + self.address_space)
-                l_end = l[:, 0] + subnet_size
-                l_end_binned = np.digitize(l_end, bins=bounds)
+                l_end = l[:, 0] + subnet_size - 1
+                l_end_binned = np.digitize(l_end, bins=bounds) - 1
             else:  # if at the bottom, only consider the bin which contains the current IP
                 l_end_binned = l_binned
 
             # increment the image pixels for each level and bin according the item list's count
             for bin_index, count in enumerate(l[:, 1]):
-                first_bin = l_binned[bin_index] - 1
-                last_bin = l_end_binned[bin_index] - 1
+                first_bin = l_binned[bin_index]
+                last_bin = l_end_binned[bin_index]
                 if first_bin == last_bin:  # only increment current bin
                     image[level, first_bin] += count
-
-                    if last_bin == len(bounds) - 1:  # also increment last bin if on the right edge
-                        image[level, last_bin] += count
                 else:  # increment all bins covered by the current item
-                    # also increment last bin if on the right edge
-                    # otherwise exclude it (i.e. range(first_bin, last_bin)) to avoid duplicate additions of count
-                    if last_bin == len(bounds) - 1:
-                        image[level, last_bin] += count
-
-                    for bin_to_increment in range(first_bin, last_bin):
+                    for bin_to_increment in range(first_bin, last_bin + 1):
                         image[level, bin_to_increment] += count
 
         # if needed squash distant values together to increase visibility of smaller IP sources
@@ -132,7 +124,7 @@ class ImageGenerator:
         rules = np.asarray(list(map(lambda x: (x.id, x.len), hhh_query_result)))
 
         # the bounds of the bins to separate the address space (x-axis)
-        bounds = np.linspace(0, max_addr, num=self.img_width_px, dtype=np.int)
+        bounds = self.get_x_axis_bounds(max_addr)
 
         # init output image (x-axis=address bins, y-axis=hierarchy levels)
         image = np.zeros((self.address_space + 1, self.img_width_px), dtype=np.float32)
@@ -149,7 +141,7 @@ class ImageGenerator:
 
             if level != 32:  # if not at the bottom, a range of addresses is blocked
                 subnet_size = Label.subnet_size(level)
-                end_address = ip + subnet_size
+                end_address = ip + subnet_size - 1
             else:  # if at the bottom, only the current IP is blocked
                 end_address = ip
 
@@ -168,3 +160,10 @@ class ImageGenerator:
         image = np.expand_dims(image, 2)
         # print(f'[filter] CNN image (shape {image.shape}) build time={time.time() - start}')
         return image
+
+    def get_x_axis_bounds(self, max_addr):
+        step_size = int((max_addr + 1) / self.img_width_px)
+        bounds = np.arange(0, max_addr + 1 + step_size, step=step_size, dtype=np.int)
+        assert bounds[-1] == max_addr + 1
+        assert len(bounds) == self.img_width_px + 1
+        return bounds
