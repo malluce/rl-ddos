@@ -98,18 +98,18 @@ class BaseObservations(Observation):
         return np.array([state.trace_start, state.min_prefix,
                          state.estimated_precision, state.estimated_recall,
                          state.blacklist_size,
-                         state.episode_progress
+                         # state.episode_progress
                          ])
 
     def get_lower_bound(self):
-        return np.array([0.0, 16.0, 0.0, 0.0, 0.0, 0.0])
+        return np.array([0.0, 16.0, 0.0, 0.0, 0.0])  # , 0.0])
 
     def get_upper_bound(self):
-        return np.array([1.0, 32.0, 1.2, 1.2, 128.0, 1.0])
+        return np.array([1.0, 32.0, 1.2, 1.2, 128.0])  # , 1.0])
 
     def get_initialization(self):
         return np.array([1.0, 32.0, 0.2 * random(),
-                         0.2 * random(), 1.0 * randint(16, 32), 0.0])
+                         0.2 * random(), 1.0 * randint(16, 32)])  # , 0.0])
 
 
 # TODO image observation? those are different from vector observations, since it requires modified NN...
