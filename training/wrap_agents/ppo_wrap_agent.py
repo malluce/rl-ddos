@@ -44,10 +44,12 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
             print('setting up CNN!')
 
             cnn = self.build_cnn_from_spec(cnn_spec)
+            hhh_cnn = self.build_cnn_from_spec(cnn_spec)
 
             preprocessing_layers = {
                 'vector': Lambda(lambda x: x),  # pass-through layer
-                'image': cnn
+                'image': cnn,
+                'hhh_image': hhh_cnn
             }
             preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
         else:
