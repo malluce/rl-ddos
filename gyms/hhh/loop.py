@@ -150,7 +150,6 @@ class Loop(object):
 
                 if np.random.random() < self.sampling_rate:
                     s.samples += 1
-
                     self.hhh.update(p.ip, int(self.weight))
 
                     # Estimate the number of mal packets
@@ -170,6 +169,9 @@ class Loop(object):
         s.episode_progress = 1.0 * s.total / self.trace.N
 
         s.complete()
+
+        if self.image_gen is not None:
+            s.hhh_image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=None)
 
         return self.trace_ended, self.state, self.blacklist_history
 

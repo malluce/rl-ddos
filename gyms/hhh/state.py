@@ -96,20 +96,23 @@ class BaseObservations(Observation):
 
     def get_observation(self, state):
         return np.array([state.trace_start, state.min_prefix,
-                         state.estimated_precision, state.estimated_recall,
+                         # state.estimated_precision, state.estimated_recall,
                          state.blacklist_size,
                          # state.episode_progress
                          ])
 
     def get_lower_bound(self):
-        return np.array([0.0, 16.0, 0.0, 0.0, 0.0])  # , 0.0])
+        # return np.array([0.0, 16.0, 0.0, 0.0, 0.0])  # , 0.0])
+        return np.array([0.0, 16.0, 0.0])
 
     def get_upper_bound(self):
-        return np.array([1.0, 32.0, 1.2, 1.2, 128.0])  # , 1.0])
+        # return np.array([1.0, 32.0, 1.2, 1.2, 128.0])  # , 1.0])
+        return np.array([1.0, 32.0, 128.0])
 
     def get_initialization(self):
-        return np.array([1.0, 32.0, 0.2 * random(),
-                         0.2 * random(), 1.0 * randint(16, 32)])  # , 0.0])
+        # return np.array([1.0, 32.0, 0.2 * random(),
+        #                0.2 * random(), 1.0 * randint(16, 32)])  # , 0.0])
+        return np.array([1.0, 32.0, 1.0 * randint(16, 32)])
 
 
 # TODO image observation? those are different from vector observations, since it requires modified NN...
@@ -148,7 +151,8 @@ class State(object):
         self.hhh_min = 0
         self.hhh_max = 0
         self.bl_dist = np.zeros(16)
-        self.image = None
+        self.image = None  # 2-channel image of last steps traffic and filter
+        self.hhh_image = None  # 1-channel image of current traffic
 
     def complete(self):
         self._estimate_packet_counters()

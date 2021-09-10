@@ -126,20 +126,23 @@ class HHHEnv(gym.Env):
 
     def _build_observation(self, previous_action=None):
         action_observation, state_observation = (None, None)
-        img_obs = None
+        img_obs, hhh_img_obs = (None, None)
         use_images = self.image_gen is not None
         if previous_action is None:
             state_observation = self.loop.state.get_initialization()
             if self.use_prev_action_as_obs:
                 action_observation = maybe_cast_to_arr(self.loop.actionset.get_initialization())
             if use_images:
-                img_obs = np.zeros(self.observation_space['image'].shape, dtype=np.float32)
+                img_obs = np.zeros(self.observation_space['image'].shape, dtype=self.observation_space['image'].dtype)
+                hhh_img_obs = np.zeros(self.observation_space['hhh_image'].shape,
+                                       dtype=self.observation_space['hhh_image'].dtype)
         else:
             state_observation = self.loop.state.get_features()
             if self.use_prev_action_as_obs:
                 action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
             if use_images:
                 img_obs = self.loop.state.image
+                hhh_img_obs = self.loop.state.hhh_image
         if not self.use_prev_action_as_obs:
             vector_obs = state_observation
         else:
@@ -149,7 +152,8 @@ class HHHEnv(gym.Env):
             assert img_obs is not None
             return {
                 'vector': vector_obs,
-                'image': img_obs
+                'image': img_obs,
+                'hhh_image': hhh_img_obs
             }
         else:
             return vector_obs
@@ -168,9 +172,11 @@ class HHHEnv(gym.Env):
         vector_spec = spaces.Box(lb, ub, dtype=np.float32)
 
         if self.image_gen is not None:
-            img_spec = self.image_gen.get_img_spec()
+            complete_img_spec = self.image_gen.get_img_spec()
+            hhh_img_spec = self.image_gen.get_hhh_img_spec()
             return spaces.Dict({'vector': vector_spec,
-                                'image': img_spec
+                                'image': complete_img_spec,
+                                'hhh_image': hhh_img_spec
                                 })
         else:
             return vector_spec

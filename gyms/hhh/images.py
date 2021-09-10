@@ -59,17 +59,30 @@ class ImageGenerator:
 
     def generate_image(self, hhh_algo, hhh_query_result):
         hhh_image = self.generate_hhh_image(hhh_algo)
-        filter_image = self.generate_filter_image(hhh_query_result)
-        return np.concatenate((hhh_image, filter_image), axis=-1)  # return two-channel image
+        if hhh_query_result is not None:  # return two-channel image (HHH and Filter)
+            filter_image = self.generate_filter_image(hhh_query_result)
+            return np.concatenate((hhh_image, filter_image), axis=-1)
+        else:  # return one-channel image (HHH only)
+            return hhh_image
 
     def generate_hhh_image(self, hhh_algo):
         # start = time.time()
 
         max_addr = 2 ** self.address_space - 1
+        # the bounds of the bins to separate the address space (x-axis)
+        bounds = self._get_x_axis_bounds(max_addr)
 
         # query HHH for all undiscounted counters, filter hierarchy to be in address space
         res = hhh_algo.query_all()
         res = np.asarray(res)
+
+        # init output image (x-axis=address bins, y-axis=hierarchy levels)
+        image = np.zeros((self.address_space + 1, self.img_width_px), dtype=np.float32)
+
+        if res.size == 0:  # if no counters (last step in env when trace ended), return all zero image
+            image = np.expand_dims(image, 2)  # output should be (height, width, channels=1)
+            return image
+
         res = res[res[:, 0] >= self.address_space, :]
 
         if np.max(res[:, 1]) > max_addr:
@@ -83,12 +96,7 @@ class ImageGenerator:
         # 33-ADDRESS_SPACE lists in ascending order of hierarchy levels (start with ADDRESS_SPACE, end with 32)
         # each list has shape num_items(level) X 2; columns are IP, count
         split_by_level = np.split(res[:, 1:], np.sort(unique_indices)[1:])[::-1]
-
-        # the bounds of the bins to separate the address space (x-axis)
-        bounds = self._get_x_axis_bounds(max_addr)
-
-        # init output image (x-axis=address bins, y-axis=hierarchy levels)
-        image = np.zeros((len(split_by_level), self.img_width_px), dtype=np.float32)
+        assert len(split_by_level) == self.address_space + 1
 
         # iterate over all hierarchy levels and the corresponding item lists
         for level, l in enumerate(split_by_level):
