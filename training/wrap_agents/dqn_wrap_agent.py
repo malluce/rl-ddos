@@ -19,8 +19,9 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
     def __init__(self, time_step_spec, action_spec, q_layers=(75, 40),
                  use_rnn=False, rnn_input_layers=(75, 40), rnn_lstm_size=(128, 128, 128), rnn_output_layers=(75, 40),
                  target_update_tau=1, target_update_period=5, gamma=0.99, lr=1e-3, lr_decay_steps=None,
-                 lr_decay_rate=None, eps_greedy=0.1):
+                 lr_decay_rate=None, eps_greedy=0.05, eps_greedy_end=None, eps_greedy_steps=None):
         self.gamma = gamma
+        self.eps_greedy = eps_greedy
         # set q net
         if not use_rnn:
             self.q_net = QNetwork(time_step_spec.observation, action_spec, batch_normalization=True,
@@ -32,7 +33,12 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
         # set lr (decay)
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps)
 
-        super().__init__(time_step_spec, action_spec, self.q_net, self.optimizer, epsilon_greedy=eps_greedy,
+        if eps_greedy_end is not None and eps_greedy_steps is not None:
+            self.eps_greedy = tf.compat.v1.train.polynomial_decay(
+                learning_rate=eps_greedy, global_step=tf.compat.v1.train.get_or_create_global_step(),
+                decay_steps=eps_greedy_steps, end_learning_rate=eps_greedy_end)
+
+        super().__init__(time_step_spec, action_spec, self.q_net, self.optimizer, epsilon_greedy=self.eps_greedy,
                          gamma=gamma, target_update_period=target_update_period, target_update_tau=target_update_tau,
                          name='dqn')
 

@@ -1,29 +1,44 @@
-# env params
-TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
-TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
-TrainLoop.actionset_selection=@LargeDiscreteActionSet()
-TrainLoop.trace_length=100
-DistributionTrace.num_benign_flows=25
-DistributionTrace.num_attack_flows=50
-
-# agent params
+# basic params
 get_train_loop.alg_name='dqn'
-DQNWrapAgent.use_rnn=False
-TrainLoop.train_sequence_length=1
-DQNWrapAgent.rnn_input_layers=(200, 200)
-DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
-DQNWrapAgent.rnn_output_layers=(200,)
-DQNWrapAgent.q_layers=(400,256,128)
+TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.eval_interval = 6000
+TrainLoop.num_eval_episodes = 5
+TrainLoop.log_interval = 600
+
+# state
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+
+# action
+TrainLoop.actionset_selection=@LargeDiscreteActionSet()
+
+# reward
+HHHEnv.reward_calc=@DefaultRewardCalc()
+
+# trace settings
+DistributionTrace.traffic_trace = @T1()
+Loop.action_interval=10
+
+# generic params
 DQNWrapAgent.lr=5e-5
 DQNWrapAgent.lr_decay_rate=0.96
 DQNWrapAgent.lr_decay_steps=1000
-
-# train params
+DQNWrapAgent.eps_greedy=1.0
+DQNWrapAgent.eps_greedy_end=0.05
+DQNWrapAgent.eps_greedy_steps=75000
+TrainLoop.gamma=0
 TrainLoop.num_iterations = 200000
-TrainLoop.eval_interval = 6000
-TrainLoop.num_eval_episodes = 5
-TrainLoop.batch_size = 256
+TrainLoop.batch_size = 128
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
+
+# PPO-specific params
+DQNWrapAgent.use_rnn=True
+TrainLoop.train_sequence_length=10
+DQNWrapAgent.rnn_input_layers=(200, 200)
+DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
+DQNWrapAgent.rnn_output_layers=(200,)
+
+# CNN parameters
+#TrainLoop.image_gen=@ImageGenerator()

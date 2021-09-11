@@ -43,12 +43,7 @@ from gyms.hhh.state import *
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
-flags.DEFINE_string('timestamp', None,
-                    'Restore from specified timestamp.')
-flags.DEFINE_integer('num_iterations', 200000,
-                     'Total number train/eval iterations to perform.')
-flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
-flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
+flags.DEFINE_string('gin_file', None, 'Paths to the gin-config files.')
 
 FLAGS = flags.FLAGS
 
@@ -99,45 +94,21 @@ def train_eval(
         summaries_flush_secs=10,
         debug_summaries=False,
         summarize_grads_and_vars=False,
-        eval_metrics_callback=None,
         state_obs_selection=[BaseObservations(), FalsePositiveRate(), DistVol(), MinMaxBlockedAddress(), DistVolStd(),
                              BlocklistDistribution()],
         use_prev_action_as_obs=True,
         actionset_selection=LargeDiscreteActionSet(),
-        trace_length=600):
+        trace_length=100):
     """A simple train and eval for DQN."""
-    if timestamp is None:
-        timestamp = Datastore.get_timestamp()
     dirs = get_dirs(root_dir, timestamp, 'dqn')
-    lr_find = learning_rate is None
-
-    train_summary_writer = tf.compat.v2.summary.create_file_writer(
-        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
-    train_summary_writer.set_as_default()
-
-    eval_summary_writer = tf.compat.v2.summary.create_file_writer(
-        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
-
-    train_metrics = [
-        tf_metrics.NumberOfEpisodes(),
-        tf_metrics.EnvironmentSteps(),
-        tf_metrics.AverageReturnMetric(),
-        tf_metrics.AverageEpisodeLengthMetric(),
-        tf_metrics.ChosenActionHistogram()
-    ]
-    eval_metrics = [
-        tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
-        tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
-        #		tf_metrics.ChosenActionHistogram()
-    ]
-
+    eval_summary_writer, train_summary_writer = get_summary_writers(dirs, summaries_flush_secs)
     global_step = tf.compat.v1.train.get_or_create_global_step()
+    eval_metrics, train_metrics = get_metrics(num_eval_episodes)
 
-    #	with tf.compat.v2.summary.record_if(
-    #			lambda: tf.math.equal(global_step % summary_interval, 0)):
     with train_summary_writer.as_default():
         ds_train = Datastore(dirs['root'], 'train')
         ds_eval = Datastore(dirs['root'], 'eval')
+        ds_eval.commit_config(gin.operative_config_str())
 
         eval_tf_env, tf_env = get_envs(actionset_selection, ds_eval, ds_train, env_name, state_obs_selection,
                                        trace_length, use_prev_action_as_obs)
@@ -164,21 +135,10 @@ def train_eval(
                 fc_layer_params=fc_layer_params)
             train_sequence_length = n_step_update
 
-        if learning_rate is None:
-            learning_rate = tf.compat.v1.train.exponential_decay(1e-10,
-                                                                 global_step=global_step, decay_steps=100,
-                                                                 decay_rate=1.3,
-                                                                 staircase=True)
-            log10 = tf.math.log(tf.constant(10, dtype=tf.float32))
-            num_iterations = 7500
-            log_interval = 10
-        #			tf.summary.scalar('learning_rate', learning_rate, step = global_step)
-        if learning_rate_decay_rate is not None and learning_rate_decay_step is not None:
-            learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
-                learning_rate, learning_rate_decay_step, learning_rate_decay_rate,
-                staircase=True)
+        # TODO decay lr?
 
-        # TODO(b/127301657): Decay epsilon based on global step, cf. cl/188907839
+        # TODO decay epsilon?
+
         tf_agent = dqn_agent.DqnAgent(
             tf_env.time_step_spec(),
             tf_env.action_spec(),
@@ -187,9 +147,7 @@ def train_eval(
             n_step_update=n_step_update,
             target_update_tau=target_update_tau,
             target_update_period=target_update_period,
-            #			optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = learning_rate),
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-            td_errors_loss_fn=common.element_wise_squared_loss,
             gamma=gamma,
             reward_scale_factor=reward_scale_factor,
             gradient_clipping=gradient_clipping,
@@ -223,8 +181,6 @@ def train_eval(
         initial_collect_policy = random_tf_policy.RandomTFPolicy(
             tf_env.time_step_spec(), tf_env.action_spec())
 
-        ds_eval.commit_config(gin.operative_config_str())
-
         if not rb_checkpointer.checkpoint_exists:
             logging.info('Initializing replay buffer')
 
@@ -245,17 +201,9 @@ def train_eval(
                 use_function=use_tf_functions
             )
 
-            if eval_metrics_callback is not None:
-                eval_metrics_callback(results, global_step.numpy())
             metric_utils.log_metrics(eval_metrics)
 
-        time_step = None
-        policy_state = collect_policy.get_initial_state(tf_env.batch_size)
-
-        timed_at_step = global_step.numpy()
-        time_acc = 0
-
-        # Dataset generates trajectories with shape [Bx2x...]
+        # Dataset generates trajectories with shape [batch_size,num_steps,obs_spec]
         dataset = replay_buffer.as_dataset(
             num_parallel_calls=3,
             sample_batch_size=batch_size,
@@ -270,6 +218,10 @@ def train_eval(
             train_step = common.function(train_step)
 
         logging.info('Training')
+        policy_state = collect_policy.get_initial_state(tf_env.batch_size)
+        time_step = None
+        timed_at_step = global_step.numpy()
+        time_acc = 0
         for _ in range(num_iterations):
             start_time = time.time()
             time_step, policy_state = collect_driver.run(
@@ -278,52 +230,74 @@ def train_eval(
             )
             for _ in range(train_steps_per_iteration):
                 train_loss = train_step()
-            time_acc += time.time() - start_time
-            if global_step.numpy() % log_interval == 0:
-                logging.info('step = %d, loss = %f', global_step.numpy(),
-                             train_loss.loss)
-                steps_per_sec = (global_step.numpy() - timed_at_step) / time_acc
-                logging.info('%.3f steps/sec', steps_per_sec)
-                tf.compat.v2.summary.scalar(name='global_steps_per_sec',
-                                            data=steps_per_sec, step=global_step)
-                timed_at_step = global_step.numpy()
-                time_acc = 0
 
-                if lr_find:
-                    tf.summary.scalar('learning_rate',
-                                      tf.math.log(tf_agent._optimizer._decayed_lr(tf.float32)) / log10,
-                                      step=global_step)
+            log_and_eval(eval_interval, eval_metrics, eval_policy, eval_summary_writer, eval_tf_env, global_step,
+                         log_interval, num_eval_episodes, policy_checkpoint_interval, policy_checkpointer,
+                         rb_checkpoint_interval, rb_checkpointer, start_time, time_acc, timed_at_step,
+                         train_checkpoint_interval, train_checkpointer, train_loss, train_metrics, use_tf_functions)
 
-            for train_metric in train_metrics:
-                train_metric.tf_summaries(train_step=global_step,
-                                          step_metrics=train_metrics[:2])
 
-            if global_step.numpy() % train_checkpoint_interval == 0:
-                train_checkpointer.save(global_step=global_step.numpy())
+def log_and_eval(eval_interval, eval_metrics, eval_policy, eval_summary_writer, eval_tf_env, global_step, log_interval,
+                 num_eval_episodes, policy_checkpoint_interval, policy_checkpointer, rb_checkpoint_interval,
+                 rb_checkpointer, start_time, time_acc, timed_at_step, train_checkpoint_interval, train_checkpointer,
+                 train_loss, train_metrics, use_tf_functions):
+    time_acc += time.time() - start_time
+    if global_step.numpy() % log_interval == 0:
+        logging.info('step = %d, loss = %f', global_step.numpy(),
+                     train_loss.loss)
+        steps_per_sec = (global_step.numpy() - timed_at_step) / time_acc
+        logging.info('%.3f steps/sec', steps_per_sec)
+        tf.compat.v2.summary.scalar(name='global_steps_per_sec',
+                                    data=steps_per_sec, step=global_step)
+        timed_at_step = global_step.numpy()
+        time_acc = 0
+    for train_metric in train_metrics:
+        train_metric.tf_summaries(train_step=global_step,
+                                  step_metrics=train_metrics[:2])
+    if global_step.numpy() % train_checkpoint_interval == 0:
+        train_checkpointer.save(global_step=global_step.numpy())
+    if global_step.numpy() % policy_checkpoint_interval == 0:
+        policy_checkpointer.save(global_step=global_step.numpy())
+    if global_step.numpy() % rb_checkpoint_interval == 0:
+        rb_checkpointer.save(global_step=global_step.numpy())
+    if global_step.numpy() % eval_interval == 0:
+        metric_utils.eager_compute(
+            eval_metrics,
+            eval_tf_env,
+            eval_policy,
+            num_episodes=num_eval_episodes,
+            train_step=global_step,
+            summary_writer=eval_summary_writer,
+            summary_prefix='Metrics',
+            use_function=use_tf_functions
+        )
 
-            if global_step.numpy() % policy_checkpoint_interval == 0:
-                policy_checkpointer.save(global_step=global_step.numpy())
+        metric_utils.log_metrics(eval_metrics)
 
-            if global_step.numpy() % rb_checkpoint_interval == 0:
-                rb_checkpointer.save(global_step=global_step.numpy())
 
-            if global_step.numpy() % eval_interval == 0:
-                results = metric_utils.eager_compute(
-                    eval_metrics,
-                    eval_tf_env,
-                    eval_policy,
-                    num_episodes=num_eval_episodes,
-                    train_step=global_step,
-                    summary_writer=eval_summary_writer,
-                    summary_prefix='Metrics',
-                    use_function=use_tf_functions
-                )
+def get_metrics(num_eval_episodes):
+    train_metrics = [
+        tf_metrics.NumberOfEpisodes(),
+        tf_metrics.EnvironmentSteps(),
+        tf_metrics.AverageReturnMetric(),
+        tf_metrics.AverageEpisodeLengthMetric(),
+        tf_metrics.ChosenActionHistogram()
+    ]
+    eval_metrics = [
+        tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
+        tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
+        #		tf_metrics.ChosenActionHistogram()
+    ]
+    return eval_metrics, train_metrics
 
-                if eval_metrics_callback is not None:
-                    eval_metrics_callback(results, global_step.numpy())
-                metric_utils.log_metrics(eval_metrics)
 
-        return train_loss
+def get_summary_writers(dirs, summaries_flush_secs):
+    train_summary_writer = tf.compat.v2.summary.create_file_writer(
+        dirs['tf_train'], flush_millis=summaries_flush_secs * 1000)
+    train_summary_writer.set_as_default()
+    eval_summary_writer = tf.compat.v2.summary.create_file_writer(
+        dirs['tf_eval'], flush_millis=summaries_flush_secs * 1000)
+    return eval_summary_writer, train_summary_writer
 
 
 def get_envs(actionset_selection, ds_eval, ds_train, env_name, state_obs_selection, trace_length,
@@ -368,11 +342,9 @@ def get_checkpointers(dirs, eval_policy, global_step, replay_buffer, tf_agent, t
 def main(_):
     register_hhh_gym()
     logging.set_verbosity(logging.INFO)
-    tf.compat.v1.enable_v2_behavior()
-    logging.info("test log!")
     tf.get_logger().setLevel('INFO')
-    gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
-    train_eval(FLAGS.root_dir, FLAGS.timestamp, num_iterations=FLAGS.num_iterations)
+    # gin.parse_config_file(FLAGS.gin_file)
+    train_eval(FLAGS.root_dir, timestamp=Datastore.get_timestamp())
     return 0
 
 
