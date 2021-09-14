@@ -1,8 +1,6 @@
-from collections import OrderedDict
 from typing import Any, List, Optional, Tuple
 
 import gin
-from tensorflow.python.keras.layers import Lambda
 from tf_agents.agents.ppo.ppo_clip_agent import PPOClipAgent
 from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
@@ -12,7 +10,7 @@ from tf_agents.networks.value_rnn_network import ValueRnnNetwork
 from tf_agents.typing import types
 import tensorflow as tf
 
-from training.wrap_agents.util import get_optimizer
+from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
 
@@ -30,32 +28,13 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
                  entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False, gradient_clip=None,
                  cnn_act_func=tf.keras.activations.relu,
-                 # CNN specs are 3-tuples of the following contents (all lists must have same length)
-                 # ( ([conv_filters], [conv_kernel_sizes], [conv_strides]), ([pool_sizes], [pool_strides]), fc_units )
                  cnn_spec=None
                  ):
         self.gamma = gamma
-        self.cnn_act_func = cnn_act_func
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
 
-        obs_spec = time_step_spec().observation
-        if type(obs_spec) is OrderedDict and 'image' in obs_spec:
-            print('setting up CNN!')
-
-            cnn = self.build_cnn_from_spec(cnn_spec)
-            hhh_cnn = self.build_cnn_from_spec(cnn_spec)
-
-            preprocessing_layers = {
-                'vector': Lambda(lambda x: x),  # pass-through layer
-                'image': cnn,
-                'hhh_image': hhh_cnn
-            }
-            preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
-        else:
-            print('not using CNN')
-            preprocessing_layers = None
-            preprocessing_combiner = None
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
 
         # set actor net
         if use_actor_rnn:
@@ -91,25 +70,6 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                          use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars,
                          debug_summaries=sum_grad_vars, gradient_clipping=gradient_clip
                          )
-
-    def build_cnn_from_spec(self, cnn_spec):
-        conv_layers, pool_layers, fc_units = cnn_spec
-        conv_filters, conv_kernel_sizes, conv_strides = conv_layers
-        pool_sizes, pool_strides = pool_layers
-        assert len(conv_filters) == len(conv_kernel_sizes) == len(conv_strides) == len(pool_sizes) == \
-               len(pool_strides)
-        keras_layers = []
-        # alternating conv and max pool layers
-        for filters, kernel_size, stride, pool_size, pool_stride in zip(conv_filters, conv_kernel_sizes,
-                                                                        conv_strides, pool_sizes, pool_strides):
-            keras_layers.append(
-                tf.keras.layers.Conv2D(filters, kernel_size, activation=self.cnn_act_func, strides=stride)
-            )
-            keras_layers.append(tf.keras.layers.MaxPool2D(pool_size=pool_size, strides=pool_stride))
-        # flatten and dense at the end
-        keras_layers.append(tf.keras.layers.Flatten())
-        keras_layers.append(tf.keras.layers.Dense(fc_units, activation=self.cnn_act_func))
-        return tf.keras.models.Sequential(keras_layers)
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
         pass

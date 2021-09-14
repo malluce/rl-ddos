@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
 from agents.nets.dqn_q_network import QNetwork
-from training.wrap_agents.util import get_optimizer
+from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
 
@@ -19,16 +19,23 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
     def __init__(self, time_step_spec, action_spec, q_layers=(75, 40),
                  use_rnn=False, rnn_input_layers=(75, 40), rnn_lstm_size=(128, 128, 128), rnn_output_layers=(75, 40),
                  target_update_tau=1, target_update_period=5, gamma=0.99, lr=1e-3, lr_decay_steps=None,
-                 lr_decay_rate=None, eps_greedy=0.05, eps_greedy_end=None, eps_greedy_steps=None):
+                 lr_decay_rate=None, eps_greedy=0.05, eps_greedy_end=None, eps_greedy_steps=None,
+                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu):
         self.gamma = gamma
         self.eps_greedy = eps_greedy
+
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
+
         # set q net
         if not use_rnn:
             self.q_net = QNetwork(time_step_spec.observation, action_spec, batch_normalization=True,
-                                  fc_layer_params=q_layers)
+                                  fc_layer_params=q_layers, preprocessing_layers=preprocessing_layers,
+                                  preprocessing_combiner=preprocessing_combiner)
         else:
             self.q_net = QRnnNetwork(time_step_spec.observation, action_spec, input_fc_layer_params=rnn_input_layers,
-                                     lstm_size=rnn_lstm_size, output_fc_layer_params=rnn_output_layers)
+                                     lstm_size=rnn_lstm_size, output_fc_layer_params=rnn_output_layers,
+                                     preprocessing_layers=preprocessing_layers,
+                                     preprocessing_combiner=preprocessing_combiner)
 
         # set lr (decay)
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps)

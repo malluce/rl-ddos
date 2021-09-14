@@ -1,7 +1,7 @@
 # basic params
 get_train_loop.alg_name='dqn'
 TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
-TrainLoop.eval_interval = 6000
+TrainLoop.eval_interval = 3000
 TrainLoop.num_eval_episodes = 5
 TrainLoop.log_interval = 600
 
@@ -10,13 +10,13 @@ TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@LargeDiscreteActionSet()
+TrainLoop.actionset_selection=@VeryLargeDiscreteActionSet()
 
 # reward
 HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace = @T1()
+DistributionTrace.traffic_trace = @T4()
 Loop.action_interval=10
 
 # generic params
@@ -28,17 +28,20 @@ DQNWrapAgent.eps_greedy_end=0.05
 DQNWrapAgent.eps_greedy_steps=75000
 TrainLoop.gamma=0
 TrainLoop.num_iterations = 200000
-TrainLoop.batch_size = 128
+TrainLoop.batch_size = 64
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 
-# PPO-specific params
+# NN
 DQNWrapAgent.use_rnn=True
 TrainLoop.train_sequence_length=10
 DQNWrapAgent.rnn_input_layers=(200, 200)
 DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
 DQNWrapAgent.rnn_output_layers=(200,)
+#DQNWrapAgent.q_layers=(200,200,200)
 
 # CNN parameters
-#TrainLoop.image_gen=@ImageGenerator()
+include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+DQNWrapAgent.cnn_spec=%cnn_256
+DQNWrapAgent.cnn_act_func=@tf.keras.activations.relu

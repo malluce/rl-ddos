@@ -11,7 +11,7 @@ PPOWrapAgent.sum_grad_vars=False # TODO warn
 
 # state
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
 # action
 TrainLoop.actionset_selection=@TupleActionSet()
@@ -20,39 +20,43 @@ TrainLoop.actionset_selection=@TupleActionSet()
 HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace = @T4()
+DistributionTrace.traffic_trace = @T3()
 Loop.action_interval=10
 
 # generic params
+PPOWrapAgent.lr=1e-5
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
-TrainLoop.num_iterations = 300000
-PPOWrapAgent.gradient_clip=0.5 # TODO disable again, only for RNN test
+TrainLoop.num_iterations = 100000
+PPOWrapAgent.gradient_clip=None
 
 # PPO-specific params
-PPOWrapAgent.lr=1e-6
+PPOWrapAgent.entropy_regularization=0.01
 PPOWrapAgent.num_epochs=10
 PPOWrapAgent.importance_ratio_clipping=0.1
 PpoTrainLoop.num_parallel_envs = 1 # N
 PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
 
 # act func for RNN/FFNN
-actor_act_func=@tf.keras.activations.relu
-value_act_func=@tf.keras.activations.relu
+PPOWrapAgent.actor_act_func=@tf.keras.activations.tanh
+PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
 
 # RNN
-PPOWrapAgent.use_actor_rnn=True
-PPOWrapAgent.act_rnn_in_layers=(64,)
-PPOWrapAgent.act_rnn_lstm=(64,)
-PPOWrapAgent.act_rnn_out_layers=(64,)
-PPOWrapAgent.use_value_rnn=True
-PPOWrapAgent.val_rnn_in_layers=(64,)
-PPOWrapAgent.val_rnn_lstm=(64,)
-PPOWrapAgent.val_rnn_out_layers=(64,)
+#PPOWrapAgent.use_actor_rnn=True
+#PPOWrapAgent.act_rnn_in_layers=(64,)
+#PPOWrapAgent.act_rnn_lstm=(64,)
+#PPOWrapAgent.act_rnn_out_layers=(64,)
+#PPOWrapAgent.use_value_rnn=True
+#PPOWrapAgent.val_rnn_in_layers=(64,)
+#PPOWrapAgent.val_rnn_lstm=(64,)
+#PPOWrapAgent.val_rnn_out_layers=(64,)
 
 # FFNN
-#PPOWrapAgent.actor_layers=(64,64) # (200, 100)
-#PPOWrapAgent.value_layers=(64,64) # (200, 100)
+PPOWrapAgent.actor_layers=(64,64)
+PPOWrapAgent.value_layers=(64,64)
 
-# CNN parameters see ppo-cnn.gin
+# CNN parameters
+include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
+PPOWrapAgent.cnn_spec=%cnn_256
