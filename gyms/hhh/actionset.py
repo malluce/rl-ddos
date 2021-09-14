@@ -104,6 +104,28 @@ class LargeDiscreteActionSet(DiscreteActionSet):
         return self.__class__.__name__ + str(self.actions)
 
 
+@gin.configurable
+class VeryLargeDiscreteActionSet(DiscreteActionSet):
+
+    def __init__(self):
+        super().__init__()
+        self.actions = [(x, y)
+                        # high resolution for low phi values, low resolution for high values
+                        for x in [(_ + 1) * 1e-2 for _ in range(25)] + [_ * 1e-1 for _ in range(3, 11)]
+                        for y in [_ + 16 for _ in range(17)]]
+        self.actionspace = Discrete(len(self.actions))
+        self.shape = tuple((len(self.actions),))
+
+    def resolve(self, action):
+        return self.actions[action]
+
+    def get_min_prefixlen(self):
+        return 16
+
+    def __repr__(self):
+        return self.__class__.__name__ + str(self.actions)
+
+
 class DirectResolveActionSet(ActionSet):
     """
     Used for eval purposes, where actions are not used as observations (e.g., actions are chosen randomly or fixed)
