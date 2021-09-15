@@ -7,7 +7,7 @@ from gyms.hhh.flowgen.distgen import FlowGroupSampler, NormalSampler, UniformSam
 
 
 @gin.configurable
-class TrafficTrace(ABC):
+class SamplerTrafficTrace(ABC):
     def __init__(self, maxtime):
         self.maxtime = maxtime
 
@@ -20,7 +20,7 @@ class TrafficTrace(ABC):
 
 
 @gin.configurable
-class T1(TrafficTrace):
+class T1(SamplerTrafficTrace):
     def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
         self.num_benign = num_benign
@@ -46,7 +46,7 @@ class T1(TrafficTrace):
 
 
 @gin.configurable
-class T2(TrafficTrace):
+class T2(SamplerTrafficTrace):
 
     def __init__(self, num_benign=50, num_attack=100, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
@@ -73,7 +73,7 @@ class T2(TrafficTrace):
 
 
 @gin.configurable
-class T3(TrafficTrace):
+class T3(SamplerTrafficTrace):
 
     def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
@@ -107,7 +107,7 @@ class T3(TrafficTrace):
 
 
 @gin.configurable
-class T4(TrafficTrace):
+class T4(SamplerTrafficTrace):
 
     def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
         super().__init__(maxtime)
@@ -159,7 +159,7 @@ class T4(TrafficTrace):
 
 
 @gin.configurable
-class THauke(TrafficTrace):
+class THauke(SamplerTrafficTrace):
 
     def __init__(self, benign_flows, attack_flows, maxtime, maxaddr):
         super().__init__(maxtime)

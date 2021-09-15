@@ -4,13 +4,13 @@ import gin
 
 from .distgen import TraceSampler
 from gyms.hhh.packet import Packet
-from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke, TrafficTrace
+from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke, SamplerTrafficTrace
 
 
 @gin.configurable
 class DistributionTrace(object):
 
-    def __init__(self, traffic_trace: TrafficTrace = T3()):
+    def __init__(self, traffic_trace: SamplerTrafficTrace = T3()):
         """
         Creates a new DistributionTrace.
         """
