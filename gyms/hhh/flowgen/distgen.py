@@ -32,6 +32,17 @@ class UniformSampler(Sampler):
         return samples
 
 
+class ChoiceSampler(Sampler):
+    def __init__(self, population, replace, seed=None):
+        super().__init__()
+        self.rng = np.random.default_rng(seed=seed)
+        self.population = population
+        self.replace = replace
+
+    def sample(self, num_samples):
+        return self.rng.choice(self.population, num_samples, replace=self.replace)
+
+
 class WeibullSampler(Sampler):
 
     @staticmethod

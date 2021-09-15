@@ -1,9 +1,16 @@
 import math
+import time
 from abc import ABC, abstractmethod
+from typing import List, Tuple
 
 import gin
+import numpy as np
+from matplotlib import pyplot as plt
+import matplotlib as mpl
+from numpy.random import default_rng
 
-from gyms.hhh.flowgen.distgen import FlowGroupSampler, NormalSampler, UniformSampler, WeibullSampler
+from gyms.hhh.flowgen.distgen import ChoiceSampler, FlowGroupSampler, NormalSampler, UniformSampler, WeibullSampler
+from gyms.hhh.label import Label
 
 
 @gin.configurable
@@ -207,3 +214,108 @@ class THauke(SamplerTrafficTrace):
                              NormalSampler(3 / 8 * self.maxaddr, .05 * self.maxaddr, 1, self.maxaddr),
                              attack=True),
         ]
+
+
+class TExperimental(SamplerTrafficTrace):
+    def __init__(self, benign_flows, attack_flows, maxtime, maxaddr=0xffff):
+        super().__init__(maxtime)
+        self.attack_flows = attack_flows
+        self.benign_flows = benign_flows
+        self.maxtime = maxtime
+        self.maxaddr = maxaddr
+
+    def get_flow_group_samplers(self):
+        res = BotnetSourcePattern(round(math.log2(self.maxaddr)), subnet=22).generate_addresses(self.attack_flows)
+
+        return [
+                   FlowGroupSampler(num_bots, UniformSampler(0, 1), UniformSampler(self.maxtime - 5, self.maxtime),
+                                    ChoiceSampler(country_addresses, replace=False), attack=True) for
+                   num_bots, country_addresses in res.values()
+               ] + [FlowGroupSampler(10, UniformSampler(0, 1), UniformSampler(100, 200), UniformSampler(0, 0xffff),
+                                     attack=False)]
+
+
+class RatePattern(ABC):
+    @abstractmethod
+    def generate_rates(self):
+        pass
+
+
+class ConstantRatePattern(RatePattern):
+
+    def __init__(self, maxtime):
+        self.maxtime = maxtime
+
+    def generate_rates(self, addresses):
+        pass
+
+
+class SourcePattern(ABC):
+    @abstractmethod
+    def generate_addresses(self, num_addr):
+        pass
+
+
+class Pattern:
+    def __init__(self, source_pattern: SourcePattern, rate_pattern: RatePattern):
+        pass  # TODO
+
+
+class UniformRandomSourcePattern(SourcePattern):
+
+    def __init__(self, address_space):
+        self.address_space = address_space
+
+    def generate_addresses(self, num_benign) -> List[int]:
+        all_addresses = range(0, 2 ** self.address_space)
+        rng = default_rng()
+        return rng.choice(all_addresses, size=num_benign, replace=False)
+
+
+class BotnetSourcePattern(SourcePattern):
+    ATK_PERCENTAGES = {
+        'China': 0.336,
+        'India': 0.322,
+        'USA': 0.187,
+        'Thailand': 0.155
+    }
+
+    def __init__(self, address_space=16, subnet=22):
+        self.address_space = address_space
+        self.subnet = subnet
+        self.number_of_subnets = 2 ** (subnet - address_space)
+
+        # how many /SUBNET networks to assign to each botnet country
+        # depends on share of global IP addresses; but at least one per country
+        self.number_of_country_subnets = {
+            'China': max(1, round(0.077 * self.number_of_subnets)),
+            'India': max(1, round(0.008 * self.number_of_subnets)),
+            'USA': max(1, round(0.359 * self.number_of_subnets)),
+            'Thailand': max(1, round(0.002 * self.number_of_subnets))
+        }
+
+    def generate_addresses(self, num_bots):
+        start = time.time()
+
+        result = {}
+        rng = default_rng()
+        # subnet start addresses when dividing address space based on /SUBNET subnets
+        # list of randomly chosen start addresses that belong to the botnet countries
+        self.subnet_starts = [x * Label.subnet_size(self.subnet) for x in range(0, self.number_of_subnets)]
+        botnet_countries_starts = rng.choice(self.subnet_starts, size=sum((self.number_of_country_subnets.values())),
+                                             replace=False)
+        # assign each country its share of subnets
+        start_idx = 0
+        for country in self.number_of_country_subnets.keys():
+            end_idx = start_idx + self.number_of_country_subnets[country]
+            country_starts = botnet_countries_starts[start_idx:end_idx]
+            country_ends = country_starts + Label.subnet_size(self.subnet)
+            country_addresses = np.concatenate(
+                list(map(lambda t: range(t[0], t[1]), zip(country_starts, country_ends))))
+            number_of_bots = round(self.ATK_PERCENTAGES[country] * num_bots)
+            result[country] = (number_of_bots, country_addresses)
+            print(f'generating {number_of_bots} bots for {country}')
+            start_idx = end_idx
+
+        print(f'time to generate addresses={time.time() - start}')
+        return result
