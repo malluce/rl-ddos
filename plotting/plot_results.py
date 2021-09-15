@@ -48,7 +48,7 @@ def get_quantiles(data: pandas.DataFrame):
     return [(q, data.quantile(q)) for q in [0.2, 0.4, 0.6, 0.8]]
 
 
-def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is_one_bounded=False, title=None,
+def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
          labels=None, mean_for_title=None):
     ax: plt.Axes = fig.add_subplot(2, 4, x)
     x = range(data.shape[0])
@@ -77,8 +77,8 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, is
             ax.plot(x, y, median_color, label=data_label)
         else:
             ax.plot(x, y, median_color, label=labels[idx])
-    if is_one_bounded:
-        ax.set_ylim(bottom=0, top=1.1)
+    if y_max is not None:
+        ax.set_ylim(bottom=0, top=y_max if type(y_max) == int else y_max + 0.1)
     else:
         ax.set_ylim(bottom=0)
 
@@ -125,18 +125,18 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
     if means_for_title is not None:
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward']:
             title_means[col] = means_for_title[col].mean()
-    plot(fig, data, quantiles, ['Phi'], 1, is_one_bounded=True, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['MinPrefix'], 2, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['Precision'], 3, is_one_bounded=True, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['Precision'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Precision'])
-    plot(fig, data, quantiles, ['Recall'], 4, is_one_bounded=True, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['Recall'], 4, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Recall'])
     plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['BlackSize'])
-    plot(fig, data, quantiles, ['FPR'], 6, is_one_bounded=True, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['FPR'], 6, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['FPR'])
     handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label,
-                           mean_for_title=title_means['Reward'])
+                           y_max=1.0, mean_for_title=title_means['Reward'])
 
     fig.suptitle(title)
 
@@ -145,10 +145,80 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
     return fig
 
 
+def plot_kickoff(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
+                 labels=None, mean_for_title=None):
+    ax: plt.Axes = fig.add_subplot(1, 4, x)
+    x = range(data.shape[0])
+    for idx, col in enumerate(cols):
+        y = data.loc[:, col]
+        color = 'g' if idx == 0 else 'orange'  # lines[-1].get_color()
+        for quantile in data_quantiles:
+            q, quantile_value = quantile
+            alpha = 0.9 - 1.5 * abs(0.5 - q)
+            y_err = quantile_value.loc[:, col]
+            if labels is None:
+                if q == 0.2 or q == 0.4:
+                    ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q}/{0.5 + abs(0.5 - q)} quantile')
+                else:
+                    ax.plot(x, y_err, color=color, alpha=alpha)
+            else:
+                ax.plot(x, y_err, color=color, alpha=alpha)  # plot without label for discounted and undiscounted
+            ax.fill_between(x, y, y_err, color=color, alpha=alpha)
+
+        ax.set_xlabel(x_label)
+
+        base_title = title if title is not None else col
+
+        title = '{} (avg={:3.2f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
+        ax.set_title(title)
+
+        median_color = 'navy' if idx == 0 else 'red'
+        if labels is None:
+            ax.plot(x, y, median_color, label=data_label)
+        else:
+            ax.plot(x, y, median_color, label=labels[idx])
+    if y_max is not None:
+        ax.set_ylim(bottom=0, top=y_max if type(y_max) == int else y_max + 0.1)
+    else:
+        ax.set_ylim(bottom=0)
+
+    return ax.get_legend_handles_labels()
+
+
+def plot_training_kickoff(environment_file_path: str):
+    env_csv = read_env_csv(environment_file_path)
+    grouped_by_episode = env_csv.groupby(['Episode'])
+    mean = grouped_by_episode.median()
+    quantiles = get_quantiles(grouped_by_episode)
+
+    data = mean
+    data_label = 'median'
+    x_label = 'training episode'
+
+    fig: plt.Figure = plt.figure(figsize=(16, 4))
+    plot_kickoff(fig, data, quantiles, ['Precision'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
+    handles, labels = plot_kickoff(fig, data, quantiles, ['FPR'], 2, y_max=1.0, x_label=x_label, data_label=data_label,
+                                   title='False positive rate')
+    plot_kickoff(fig, data, quantiles, ['Recall'], 3, y_max=1.0, x_label=x_label, data_label=data_label)
+    plot_kickoff(fig, data, quantiles, ['BlackSize'], 4, x_label=x_label, data_label=data_label,
+                 title='Number of filter rules')
+
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0, 0, 1, 1), ncol=5)
+    plt.suptitle(' ')
+    plt.tight_layout()
+
+    plt.show()
+
+
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210807-064458/datastore'
-    train_path = os.path.join(ds_base, 'train1', 'environment.csv')
+    ds_base = '/home/bachmann/test-pycharm/data/dqn_20210914-193343/datastore'
+    if ds_base.split('/')[-2].startswith('ppo'):
+        train_dir = 'train1'
+    else:
+        train_dir = 'train'
+    train_path = os.path.join(ds_base, train_dir, 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
+    # plot_training_kickoff(environment_file_path=train_path)
     plot_training(environment_file_path=train_path)
     plot_episode_behavior(environment_file_path=eval_path, last_x_episodes=15)
