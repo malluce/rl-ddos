@@ -34,11 +34,11 @@ def register_hhh_gym(env_name='HHHGym-v0'):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator):
+                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator, is_eval: bool):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
-        self.trace = DistributionTrace()
+        self.trace = DistributionTrace(is_eval=is_eval)
         self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset, image_gen=image_gen)
         self.episode = 0
         self.current_step = 0

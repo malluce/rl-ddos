@@ -103,8 +103,11 @@ class TrainLoop(ABC):
             'gamma': self.gamma,
             'image_gen': image_gen
         }
-        self.train_env = self._get_train_env(env_name, gym_kwargs, root_dir=dirs['root'], collect_raw=collect_raw)
-        self.eval_env = TFPyEnvironment(suite_gym.load(env_name, gym_kwargs={'data_store': self.ds_eval, **gym_kwargs}))
+        self.train_env = self._get_train_env(env_name, gym_kwargs={'is_eval': False, **gym_kwargs},
+                                             root_dir=dirs['root'],
+                                             collect_raw=collect_raw)
+        self.eval_env = TFPyEnvironment(
+            suite_gym.load(env_name, gym_kwargs={'is_eval': True, 'data_store': self.ds_eval, **gym_kwargs}))
 
     def _get_train_env(self, env_name, gym_kwargs, root_dir, collect_raw):
         ds_train = Datastore(root_dir, 'train', collect_raw)

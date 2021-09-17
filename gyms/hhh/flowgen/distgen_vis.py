@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler
-from gyms.hhh.flowgen.traffic_traces import T2, T3, T4, THauke
+from gyms.hhh.flowgen.traffic_traces import T1, T2, T3, T4, TRandomPatternSwitch, THauke
 from gyms.hhh.label import Label
 
 
@@ -252,15 +252,15 @@ def cmdline():
     argp.add_argument('attack_grid_file', type=str, default=None, nargs='?',
                       help='Gzip-compressed numpy file containing attack rate information')
     argp.add_argument('blacklist_file', type=str, default=None, nargs='?', help='File containing blacklist information')
-    BENIGN = 600  # 300
-    ATTACK = 300  # 150
+    BENIGN = 200  # 300
+    ATTACK = 40  # 150
     argp.add_argument('--benign', type=int, default=BENIGN, help='Number of benign flows')
     argp.add_argument('--attack', type=int, default=ATTACK, help='Number of attack flows')
     argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
-    argp.add_argument('--maxaddr', type=int, default=0xff, help='Size of address space')
+    argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
     argp.add_argument('--epsilon', type=float, default=.005, help='Error bound')
     argp.add_argument('--phi', type=float, default=.25, help='Query threshold')
-    argp.add_argument('--minprefix', type=int, default=23, help='Minimum prefix length')
+    argp.add_argument('--minprefix', type=int, default=18, help='Minimum prefix length')
     argp.add_argument('--interval', type=int, default=10, help='HHH query interval')
     argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
 
@@ -275,28 +275,30 @@ def cmdline():
 
 def main():
     args = cmdline()
+    trace = TRandomPatternSwitch(args.benign, args.attack, args.steps, args.maxaddr,
+                                 is_eval=True)
+    for i in range(0, 10):
+        if args.flow_file is None:
+            fgs = trace.get_flow_group_samplers()
+            trace_sampler = TraceSampler(fgs, args.steps)
+            trace_sampler.init_flows()
+            print(trace_sampler.num_samples)
+        else:
+            trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
+                                              args.attack_grid_file)
 
-    if args.flow_file is None:
-        trace = T4(args.benign, args.attack, args.steps, args.maxaddr).get_flow_group_samplers()
-        trace_sampler = TraceSampler(trace, args.steps)
-        trace_sampler.init_flows()
-        print(trace_sampler.num_samples)
-    else:
-        trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
-                                          args.attack_grid_file)
+        if args.blacklist_file:
+            hhh_grid = render_blacklist_history(args.blacklist_file,
+                                                trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
+        elif not args.nohhh:
+            print('Calculating HHHs...')
+            hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
+                                   args.minprefix, args.interval)
+        else:
+            hhh_grid = None
 
-    if args.blacklist_file:
-        hhh_grid = render_blacklist_history(args.blacklist_file,
-                                            trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
-    elif not args.nohhh:
-        print('Calculating HHHs...')
-        hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
-                               args.minprefix, args.interval)
-    else:
-        hhh_grid = None
-
-    plot(args, trace_sampler.flows, trace_sampler.rate_grid,
-         trace_sampler.attack_grid, hhh_grid)
+        plot(args, trace_sampler.flows, trace_sampler.rate_grid,
+             trace_sampler.attack_grid, hhh_grid)
 
 
 if __name__ == '__main__':

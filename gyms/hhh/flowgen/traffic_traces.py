@@ -28,7 +28,7 @@ class SamplerTrafficTrace(ABC):
 
 @gin.configurable
 class T1(SamplerTrafficTrace):
-    def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff):
+    def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -55,7 +55,7 @@ class T1(SamplerTrafficTrace):
 @gin.configurable
 class T2(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=50, num_attack=100, maxtime=600, maxaddr=0xffff):
+    def __init__(self, num_benign=50, num_attack=100, maxtime=600, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -82,7 +82,7 @@ class T2(SamplerTrafficTrace):
 @gin.configurable
 class T3(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -116,7 +116,7 @@ class T3(SamplerTrafficTrace):
 @gin.configurable
 class T4(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -216,23 +216,76 @@ class THauke(SamplerTrafficTrace):
         ]
 
 
-class TExperimental(SamplerTrafficTrace):
-    def __init__(self, benign_flows, attack_flows, maxtime, maxaddr=0xffff):
+@gin.configurable
+class TRandomPatternSwitch(SamplerTrafficTrace):
+    def __init__(self, benign_flows=200, attack_flows=40, maxtime=600, maxaddr=0xffff, is_eval=False):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
         self.maxtime = maxtime
         self.maxaddr = maxaddr
+        self.deterministic_cycle = is_eval  # cycle all possible pattern switches in eval or sample them in train
+
+        if self.deterministic_cycle:
+            self.current_pattern_combination = 0  # idx for possible pattern combinations
+
+        self.benign_fgs = FlowGroupSampler(self.benign_flows,
+                                           UniformSampler(0, 0.95 * self.maxtime),
+                                           WeibullSampler(3 / 2,
+                                                          (1 / WeibullSampler.quantile(99,
+                                                                                       3 / 2)) * 1 / 8 * self.maxtime),
+                                           UniformSampler(0, self.maxaddr),
+                                           attack=False
+                                           )
 
     def get_flow_group_samplers(self):
-        res = BotnetSourcePattern(round(math.log2(self.maxaddr)), subnet=22).generate_addresses(self.attack_flows)
+        address_space = round(math.log2(self.maxaddr))
+        botnet = BotnetSourcePattern(address_space, subnet=22).generate_addresses(self.attack_flows)
+        ntp_reflection = ReflectorSourcePattern('ntp', address_space).generate_addresses(1)
+        ssdp_reflection = ReflectorSourcePattern('ssdp', address_space).generate_addresses(100)
 
-        return [
-                   FlowGroupSampler(num_bots, UniformSampler(0, 1), UniformSampler(self.maxtime - 5, self.maxtime),
-                                    ChoiceSampler(country_addresses, replace=False), attack=True) for
-                   num_bots, country_addresses in res.values()
-               ] + [FlowGroupSampler(10, UniformSampler(0, 1), UniformSampler(100, 200), UniformSampler(0, 0xffff),
-                                     attack=False)]
+        if not self.deterministic_cycle:
+            # sample patterns
+            used_patterns = default_rng().choice([botnet, ntp_reflection, ssdp_reflection], 2, replace=True)
+        else:
+            # return combinations of patterns
+            all_combinations = [(x, y) for x in [botnet, ntp_reflection, ssdp_reflection]
+                                for y in [botnet, ntp_reflection, ssdp_reflection]]
+            used_patterns = all_combinations[self.current_pattern_combination]
+            self.current_pattern_combination = (self.current_pattern_combination + 1) % len(all_combinations)
+        print(used_patterns)
+        fgs = [self.benign_fgs]
+
+        first_attack_fgs = [
+            FlowGroupSampler(num, UniformSampler(0, 0), UniformSampler(self.maxtime / 2 - 1, self.maxtime / 2 - 1),
+                             ChoiceSampler(addr, replace=False),
+                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]), attack=True) for
+            num, addr in
+            used_patterns[0].values()
+        ]
+
+        second_attack_fgs = [
+            FlowGroupSampler(num, UniformSampler(self.maxtime / 2, self.maxtime / 2),
+                             UniformSampler(self.maxtime / 2, self.maxtime / 2),
+                             ChoiceSampler(addr, replace=False), attack=True,
+                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[1]))
+            for num, addr in used_patterns[1].values()
+        ]
+
+        fgs.extend(first_attack_fgs)
+        fgs.extend(second_attack_fgs)
+
+        return fgs
+
+    def _get_rate_sampler_for_attack_pattern(self, pattern):  # TODO refactor
+        if list(pattern.keys())[0] == 'ntp':
+            return UniformSampler(self.attack_flows * 2 // list(pattern.values())[0][0],
+                                  self.attack_flows * 2 // list(pattern.values())[0][0])
+        elif list(pattern.keys())[0] == 'ssdp':
+            return UniformSampler(self.attack_flows * 4 // list(pattern.values())[0][0],
+                                  self.attack_flows * 4 // list(pattern.values())[0][0])
+        else:
+            return None
 
 
 class RatePattern(ABC):
@@ -272,6 +325,16 @@ class UniformRandomSourcePattern(SourcePattern):
         return rng.choice(all_addresses, size=num_benign, replace=False)
 
 
+class ReflectorSourcePattern(SourcePattern):
+    def __init__(self, refl_id, address_space=16):
+        self.address_space = address_space
+        self.refl_id = refl_id
+
+    def generate_addresses(self, num_addr):
+        # reflectors can be all over the address space (simplification)
+        return {self.refl_id: (num_addr, np.arange(0, 2 ** self.address_space))}
+
+
 class BotnetSourcePattern(SourcePattern):
     ATK_PERCENTAGES = {
         'China': 0.336,
@@ -295,8 +358,6 @@ class BotnetSourcePattern(SourcePattern):
         }
 
     def generate_addresses(self, num_bots):
-        start = time.time()
-
         result = {}
         rng = default_rng()
         # subnet start addresses when dividing address space based on /SUBNET subnets
@@ -314,8 +375,5 @@ class BotnetSourcePattern(SourcePattern):
                 list(map(lambda t: range(t[0], t[1]), zip(country_starts, country_ends))))
             number_of_bots = round(self.ATK_PERCENTAGES[country] * num_bots)
             result[country] = (number_of_bots, country_addresses)
-            print(f'generating {number_of_bots} bots for {country}')
             start_idx = end_idx
-
-        print(f'time to generate addresses={time.time() - start}')
         return result

@@ -2,7 +2,7 @@
 get_train_loop.alg_name='ppo'
 TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
 TrainLoop.eval_interval = 6000
-TrainLoop.num_eval_episodes = 5
+TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
 TrainLoop.log_interval = 600
 
 # debug
@@ -11,7 +11,7 @@ PPOWrapAgent.sum_grad_vars=False # TODO warn
 
 # state
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
 
 # action
 TrainLoop.actionset_selection=@TupleActionSet()
@@ -20,7 +20,7 @@ TrainLoop.actionset_selection=@TupleActionSet()
 HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace = @T3()
+DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
 Loop.action_interval=10
 
 # generic params

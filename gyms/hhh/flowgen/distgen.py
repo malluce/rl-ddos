@@ -91,30 +91,36 @@ class NormalSampler(Sampler):
 class FlowGroupSampler(object):
 
     def __init__(self, num_flows, start_sampler, duration_sampler,
-                 address_sampler, attack=False):
+                 address_sampler, attack=False, rate_sampler=None):
         self.num_flows = num_flows
         self.start_sampler = start_sampler
         self.duration_sampler = duration_sampler
         self.address_sampler = address_sampler
         self.attack = attack
+        self.rate_sampler = rate_sampler
 
     def sample(self):
         """
         Generates flows according to the provided samplers.
 
         :returns: np array specifying the generated flows
-         ('start','end', 'duration', 'addr', 'rate', 'attack'). Rate is always 1. Attack can be 0 or 1.
+         ('start','end', 'duration', 'addr', 'rate', 'attack').
         """
         addr = self.address_sampler.sample(self.num_flows)
         start = self.start_sampler.sample(self.num_flows)
         duration = self.duration_sampler.sample(self.num_flows)
         end = start + duration
 
-        # Constant data rate for all flows
-        rate = np.ones_like(start)
+        if self.rate_sampler is None:
+            rate = np.ones_like(start)
+        else:
+            rate = self.rate_sampler.sample(self.num_flows)
 
         if self.attack:
-            attk = np.ones_like(start)
+            if self.rate_sampler is None:
+                attk = np.ones_like(start)
+            else:
+                attk = self.rate_sampler.sample(self.num_flows)
         else:
             attk = np.zeros_like(start)
 
