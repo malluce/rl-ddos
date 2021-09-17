@@ -10,13 +10,13 @@ from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke, SamplerTrafficTrace
 @gin.configurable
 class DistributionTrace(object):
 
-    def __init__(self, traffic_trace: SamplerTrafficTrace = T3()):
+    def __init__(self, traffic_trace_construct, is_eval: bool):
         """
         Creates a new DistributionTrace.
         """
         self.samples = None
         self.N = None
-        self.traffic_trace = traffic_trace
+        self.traffic_trace = traffic_trace_construct(is_eval=is_eval)
         self.rewind()
 
     def __next__(self):

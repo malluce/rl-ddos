@@ -282,7 +282,6 @@ def main():
             fgs = trace.get_flow_group_samplers()
             trace_sampler = TraceSampler(fgs, args.steps)
             trace_sampler.init_flows()
-            print(trace_sampler.num_samples)
         else:
             trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
                                               args.attack_grid_file)
