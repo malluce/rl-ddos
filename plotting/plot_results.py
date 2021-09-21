@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+from typing import Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -85,11 +86,11 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
     return ax.get_legend_handles_labels()
 
 
-def plot_episode_behavior(environment_file_path, last_x_episodes: int):
+def plot_episode_behavior(environment_file_path, window: Tuple[int, int]):
     """
     Plots the metrics of an environment.csv file.
     :param environment_file_path: the environment.csv file path
-    :param last_x_episodes: the number of episodes to plot (taken from the end)
+    :param window: the episodes to plot (relative to the last episode)
     """
     env_csv = read_env_csv(environment_file_path)
 
@@ -99,14 +100,15 @@ def plot_episode_behavior(environment_file_path, last_x_episodes: int):
 
     eps = env_csv.loc[:, 'Episode']
     unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
-    eps_to_show = unique_eps[len(unique_eps) - last_x_episodes:]
+    eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
     last = get_rows_with_episode_in(eps_to_show)
     last_median = last.median()
     last_means = last.mean()
     last_quantiles = get_quantiles(last)
     run_id = environment_file_path.split('/')[-4]
     # plot common data
-    fig = create_plots(last_median, last_quantiles, title=f'last {last_x_episodes} eval episodes \n {run_id}',
+    fig = create_plots(last_median, last_quantiles,
+                       title=f'eval episodes {unique_eps[len(unique_eps) - window[0]]} to {unique_eps[len(unique_eps) - window[1] - 1]} \n {run_id}',
                        x_label='step',
                        data_label='median', means_for_title=last_means)
 
@@ -212,7 +214,8 @@ def plot_training_kickoff(environment_file_path: str):
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/dqn_20210914-193343/datastore'
+    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210920-115106/datastore'
+    # ds_base = '/home/bachmann/test-pycharm/data/ppo_20210917-153241/datastore'
     if ds_base.split('/')[-2].startswith('ppo'):
         train_dir = 'train1'
     else:
@@ -220,5 +223,5 @@ if __name__ == '__main__':
     train_path = os.path.join(ds_base, train_dir, 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
     # plot_training_kickoff(environment_file_path=train_path)
-    plot_training(environment_file_path=train_path)
-    plot_episode_behavior(environment_file_path=eval_path, last_x_episodes=15)
+    # plot_training(environment_file_path=train_path)
+    plot_episode_behavior(environment_file_path=eval_path, window=(2, 1))
