@@ -117,10 +117,7 @@ class FlowGroupSampler(object):
             rate = self.rate_sampler.sample(self.num_flows)
 
         if self.attack:
-            if self.rate_sampler is None:
-                attk = np.ones_like(start)
-            else:
-                attk = self.rate_sampler.sample(self.num_flows)
+            attk = rate
         else:
             attk = np.zeros_like(start)
 
