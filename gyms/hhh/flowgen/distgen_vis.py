@@ -115,7 +115,7 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
     return frequencies
 
 
-def plot(args, flows, rate_grid, attack_grid, hhh_grid=None):
+def plot(args, flows, rate_grid, attack_grid, hhh_grid=None, squash=False):
     fig = plt.figure(figsize=(16, 8))
     gs = mgrid.GridSpec(3, 5)
 
@@ -139,15 +139,18 @@ def plot(args, flows, rate_grid, attack_grid, hhh_grid=None):
     benign_grid = rate_grid - attack_grid
 
     def scale(grid, num_bins, axis, transpose=False):
-        bins = np.linspace(0, grid.shape[axis], num_bins + 1).astype(int)[1:]
-        split = np.split(grid, bins[:-1], axis=axis)
-        scaled = np.array([_.sum(axis=axis) for _ in split])
-        if transpose: scaled = scaled.T
-        return scaled, bins
+        bins2 = np.linspace(0, grid.shape[axis], num_bins + 1).astype(int)[1:]
+        split = np.split(grid, bins2[:-1], axis=axis)
+        scaled2 = np.array([_.sum(axis=axis) for _ in split])
+        if transpose: scaled2 = scaled2.T
+        return scaled2, bins2
 
     def plot_heatmap(axis, grid, vmin=None, vmax=None):
         scaled_grid, ybins = scale(grid, 300, 0)
         scaled_grid, _ = scale(scaled_grid, 200, 1, True)
+        if squash:
+            # squash values together for clearer visuals (e.g. for reflector-botnet switch)
+            scaled_grid = np.log(scaled_grid, out=np.zeros_like(scaled_grid, dtype=np.float), where=(scaled_grid >= 1))
         vmin = vmin if vmin is not None else scaled_grid.min()
         vmax = vmax if vmax is not None else scaled_grid.max()
         mesh = axis.pcolormesh(np.arange(200) / 2, ybins, scaled_grid, cmap='gist_heat_r', shading='nearest', vmin=vmin,
@@ -177,7 +180,10 @@ def plot(args, flows, rate_grid, attack_grid, hhh_grid=None):
     plot_heatmap(ax1, attack_grid, vmin, vmax)
 
     if hhh_grid is not None:
-        ax3.set_title(f'HHH frequency \n (phi={args.phi}, L={args.minprefix})', fontsize=titlesize)
+        if args.flow_file is not None:
+            ax3.set_title(f'HHH frequency \n (rawdata)', fontsize=titlesize)
+        else:
+            ax3.set_title(f'HHH frequency \n (phi={args.phi}, L={args.minprefix})', fontsize=titlesize)
         ax3.set_xlabel('Address space (percent)', fontsize=labelsize)
         ax3.set_ylabel('Time Index', fontsize=labelsize)
         plot_heatmap(ax3, hhh_grid)
@@ -277,27 +283,29 @@ def main():
     args = cmdline()
     trace = TRandomPatternSwitch(args.benign, args.attack, args.steps, args.maxaddr,
                                  is_eval=True)
-    for i in range(0, 10):
-        if args.flow_file is None:
-            fgs = trace.get_flow_group_samplers()
-            trace_sampler = TraceSampler(fgs, args.steps)
-            trace_sampler.init_flows()
-        else:
-            trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
-                                              args.attack_grid_file)
+    trace = T2(maxaddr=0xffff)
+    # for i in range(0, 9):
 
-        if args.blacklist_file:
-            hhh_grid = render_blacklist_history(args.blacklist_file,
-                                                trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
-        elif not args.nohhh:
-            print('Calculating HHHs...')
-            hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
-                                   args.minprefix, args.interval)
-        else:
-            hhh_grid = None
+    if args.flow_file is None:
+        fgs = trace.get_flow_group_samplers()
+        trace_sampler = TraceSampler(fgs, args.steps)
+        trace_sampler.init_flows()
+    else:
+        trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
+                                          args.attack_grid_file)
 
-        plot(args, trace_sampler.flows, trace_sampler.rate_grid,
-             trace_sampler.attack_grid, hhh_grid)
+    if args.blacklist_file:
+        hhh_grid = render_blacklist_history(args.blacklist_file,
+                                            trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
+    elif not args.nohhh:
+        print('Calculating HHHs...')
+        hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
+                               args.minprefix, args.interval)
+    else:
+        hhh_grid = None
+
+    plot(args, trace_sampler.flows, trace_sampler.rate_grid,
+         trace_sampler.attack_grid, hhh_grid, squash=True)
 
 
 if __name__ == '__main__':
