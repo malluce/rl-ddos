@@ -253,7 +253,7 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
                                 for y in [botnet, ntp_reflection, ssdp_reflection]]
             used_patterns = all_combinations[self.current_pattern_combination]
             self.current_pattern_combination = (self.current_pattern_combination + 1) % len(all_combinations)
-        print(used_patterns)
+        # print(used_patterns)
         fgs = [self.benign_fgs]
 
         first_attack_fgs = [
