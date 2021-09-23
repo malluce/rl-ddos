@@ -5,16 +5,29 @@ from typing import List, Tuple
 
 import gin
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib as mpl
 from numpy.random import default_rng
 
 from gyms.hhh.flowgen.distgen import ChoiceSampler, FlowGroupSampler, NormalSampler, UniformSampler, WeibullSampler
 from gyms.hhh.label import Label
+from gyms.hhh.loop import Loop
+
+
+class IdentifiableTrace(ABC):
+    @abstractmethod
+    def get_source_pattern_id(self, time_step):
+        pass
+
+    @abstractmethod
+    def get_rate_pattern_id(self, time_step):
+        pass
+
+    @abstractmethod
+    def get_change_pattern_id(self):
+        pass
 
 
 @gin.configurable
-class SamplerTrafficTrace(ABC):
+class SamplerTrafficTrace(IdentifiableTrace):
     def __init__(self, maxtime):
         self.maxtime = maxtime
 
@@ -25,9 +38,20 @@ class SamplerTrafficTrace(ABC):
     def get_max_time(self):
         return self.maxtime
 
+    # simply return class name for fix traces
+    def get_source_pattern_id(self, time_step):
+        return self.__class__.__name__
+
+    def get_rate_pattern_id(self, time_step):
+        return self.__class__.__name__
+
+    def get_change_pattern_id(self):
+        return self.__class__.__name__
+
 
 @gin.configurable
 class T1(SamplerTrafficTrace):
+
     def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
@@ -254,6 +278,10 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
             used_patterns = all_combinations[self.current_pattern_combination]
             self.current_pattern_combination = (self.current_pattern_combination + 1) % len(all_combinations)
         # print(used_patterns)
+
+        self.first_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(used_patterns[0])
+        self.second_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(used_patterns[1])
+
         fgs = [self.benign_fgs]
 
         first_attack_fgs = [
@@ -277,15 +305,42 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
 
         return fgs
 
+    def _get_source_pattern_id_for_attack_pattern(self, pattern):  # TODO refactor
+        id_from_dict = list(pattern.keys())[0]
+        if id_from_dict in ['ntp', 'ssdp']:
+            return id_from_dict
+        else:
+            return 'bot'
+
     def _get_rate_sampler_for_attack_pattern(self, pattern):  # TODO refactor
         if list(pattern.keys())[0] == 'ntp':
-            return UniformSampler(self.attack_flows * 2 // list(pattern.values())[0][0],
-                                  self.attack_flows * 2 // list(pattern.values())[0][0])
+            return UniformSampler(self.attack_flows * 1.25 // list(pattern.values())[0][0],
+                                  self.attack_flows * 1.25 // list(pattern.values())[0][0])
         elif list(pattern.keys())[0] == 'ssdp':
-            return UniformSampler(self.attack_flows * 4 // list(pattern.values())[0][0],
-                                  self.attack_flows * 4 // list(pattern.values())[0][0])
+            return UniformSampler(self.attack_flows * 2.5 // list(pattern.values())[0][0],
+                                  self.attack_flows * 2.5 // list(pattern.values())[0][0])
         else:
             return None
+
+    def get_change_pattern_id(self):
+        return f'fix={(self.maxtime / 2) / Loop.ACTION_INTERVAL}'
+
+    def get_rate_pattern_id(self, time_step):
+        return 'constant-rate'
+
+    def _is_before_pattern_switch(self, time_step):
+        return time_step < (self.maxtime / 2) / Loop.ACTION_INTERVAL
+
+    def _is_before_trace_end(self, time_step):
+        return time_step <= self.maxtime / Loop.ACTION_INTERVAL
+
+    def get_source_pattern_id(self, time_step):
+        if self._is_before_pattern_switch(time_step):
+            return self.first_source_pattern_id
+        elif self._is_before_trace_end(time_step):
+            return self.second_source_pattern_id
+        else:
+            raise ValueError(f'No source pattern for time step {time_step}; maxtime={self.maxtime}!')
 
 
 class RatePattern(ABC):

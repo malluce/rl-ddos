@@ -9,6 +9,7 @@ from math import log2, sqrt
 from gym.envs.registration import register
 
 from .actionset import ActionSet
+from .flowgen.traffic_traces import SamplerTrafficTrace
 from .images import ImageGenerator
 from .loop import Loop
 from .obs import Observation
@@ -28,6 +29,22 @@ def register_hhh_gym(env_name='HHHGym-v0'):
         nondeterministic=True,
     )
     return env_name
+
+
+def pattern_ids_to_pattern_sequence(pattern_ids):
+    # remove redundant patterns, retain sequence of used patterns (e.g [p1,p1,p2,p3,p2]->[p1,p2,p3,p2])
+    pattern_sequence = []
+    for pat in pattern_ids:
+        if len(pattern_sequence) == 0 or pattern_sequence[-1] != pat:
+            pattern_sequence.append(pat)
+
+    if len(pattern_sequence) == 1:
+        return pattern_sequence[0]
+    else:
+        seq_str = pattern_sequence[0]
+        for pat in pattern_sequence[1:]:
+            seq_str += f'->{pat}'
+        return seq_str
 
 
 @gin.configurable
@@ -62,6 +79,9 @@ class HHHEnv(gym.Env):
         self.recalls = []
         self.fprs = []
         self.hhh_distance_sums = []
+        self.source_pattern_ids = []
+        self.rate_pattern_ids = []
+        self.change_pattern_ids = []
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -96,10 +116,29 @@ class HHHEnv(gym.Env):
         if self.ds is not None:
             self.discounted_return_so_far += self.gamma ** self.current_step * reward
             self.undiscounted_return_so_far += reward
-            self.ds.add_step(self.episode, self.current_step, reward, self.discounted_return_so_far,
+
+            traffic_trace: SamplerTrafficTrace = self.trace.traffic_trace
+            source_id = traffic_trace.get_source_pattern_id(self.current_step)
+            rate_id = traffic_trace.get_rate_pattern_id(self.current_step)
+            change_id = traffic_trace.get_change_pattern_id()
+
+            self.ds.add_step(self.episode, self.current_step, reward, source_id, rate_id, change_id,
+                             self.discounted_return_so_far,
                              self.undiscounted_return_so_far, state)
 
+            self.source_pattern_ids.append(source_id)
+            self.rate_pattern_ids.append(rate_id)
+            self.change_pattern_ids.append(change_id)
+
         if trace_ended and self.ds is not None:
+            # trace pattern sequences
+            source_seq = pattern_ids_to_pattern_sequence(self.source_pattern_ids)
+            rate_seq = pattern_ids_to_pattern_sequence(self.rate_pattern_ids)
+            unique_change_pattern_ids = set(self.change_pattern_ids)
+            if len(unique_change_pattern_ids) != 1:
+                raise ValueError(f'Encountered {len(unique_change_pattern_ids)} change pattern IDs, expected 1.')
+            change_id = unique_change_pattern_ids.pop()
+
             # compute return
             rewards = np.array(self.rewards)
             discounts = np.array([self.gamma ** step for step in np.arange(0, len(rewards))])
@@ -115,7 +154,7 @@ class HHHEnv(gym.Env):
             self.ds.add_blacklist([b.to_serializable() for b in self.blacklists],
                                   'blacklist_{}'.format(self.episode + 1))
 
-            self.ds.add_episode(self.episode + 1, 0,
+            self.ds.add_episode(self.episode + 1, 0, source_seq, rate_seq, change_id,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
                                 np.mean(self.hhh_distance_sums), np.mean(self.rewards), return_discounted,
@@ -195,6 +234,9 @@ class HHHEnv(gym.Env):
         self.blacklists = []
         self.discounted_return_so_far = 0.0
         self.undiscounted_return_so_far = 0.0
+        self.source_pattern_ids = []
+        self.rate_pattern_ids = []
+        self.change_pattern_ids = []
 
         return self._build_observation(previous_action=None)
 

@@ -1,4 +1,5 @@
 import os
+import struct
 from collections import defaultdict
 from typing import Tuple
 
@@ -6,6 +7,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import pandas
 import numpy as np
+import pandas as pd
+
+from gyms.hhh.env import pattern_ids_to_pattern_sequence
 
 
 def read_env_csv(env_file_path):
@@ -14,22 +18,33 @@ def read_env_csv(env_file_path):
     return pandas.read_csv(env_file_path, header=0, names=cols)  # read csv again with stripped col names
 
 
-def plot_training(environment_file_path: str):
+def plot_training(environment_file_path: str, pattern):
     """
     Plots the training process of an environment.csv file. Shows episodes on the x-axis
+    :param pattern: the pattern for which to show the training progress
     :param environment_file_path: the environment.csv file path
    """
     env_csv = read_env_csv(environment_file_path)
-    grouped_by_episode = env_csv.groupby(['Episode'])
+
+    patterns = get_patterns(env_csv, pattern)
+
+    for pat in patterns:
+        plot_train_for_pattern(env_csv, environment_file_path, pat)
+
+
+def plot_train_for_pattern(env_csv, environment_file_path, pat):
+    pat_csv = filter_by_pattern(env_csv, pat)
+    grouped_by_episode = pat_csv.groupby(['Episode'])
     mean = grouped_by_episode.mean()
     quantiles = get_quantiles(grouped_by_episode)
     run_id = environment_file_path.split('/')[-4]
-    fig = create_plots(mean, quantiles, title=f'training (all episodes) \n {run_id}', x_label='episode',
-                       data_label='mean')
-
-    if 'UndiscountedReturnSoFar' in env_csv and 'DiscountedReturnSoFar' in env_csv:  # plot return
-        max_step = env_csv.loc[:, 'Step'].max()
-        last_steps = env_csv.loc[env_csv.loc[:, 'Step'] == max_step]
+    title = f'training (all episodes) \n {run_id}'
+    if pat is not None:
+        title += f'\n (pattern={pat})'
+    fig = create_plots(mean, quantiles, title=title, x_label='episode', data_label='mean')
+    if 'UndiscountedReturnSoFar' in pat_csv and 'DiscountedReturnSoFar' in pat_csv:  # plot return
+        max_step = pat_csv.loc[:, 'Step'].max()
+        last_steps = pat_csv.loc[pat_csv.loc[:, 'Step'] == max_step]
         undiscounted_return = last_steps.loc[:, 'UndiscountedReturnSoFar']
         discounted_return = last_steps.loc[:, 'DiscountedReturnSoFar']
         assert undiscounted_return.shape[0] == discounted_return.shape[0]
@@ -41,7 +56,6 @@ def plot_training(environment_file_path: str):
         ax.set_ylim(bottom=0)
         ax.set_xlabel('episode')
         plt.legend()
-
     plt.show()
 
 
@@ -86,7 +100,37 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
     return ax.get_legend_handles_labels()
 
 
-def plot_episode_behavior(environment_file_path, window: Tuple[int, int]):
+def get_all_patterns(environment_csv):
+    if 'SrcPattern' in environment_csv.columns and pattern is not None:
+        episode_patterns = environment_csv.loc[:, ['Episode', 'SrcPattern']].groupby(['Episode'])['SrcPattern'].apply(
+            pattern_ids_to_pattern_sequence).apply(lambda x: str.replace(x, ' ', '')).reset_index(name='pat')
+        unique_patterns = episode_patterns['pat'].drop_duplicates()
+        return list(unique_patterns)
+    else:
+        raise ValueError('Env CSV does not contain any patterns')
+
+
+def filter_by_pattern(environment_csv, pattern):
+    if 'SrcPattern' in environment_csv.columns and pattern is not None:
+        episode_patterns = environment_csv.loc[:, ['Episode', 'SrcPattern']].groupby(['Episode'])['SrcPattern'].apply(
+            pattern_ids_to_pattern_sequence).apply(lambda x: str.replace(x, ' ', ''))
+        episodes = []
+        for x, y in environment_csv.loc[:, ['Episode', 'SrcPattern']].groupby(['Episode'])['Episode']:
+            episodes.append(x)
+        res = pd.DataFrame(data=zip(episodes, episode_patterns), columns=['ep', 'pat'])
+        pattern_episodes = list(res[res['pat'] == pattern]['ep'])  # the episodes which contain the queried pattern
+        return environment_csv[environment_csv['Episode'].isin(pattern_episodes)]
+    else:
+        return environment_csv
+
+
+def get_rows_with_episode_in(environment_csv, episodes):
+    filtered_rows = environment_csv.loc[environment_csv['Episode'].isin(episodes),
+                    :]  # get rows where episode in episodes
+    return filtered_rows.groupby(['Step'])  # return all columns grouped for each step
+
+
+def plot_episode_behavior(environment_file_path, pattern, window: Tuple[int, int]):
     """
     Plots the metrics of an environment.csv file.
     :param environment_file_path: the environment.csv file path
@@ -94,27 +138,42 @@ def plot_episode_behavior(environment_file_path, window: Tuple[int, int]):
     """
     env_csv = read_env_csv(environment_file_path)
 
-    def get_rows_with_episode_in(episodes):
-        filtered_rows = env_csv.loc[env_csv['Episode'].isin(episodes), :]  # get rows where episode in episodes
-        return filtered_rows.groupby(['Step'])  # return all columns grouped for each step
+    patterns = get_patterns(env_csv, pattern)
 
-    eps = env_csv.loc[:, 'Episode']
+    for pat in patterns:
+        plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window)
+
+
+def get_patterns(env_csv, pattern):
+    if pattern == 'all':
+        patterns = get_all_patterns(env_csv)
+    else:
+        patterns = [pattern]  # might be [None] for non-pattern traces
+    return patterns
+
+
+def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
+    pat_csv = filter_by_pattern(env_csv, pat)
+    eps = pat_csv.loc[:, 'Episode']
     unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
     eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
-    last = get_rows_with_episode_in(eps_to_show)
+    last = get_rows_with_episode_in(pat_csv, eps_to_show)
     last_median = last.median()
     last_means = last.mean()
     last_quantiles = get_quantiles(last)
     run_id = environment_file_path.split('/')[-4]
+    title = f'{window[0] - window[1]} eval episodes (first:{unique_eps[len(unique_eps) - window[0]]}, last:{unique_eps[len(unique_eps) - window[1] - 1]}) \n {run_id}'
+    if pat is not None:
+        title += f'\n (pattern={pat})'
     # plot common data
     fig = create_plots(last_median, last_quantiles,
-                       title=f'eval episodes {unique_eps[len(unique_eps) - window[0]]} to {unique_eps[len(unique_eps) - window[1] - 1]} \n {run_id}',
+                       title=title,
                        x_label='step',
                        data_label='median', means_for_title=last_means)
-
-    if 'UndiscountedReturnSoFar' in env_csv and 'DiscountedReturnSoFar' in env_csv:
+    if 'UndiscountedReturnSoFar' in pat_csv and 'DiscountedReturnSoFar' in pat_csv:
         # plot return until step
-        handles, labels = plot(fig, last_median, last_quantiles, ['UndiscountedReturnSoFar', 'DiscountedReturnSoFar'],
+        handles, labels = plot(fig, last_median, last_quantiles,
+                               ['UndiscountedReturnSoFar', 'DiscountedReturnSoFar'],
                                8, 'step',
                                'median', title='Return until step', labels=['undiscounted', 'discounted'])
         plt.legend(handles, labels)
@@ -214,14 +273,19 @@ def plot_training_kickoff(environment_file_path: str):
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
-    ds_base = '/home/bachmann/test-pycharm/data/ppo_20210920-115106/datastore'
-    # ds_base = '/home/bachmann/test-pycharm/data/ppo_20210917-153241/datastore'
+
+    ds_base = '/home/bachmann/test-pycharm/data/dqn_20210922-140313/datastore'
+    # ds_base = '/home/bachmann/test-pycharm/data/dqn_20210915-060751/datastore'
     if ds_base.split('/')[-2].startswith('ppo'):
         train_dir = 'train1'
     else:
         train_dir = 'train'
     train_path = os.path.join(ds_base, train_dir, 'environment.csv')
     eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
-    # plot_training_kickoff(environment_file_path=train_path)
-    # plot_training(environment_file_path=train_path)
-    plot_episode_behavior(environment_file_path=eval_path, window=(2, 1))
+    paths_exist = os.path.exists(train_path) and os.path.exists(eval_path)
+    if not paths_exist:
+        raise ValueError('Paths do not exist')
+
+    pattern = 'all'
+    plot_training(environment_file_path=train_path, pattern=pattern)
+    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(1, 0))
