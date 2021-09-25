@@ -52,7 +52,7 @@ class SamplerTrafficTrace(IdentifiableTrace):
 @gin.configurable
 class T1(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=25, num_attack=50, maxtime=600, maxaddr=0xffff, **kwargs):
+    def __init__(self, num_benign=25, num_attack=50, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -79,7 +79,7 @@ class T1(SamplerTrafficTrace):
 @gin.configurable
 class T2(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=50, num_attack=100, maxtime=600, maxaddr=0xffff, **kwargs):
+    def __init__(self, num_benign=50, num_attack=100, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -106,7 +106,7 @@ class T2(SamplerTrafficTrace):
 @gin.configurable
 class T3(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff, **kwargs):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -140,7 +140,7 @@ class T3(SamplerTrafficTrace):
 @gin.configurable
 class T4(SamplerTrafficTrace):
 
-    def __init__(self, num_benign=300, num_attack=150, maxtime=600, maxaddr=0xffff, **kwargs):
+    def __init__(self, num_benign=300, num_attack=150, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
         self.num_benign = num_benign
         self.num_attack = num_attack
@@ -186,6 +186,64 @@ class T4(SamplerTrafficTrace):
                              UniformSampler(0.9 * self.maxtime, self.maxtime),
                              UniformSampler(0.1 * self.maxaddr, 0.12 * self.maxaddr),
                              attack=True)
+        ]
+
+
+@gin.configurable
+class HafnerT1(SamplerTrafficTrace):
+
+    def __init__(self, benign_flows=50, maxtime=399, **kwargs):
+        super().__init__(maxtime)
+        self.benign_flows = benign_flows
+        self.attack_flows = 4 * self.benign_flows  # ratio of attack to benign traffic 4:1
+        self.maxtime = maxtime
+
+    def get_flow_group_samplers(self):
+        return [
+            FlowGroupSampler(self.attack_flows,
+                             UniformSampler(0, 0),
+                             UniformSampler(self.maxtime, self.maxtime),
+                             UniformSampler(0, 0x7fff),
+                             attack=True),
+            FlowGroupSampler(self.benign_flows,
+                             UniformSampler(0, 0),
+                             UniformSampler(self.maxtime, self.maxtime),
+                             UniformSampler(0x8000, 0xffff),
+                             attack=False)
+        ]
+
+
+@gin.configurable
+class HafnerT2(SamplerTrafficTrace):
+
+    def __init__(self, benign_flows=50, maxtime=399, **kwargs):
+        super().__init__(maxtime)
+        self.benign_flows = benign_flows
+        self.attack_flows = 4 * self.benign_flows  # ratio of attack to benign traffic 4:1
+        self.maxtime = maxtime
+
+    def get_flow_group_samplers(self):
+        return [
+            FlowGroupSampler(self.benign_flows,
+                             UniformSampler(0, 0),
+                             UniformSampler(self.maxtime, self.maxtime),
+                             UniformSampler(0, 0xffff),
+                             attack=False),
+            FlowGroupSampler(self.attack_flows,
+                             UniformSampler(0, 0),
+                             UniformSampler(self.maxtime, self.maxtime),
+                             ChoiceSampler(
+                                 list(range(0x0000, 0x00ff + 1)) +  # 0.0.0.0/24
+                                 list(range(0x1000, 0x10ff + 1)) +  # 0.0.16.0/24
+                                 list(range(0x2000, 0x20ff + 1)) +  # 0.0.16.0/24
+                                 list(range(0x3000, 0x30ff + 1)) +  # 0.0.48.0/24
+                                 list(range(0x4000, 0x40ff + 1)) +  # 0.0.64.0/24
+                                 list(range(0x8000, 0x80ff + 1)) +  # 0.0.128.0/24
+                                 list(range(0xA000, 0xA0ff + 1)) +  # 0.0.16.0/24
+                                 list(range(0xFF00, 0xFFff + 1)),  # 0.0.255.0/24
+                                 replace=True
+                             ),
+                             attack=True),
         ]
 
 
@@ -242,7 +300,7 @@ class THauke(SamplerTrafficTrace):
 
 @gin.configurable
 class TRandomPatternSwitch(SamplerTrafficTrace):
-    def __init__(self, benign_flows=200, attack_flows=40, maxtime=600, maxaddr=0xffff, is_eval=False):
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
@@ -285,9 +343,12 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
         fgs = [self.benign_fgs]
 
         first_attack_fgs = [
-            FlowGroupSampler(num, UniformSampler(0, 0), UniformSampler(self.maxtime / 2 - 1, self.maxtime / 2 - 1),
+            FlowGroupSampler(num, UniformSampler(0, 0),
+                             UniformSampler(self.maxtime / 2 - 1, self.maxtime / 2 - 1),
                              ChoiceSampler(addr, replace=False),
-                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]), attack=True) for
+                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]),
+                             attack=True)
+            for
             num, addr in
             used_patterns[0].values()
         ]
@@ -314,11 +375,11 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
 
     def _get_rate_sampler_for_attack_pattern(self, pattern):  # TODO refactor
         if list(pattern.keys())[0] == 'ntp':
-            return UniformSampler(self.attack_flows * 1.25 // list(pattern.values())[0][0],
-                                  self.attack_flows * 1.25 // list(pattern.values())[0][0])
+            return UniformSampler(self.attack_flows * 2 // list(pattern.values())[0][0],
+                                  self.attack_flows * 2 // list(pattern.values())[0][0])
         elif list(pattern.keys())[0] == 'ssdp':
-            return UniformSampler(self.attack_flows * 2.5 // list(pattern.values())[0][0],
-                                  self.attack_flows * 2.5 // list(pattern.values())[0][0])
+            return UniformSampler(self.attack_flows * 4 // list(pattern.values())[0][0],
+                                  self.attack_flows * 4 // list(pattern.values())[0][0])
         else:
             return None
 
@@ -418,7 +479,8 @@ class BotnetSourcePattern(SourcePattern):
         # subnet start addresses when dividing address space based on /SUBNET subnets
         # list of randomly chosen start addresses that belong to the botnet countries
         self.subnet_starts = [x * Label.subnet_size(self.subnet) for x in range(0, self.number_of_subnets)]
-        botnet_countries_starts = rng.choice(self.subnet_starts, size=sum((self.number_of_country_subnets.values())),
+        botnet_countries_starts = rng.choice(self.subnet_starts,
+                                             size=sum((self.number_of_country_subnets.values())),
                                              replace=False)
         # assign each country its share of subnets
         start_idx = 0
