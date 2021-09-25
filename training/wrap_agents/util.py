@@ -1,5 +1,6 @@
 from collections import Callable, OrderedDict
 
+import gin
 import tensorflow as tf
 from tensorflow.keras.layers import Lambda
 
@@ -26,13 +27,16 @@ def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_dec
         # return SGD(lr) # TODO add SGD as option?
 
 
+@gin.configurable
 class MinExpSchedule(LearningRateSchedule):
 
     def __init__(self, lr, lr_decay_steps, lr_decay_rate, min_lr):
         self.min_lr = min_lr
         self.exp_schedule = ExponentialDecay(lr, lr_decay_steps, lr_decay_rate, staircase=False)
 
-    def __call__(self, step):
+    def __call__(self, step=None):
+        if step is None:
+            step = tf.compat.v1.train.get_or_create_global_step()
         return tf.maximum(self.min_lr, self.exp_schedule(step))
 
     def get_config(self):

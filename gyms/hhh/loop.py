@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ipaddress import IPv4Address
 
 import gin
 import numpy as np
@@ -9,6 +10,7 @@ from math import log2, log10, sqrt, exp
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 
+from gyms.hhh.actionset import HafnerActionSet
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
 from gyms.hhh.state import State
@@ -34,8 +36,37 @@ class Blacklist(object):
                 for h in self.hhhs]
 
 
+def remove_overlapping_rules(hhhs):  # remove specific rules that are covered by more general rules
+    if len(hhhs) > 0:
+        filtered_hhhs = []
+        for hhh in sorted(hhhs, key=lambda hhh: hhh.len):
+            is_already_covered = False
+            for included in filtered_hhhs:
+                if hhh.id >= included.id and hhh.id + Label.subnet_size(hhh.len) <= included.id + Label.subnet_size(
+                        included.len):
+                    is_already_covered = True
+            if not is_already_covered:
+                filtered_hhhs.append(hhh)
+        return filtered_hhhs
+    else:
+        return hhhs
+
+
+def apply_hafner_heuristic(hhhs):
+    if len(hhhs) > 0:
+        longest_hhh_prefix = sorted(hhhs, key=lambda hhh: hhh.len, reverse=True)[0].len
+        filtered_hhhs = []
+        for hhh in hhhs:
+            if hhh.len >= longest_hhh_prefix - 1:
+                filtered_hhhs.append(hhh)
+        return filtered_hhhs
+    else:
+        return hhhs
+
+
 @gin.configurable
 class Loop(object):
+    ADDRESS_SPACE = 16
     ACTION_INTERVAL = 10
     SAMPLING_RATE = 0.3
     HHH_EPSILON = 0.0001
@@ -81,10 +112,13 @@ class Loop(object):
         self.state = self.create_state_fn()
         self.trace_ended = False
 
+        if isinstance(self.actionset, HafnerActionSet):
+            self.actionset.re_roll_phi()
+            self.step(0)  # execute one step with randomly chosen phi
+
     def step(self, action):
         s = self.state
         self.blacklist_history = []
-
         if s.trace_start == 1.0:
             s.trace_start = 0.0
             time_index_finished = False
@@ -107,11 +141,16 @@ class Loop(object):
         # Avoids double checking IP coverage
         hhhs = self.hhh.query(s.phi, s.min_prefix)[::-1]
 
+        if isinstance(self.actionset, HafnerActionSet):
+            hhhs = apply_hafner_heuristic(hhhs)
+
+        hhhs = remove_overlapping_rules(hhhs)
+
         self._calc_blocklist_distr(hhhs, s)
 
         self.blacklist = Blacklist(hhhs)
         s.blacklist_size = len(self.blacklist)
-
+        s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
         self._calc_hhh_distance_metrics(hhhs, s)
 
         if self.image_gen is not None:
@@ -173,7 +212,28 @@ class Loop(object):
         if self.image_gen is not None:
             s.hhh_image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=None)
 
+        if self.trace_ended:
+            print('==========================================================')
+        else:
+            print('===================')
+
         return self.trace_ended, self.state, self.blacklist_history
+
+    def _calc_blacklist_coverage(self, hhhs):
+        """
+        Calculates the fraction of address space that is covered by filter rules.
+        :param hhhs:  the hhhs/filter rules
+        :return: coverage of address space
+        """
+        num_addr = 2 ** self.ADDRESS_SPACE
+        address_space = np.ones_like(range(num_addr))
+        for hhh in hhhs:  # set entries to 0 for IPs that are blocked by hhh
+            address_space[hhh.id:hhh.id + Label.subnet_size(hhh.len)] = 0
+
+        non_blocked_addresses = address_space.sum()
+        blocked_addresses = num_addr - non_blocked_addresses
+        blacklist_coverage = blocked_addresses / num_addr
+        return blacklist_coverage
 
     def _calc_hhh_distance_metrics(self, b, s):
         H = list(sorted(b, key=lambda _: _.id))

@@ -2,7 +2,7 @@
 import gin
 import numpy as np
 
-from numpy.random import random, randint
+from numpy.random import default_rng, random, randint
 
 from .obs import Observation
 from .util import maybe_cast_to_arr
@@ -97,22 +97,50 @@ class BaseObservations(Observation):
     def get_observation(self, state):
         return np.array([state.trace_start, state.min_prefix,
                          # state.estimated_precision, state.estimated_recall,
-                         state.blacklist_size,
-                         # state.episode_progress
+                         state.blacklist_size
                          ])
 
     def get_lower_bound(self):
-        # return np.array([0.0, 16.0, 0.0, 0.0, 0.0])  # , 0.0])
+        # return np.array([0.0, 16.0, 0.0, 0.0, 0.0])
         return np.array([0.0, 16.0, 0.0])
 
     def get_upper_bound(self):
-        # return np.array([1.0, 32.0, 1.2, 1.2, 128.0])  # , 1.0])
+        # return np.array([1.0, 32.0, 1.2, 1.2, 128.0])
         return np.array([1.0, 32.0, 128.0])
 
     def get_initialization(self):
         # return np.array([1.0, 32.0, 0.2 * random(),
-        #                0.2 * random(), 1.0 * randint(16, 32)])  # , 0.0])
+        #                 0.2 * random(), 1.0 * randint(16, 32)])
         return np.array([1.0, 32.0, 1.0 * randint(16, 32)])
+
+
+@gin.register
+class HafnerObservations(Observation):
+    TCAM_CAP = 10
+
+    def __init__(self, tcam_cap=TCAM_CAP):
+        self.tcam_cap = tcam_cap
+
+    def get_observation(self, state):
+        return np.array([
+            state.packets_per_step, state.blocked,  # n, n_blocked
+            state.estimated_malicious_blocked, state.estimated_benign_blocked,  # {m,b}_blocked^estimated
+            state.estimated_malicious, state.estimated_benign,  # {m,b}^estimated
+            state.estimated_precision, state.estimated_recall,  # p, r
+            state.blacklist_size / self.tcam_cap,  # ratio of used TCAM capacity
+            state.blacklist_coverage  # ratio of address space covered by blacklist rules
+        ])
+
+    def get_lower_bound(self):
+        return np.zeros(10)
+
+    def get_upper_bound(self):
+        return np.array([10000, 10000, 10000, 10000, 10000, 10000, 1.0, 1.0, 1.0, 1.0])
+
+    def get_initialization(self):
+        init1 = default_rng().uniform(0, 10000, 6)
+        init2 = default_rng().uniform(0, 1.0, 4)
+        return np.concatenate((init1, init2))
 
 
 # TODO image observation? those are different from vector observations, since it requires modified NN...
@@ -153,6 +181,7 @@ class State(object):
         self.bl_dist = np.zeros(16)
         self.image = None  # 2-channel image of last steps traffic and filter
         self.hhh_image = None  # 1-channel image of current traffic
+        self.blacklist_coverage = 0  # Hafner observation: fraction of blocked address space
 
     def complete(self):
         self._estimate_packet_counters()

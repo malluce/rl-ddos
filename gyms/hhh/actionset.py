@@ -7,6 +7,8 @@ import numpy as np
 from gym.spaces import Box, Discrete, MultiDiscrete, Tuple
 from abc import ABC
 
+from numpy.random import default_rng
+
 from gyms.hhh.obs import Observation
 
 
@@ -261,3 +263,54 @@ class ContinuousActionSet(ActionSet):
 
     def __repr__(self):
         return str(self.actionspace)
+
+
+@gin.register
+class HafnerActionSet(ActionSet):
+    def __init__(self):
+        super().__init__()
+        self.re_roll_phi()
+        self.possible_actions = {
+            0: lambda phi: phi,  # keep last phi
+            # assignment actions
+            1: lambda phi: 0.5,
+            2: lambda phi: 0.3,
+            3: lambda phi: 0.1,
+            4: lambda phi: 0.01,
+            5: lambda phi: 0.001,
+            # multiplicative actions
+            6: lambda phi: 2 * phi,
+            7: lambda phi: 0.5 * phi,
+            8: lambda phi: 1.1 * phi,
+            9: lambda phi: 0.9 * phi,
+            10: lambda phi: 10 * phi,
+            11: lambda phi: 0.1 * phi
+        }
+        self.actionspace = Discrete(len(self.possible_actions))
+
+    def re_roll_phi(self):
+        self.current_phi = default_rng().uniform(0.001, 1.0)
+        print(f're-rolled phi, new: {self.current_phi}')
+
+    def resolve(self, action):
+        self.current_phi = self.possible_actions[action](self.current_phi)
+        self.current_phi = np.clip(self.current_phi, 0.001, 1.0)
+        min_prefix = 16  # allow unbounded propagation at query time, use pre-processing for L heuristic
+        print(f'action={action}')
+        print(f'resolved actions=({self.current_phi}, {min_prefix})')
+        return self.current_phi, min_prefix
+
+    def get_min_prefixlen(self):
+        return 16
+
+    def get_observation(self, action):
+        return self.current_phi
+
+    def get_lower_bound(self):
+        return 0.001
+
+    def get_upper_bound(self):
+        return 1.0
+
+    def get_initialization(self):
+        raise NotImplementedError('Initialization not fitting for Hafner')

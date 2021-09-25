@@ -1,0 +1,50 @@
+
+HafnerObservations.tcam_cap = 20 # TODO what value used in his thesis?
+TrainLoop.num_iterations = 20000 # 10k episodes!
+DistributionTrace.traffic_trace_construct = @HafnerT1
+Loop.action_interval=100
+
+# generic params
+Loop.epsilon=0.001
+DQNWrapAgent.lr=1e-3
+Loop.sampling_rate=0.2
+TrainLoop.gamma=0.95
+
+# epsilon decay
+DQNWrapAgent.eps_greedy_decay_exp=True
+MinExpSchedule.lr=1.0
+MinExpSchedule.lr_decay_steps=1
+MinExpSchedule.lr_decay_rate=0.99
+MinExpSchedule.min_lr=0.01
+
+# replay buf
+TrainLoop.batch_size = 32
+TrainLoop.replay_buf_size = 2000
+TrainLoop.initial_collect_steps = 32 # Listing 5.5 (start training after batch size is reached)
+
+# hard target net copies, at the end of each episode
+DQNWrapAgent.target_update_tau=1
+DQNWrapAgent.target_update_period=2
+
+# NN
+DQNWrapAgent.q_layers=(24,24)
+
+# no CNN
+TrainLoop.image_gen=None
+
+# action
+TrainLoop.actionset_selection=@HafnerActionSet()
+
+# state
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@HafnerObservations(),)
+
+# reward
+HHHEnv.reward_calc=@HafnerRewardCalc()
+
+# basic params
+get_train_loop.alg_name='dqn'
+TrainLoop.root_dir='/home/bachmann/test-pycharm/data/hafner'
+TrainLoop.eval_interval = 300
+TrainLoop.num_eval_episodes = 5
+TrainLoop.log_interval = 200

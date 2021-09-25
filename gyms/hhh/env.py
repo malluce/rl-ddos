@@ -8,7 +8,7 @@ from math import log2, sqrt
 
 from gym.envs.registration import register
 
-from .actionset import ActionSet
+from .actionset import ActionSet, HafnerActionSet
 from .flowgen.traffic_traces import SamplerTrafficTrace
 from .images import ImageGenerator
 from .loop import Loop
@@ -110,6 +110,10 @@ class HHHEnv(gym.Env):
         # get numpy observation array
         observation = self._build_observation(previous_action=action)
 
+        # print(f'observation={observation}')
+        # print(f'reward={reward}')
+        # print(f'trace_ended={trace_ended}')
+
         return observation, reward, trace_ended, {}
 
     def _log_to_datastore(self, trace_ended, reward, state):
@@ -164,6 +168,7 @@ class HHHEnv(gym.Env):
                 self.ds.flush()
 
     def _build_observation(self, previous_action=None):
+        # print(f'building observation, previous={previous_action}')
         action_observation, state_observation = (None, None)
         img_obs, hhh_img_obs = (None, None)
         use_images = self.image_gen is not None
@@ -238,7 +243,10 @@ class HHHEnv(gym.Env):
         self.rate_pattern_ids = []
         self.change_pattern_ids = []
 
-        return self._build_observation(previous_action=None)
+        if isinstance(self.loop.actionset, HafnerActionSet):
+            return self._build_observation(previous_action=0)
+        else:
+            return self._build_observation(previous_action=None)
 
     def render(self, mode):
         pass

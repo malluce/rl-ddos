@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import gin
 import numpy as np
 
-from gyms.hhh.state import State
+from gyms.hhh.state import HafnerObservations, State
 
 
 class RewardCalc(ABC):
@@ -26,6 +26,34 @@ class RewardCalc(ABC):
     @abstractmethod
     def weighted_bl_size(self, bl_size: int):
         pass
+
+
+@gin.register
+class HafnerRewardCalc(RewardCalc):
+
+    def __init__(self):
+        self.tcam_cap = HafnerObservations().tcam_cap
+
+    def calc_reward(self, state: State):
+        reward = self.weighted_precision(state.precision) \
+                 * self.weighted_recall(state.recall) \
+                 * self.weighted_fpr(state.fpr) \
+                 * 300 \
+                 + self.weighted_bl_size(state.blacklist_size)
+
+        return reward
+
+    def weighted_precision(self, precision: float):
+        return precision
+
+    def weighted_recall(self, recall: float):
+        return recall
+
+    def weighted_fpr(self, fpr: float):
+        return 1 - fpr
+
+    def weighted_bl_size(self, bl_size: int):
+        return (1 - bl_size / self.tcam_cap) * 100
 
 
 @gin.configurable
