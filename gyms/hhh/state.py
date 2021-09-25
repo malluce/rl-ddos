@@ -116,7 +116,7 @@ class BaseObservations(Observation):
 
 @gin.register
 class HafnerObservations(Observation):
-    TCAM_CAP = 10
+    TCAM_CAP = 0
 
     def __init__(self, tcam_cap=TCAM_CAP):
         self.tcam_cap = tcam_cap

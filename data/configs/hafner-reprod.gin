@@ -1,5 +1,6 @@
-
-HafnerObservations.tcam_cap = 20 # TODO what value used in his thesis?
+tcam_cap=10 # TODO what value used in his thesis?
+HafnerRewardCalc.tcam_cap=%tcam_cap
+HafnerObservations.tcam_cap =%tcam_cap
 TrainLoop.num_iterations = 20000 # 10k episodes!
 DistributionTrace.traffic_trace_construct = @HafnerT1
 Loop.action_interval=100

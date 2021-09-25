@@ -30,9 +30,10 @@ class RewardCalc(ABC):
 
 @gin.register
 class HafnerRewardCalc(RewardCalc):
+    TCAM_CAP = 0
 
-    def __init__(self):
-        self.tcam_cap = HafnerObservations().tcam_cap
+    def __init__(self, tcam_cap=TCAM_CAP):
+        self.tcam_cap = tcam_cap
 
     def calc_reward(self, state: State):
         reward = self.weighted_precision(state.precision) \
