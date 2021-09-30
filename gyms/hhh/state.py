@@ -122,6 +122,7 @@ class HafnerObservations(Observation):
         self.tcam_cap = tcam_cap
 
     def get_observation(self, state):
+        # all metrics per step
         return np.array([
             state.packets_per_step, state.blocked,  # n, n_blocked
             state.estimated_malicious_blocked, state.estimated_benign_blocked,  # {m,b}_blocked^estimated
@@ -135,12 +136,11 @@ class HafnerObservations(Observation):
         return np.zeros(10)
 
     def get_upper_bound(self):
-        return np.array([10000, 10000, 10000, 10000, 10000, 10000, 1.0, 1.0, 1.0, 1.0])
+        inf = np.finfo(np.float32).max
+        return np.array([inf, inf, inf, inf, inf, inf, 1.0, 1.0, 1.0, 1.0])
 
     def get_initialization(self):
-        init1 = default_rng().uniform(0, 10000, 6)
-        init2 = default_rng().uniform(0, 1.0, 4)
-        return np.concatenate((init1, init2))
+        raise NotImplementedError('Not expected to use initialization for HafnerObservation!')
 
 
 # TODO image observation? those are different from vector observations, since it requires modified NN...
@@ -153,6 +153,11 @@ class State(object):
         self.phi = 0.5
         self.min_prefix = 20
         self.total = 0  # total packets
+
+        # Hafner Observation: for address space covered by rules
+        self.lowest_ip = 2 ** 32
+        self.highest_ip = 0
+
         self.rewind()
 
     def rewind(self):
