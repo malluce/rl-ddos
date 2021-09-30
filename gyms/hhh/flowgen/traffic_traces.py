@@ -235,16 +235,66 @@ class HafnerT2(SamplerTrafficTrace):
                              ChoiceSampler(
                                  list(range(0x0000, 0x00ff + 1)) +  # 0.0.0.0/24
                                  list(range(0x1000, 0x10ff + 1)) +  # 0.0.16.0/24
-                                 list(range(0x2000, 0x20ff + 1)) +  # 0.0.16.0/24
+                                 list(range(0x2000, 0x20ff + 1)) +  # 0.0.32.0/24
                                  list(range(0x3000, 0x30ff + 1)) +  # 0.0.48.0/24
                                  list(range(0x4000, 0x40ff + 1)) +  # 0.0.64.0/24
                                  list(range(0x8000, 0x80ff + 1)) +  # 0.0.128.0/24
-                                 list(range(0xA000, 0xA0ff + 1)) +  # 0.0.16.0/24
+                                 list(range(0xA000, 0xA0ff + 1)) +  # 0.0.160.0/24
                                  list(range(0xFF00, 0xFFff + 1)),  # 0.0.255.0/24
                                  replace=True
                              ),
                              attack=True),
         ]
+
+
+@gin.configurable
+class HafnerRandomSwitch(SamplerTrafficTrace):
+
+    def __init__(self, benign_flows=50, maxtime=399, is_eval=False):
+        super().__init__(maxtime)
+        self.benign_flows = benign_flows
+        self.t1_fgs = HafnerT1(benign_flows=benign_flows, maxtime=maxtime).get_flow_group_samplers()
+        self.t2_fgs = HafnerT2(benign_flows=benign_flows, maxtime=maxtime).get_flow_group_samplers()
+        self.current_fgs = None
+        self.is_eval = is_eval
+        if self.is_eval:
+            self.current_fgs = self.t1_fgs
+
+    def get_flow_group_samplers(self):
+        if self.is_eval:
+            # toggle the two fgs
+            if self.current_fgs == self.t1_fgs:
+                self.current_fgs = self.t2_fgs
+                print('T1 eval')
+                return self.t1_fgs
+            elif self.current_fgs == self.t2_fgs:
+                self.current_fgs = self.t1_fgs
+                print('T2 eval')
+                return self.t2_fgs
+            else:
+                raise ValueError('No fgs set in eval.')
+        # with probability 0.5 select one of the fgs
+        if default_rng().random() < 0.5:
+            print('T1')
+            self.current_fgs = self.t1_fgs
+        else:
+            print('T2')
+            self.current_fgs = self.t2_fgs
+        return self.current_fgs
+
+    def get_source_pattern_id(self, time_step):
+        if self.is_eval:  # due to toggling return opposite id
+            if self.current_fgs == self.t1_fgs:
+                return 'HafnT2'
+            elif self.current_fgs == self.t2_fgs:
+                return 'HafnT1'
+        else:
+            if self.current_fgs == self.t1_fgs:
+                return 'HafnT1'
+            elif self.current_fgs == self.t2_fgs:
+                return 'HafnT2'
+            else:
+                raise ValueError('No flow group sampler set, call get_flow_group_samplers() first!')
 
 
 @gin.configurable
@@ -296,6 +346,41 @@ class THauke(SamplerTrafficTrace):
                              NormalSampler(3 / 8 * self.maxaddr, .05 * self.maxaddr, 1, self.maxaddr),
                              attack=True),
         ]
+
+
+@gin.register
+class SSDPTrace(SamplerTrafficTrace):
+
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False):
+        super().__init__(maxtime)
+        self.attack_flows = attack_flows
+        self.benign_flows = benign_flows
+        self.maxtime = maxtime
+        self.maxaddr = maxaddr
+
+        self.benign_fgs = [FlowGroupSampler(self.benign_flows,
+                                            UniformSampler(0, 0.95 * self.maxtime),
+                                            WeibullSampler(3 / 2,
+                                                           (1 / WeibullSampler.quantile(99,
+                                                                                        3 / 2)) * 1 / 8 * self.maxtime),
+                                            UniformSampler(0, self.maxaddr),
+                                            attack=False
+                                            )]
+        address_space = round(math.log2(self.maxaddr))
+        ssdp = ReflectorSourcePattern('ssdp', address_space).generate_addresses(100)
+        self.ssdp_fgs = [FlowGroupSampler(num, UniformSampler(0, 0),
+                                          UniformSampler(self.maxtime, self.maxtime),
+                                          ChoiceSampler(addr, replace=False),
+                                          rate_sampler=UniformSampler(
+                                              self.attack_flows * 4 // list(ssdp.values())[0][0],
+                                              self.attack_flows * 4 // list(ssdp.values())[0][0]),
+                                          attack=True)
+                         for
+                         num, addr in
+                         ssdp.values()]
+
+    def get_flow_group_samplers(self):
+        return self.benign_fgs + self.ssdp_fgs
 
 
 @gin.configurable
