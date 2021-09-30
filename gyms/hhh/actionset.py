@@ -206,7 +206,7 @@ class TupleActionSet(ActionSet):
         return agent_action_to_phi(action[0], self.get_lower_bound(), self.get_upper_bound())
 
     def get_lower_bound(self):
-        return 0.01
+        return 0.001
 
     def get_upper_bound(self):
         return 1.0
@@ -289,12 +289,12 @@ class HafnerActionSet(ActionSet):
         self.actionspace = Discrete(len(self.possible_actions))
 
     def re_roll_phi(self):
-        self.current_phi = default_rng().uniform(0.001, 1.0)
+        self.current_phi = default_rng().uniform(0.0001, 1.0)
         print(f're-rolled phi, new: {self.current_phi}')
 
     def resolve(self, action):
         self.current_phi = self.possible_actions[action](self.current_phi)
-        self.current_phi = np.clip(self.current_phi, 0.001, 1.0)
+        self.current_phi = np.clip(self.current_phi, 0.0001, 1.0)
         min_prefix = 16  # allow unbounded propagation at query time, use pre-processing for L heuristic
         print(f'action={action}')
         print(f'resolved actions=({self.current_phi}, {min_prefix})')
@@ -307,7 +307,7 @@ class HafnerActionSet(ActionSet):
         return self.current_phi
 
     def get_lower_bound(self):
-        return 0.001
+        return 0.0001
 
     def get_upper_bound(self):
         return 1.0
