@@ -122,22 +122,7 @@ class Loop(object):
         s = self.state
         self.blacklist_history = []
         if s.trace_start == 1.0:
-            s.trace_start = 0.0
-            time_index_finished = False
-            interval = 0
-
-            # Initialize the HHH instance with pre-sampled items
-            while not (time_index_finished and interval == self.action_interval):
-                p, time_index_finished = self.trace.next()
-                self.hhh.update(p.ip)
-
-                s.lowest_ip = min(s.lowest_ip, p.ip)
-                s.highest_ip = max(s.highest_ip, p.ip)
-
-                if time_index_finished:
-                    interval += 1
-                    self.blacklist_history.append(self.blacklist)
-                    self.time_index += 1
+            self.pre_sample()
         else:
             s.rewind()
 
@@ -170,21 +155,15 @@ class Loop(object):
         time_index_finished = False
         interval = 0
         while not (time_index_finished and interval == self.action_interval):
-            try:
-                p, time_index_finished = self.trace.next()
+            p, time_index_finished = self.trace.next()
 
-                s.lowest_ip = min(s.lowest_ip, p.ip)
-                s.highest_ip = max(s.highest_ip, p.ip)
+            s.lowest_ip = min(s.lowest_ip, p.ip)
+            s.highest_ip = max(s.highest_ip, p.ip)
 
-                if time_index_finished:
-                    interval += 1
-                    self.blacklist_history.append(self.blacklist)
-                    self.time_index += 1
-                if self.time_index == self.trace.trace_sampler.maxtime + 1:  # rate grid ended
-                    raise StopIteration()
-            except StopIteration:
-                self.trace_ended = True
-                break
+            if time_index_finished:
+                interval += 1
+                self.blacklist_history.append(self.blacklist)
+                self.time_index += 1
 
             s.total += 1
             s.packets_per_step += 1
@@ -223,7 +202,26 @@ class Loop(object):
         if self.image_gen is not None:
             s.hhh_image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=None)
 
+        if self.time_index == self.trace.trace_sampler.maxtime + 1:  # rate grid ended
+            self.trace_ended = True
+
         return self.trace_ended, self.state, self.blacklist_history
+
+    def pre_sample(self):  # Initialize the HHH instance with pre-sampled items
+        self.state.trace_start = 0.0
+        time_index_finished = False
+        interval = 0
+        while not (time_index_finished and interval == self.action_interval):
+            p, time_index_finished = self.trace.next()
+            self.hhh.update(p.ip)
+
+            self.state.lowest_ip = min(self.state.lowest_ip, p.ip)
+            self.state.highest_ip = max(self.state.highest_ip, p.ip)
+
+            if time_index_finished:
+                interval += 1
+                self.blacklist_history.append(self.blacklist)
+                self.time_index += 1
 
     def _calc_blacklist_coverage(self, hhhs):
         """
