@@ -21,7 +21,7 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
                  target_update_tau=1, target_update_period=5, gamma=0.99, lr=1e-3, lr_decay_steps=None,
                  lr_decay_rate=None, eps_greedy=0.05, eps_greedy_end=None, eps_greedy_steps=None,
                  eps_greedy_decay_exp=False,
-                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu):
+                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu, batch_norm=False):
         self.gamma = gamma
         self.eps_greedy = eps_greedy
 
@@ -29,7 +29,7 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
 
         # set q net
         if not use_rnn:
-            self.q_net = QNetwork(time_step_spec.observation, action_spec, batch_normalization=True,
+            self.q_net = QNetwork(time_step_spec.observation, action_spec, batch_normalization=batch_norm,
                                   fc_layer_params=q_layers, preprocessing_layers=preprocessing_layers,
                                   preprocessing_combiner=preprocessing_combiner)
         else:
