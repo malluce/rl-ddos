@@ -129,6 +129,9 @@ class Loop(object):
                 p, time_index_finished = self.trace.next()
                 self.hhh.update(p.ip)
 
+                s.lowest_ip = min(s.lowest_ip, p.ip)
+                s.highest_ip = max(s.highest_ip, p.ip)
+
                 if time_index_finished:
                     interval += 1
                     self.blacklist_history.append(self.blacklist)
@@ -167,6 +170,9 @@ class Loop(object):
         while not (time_index_finished and interval == self.action_interval):
             try:
                 p, time_index_finished = self.trace.next()
+
+                s.lowest_ip = min(s.lowest_ip, p.ip)
+                s.highest_ip = max(s.highest_ip, p.ip)
 
                 if time_index_finished:
                     interval += 1
@@ -212,11 +218,6 @@ class Loop(object):
         if self.image_gen is not None:
             s.hhh_image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=None)
 
-        if self.trace_ended:
-            print('==========================================================')
-        else:
-            print('===================')
-
         return self.trace_ended, self.state, self.blacklist_history
 
     def _calc_blacklist_coverage(self, hhhs):
@@ -225,14 +226,14 @@ class Loop(object):
         :param hhhs:  the hhhs/filter rules
         :return: coverage of address space
         """
-        num_addr = 2 ** self.ADDRESS_SPACE
-        address_space = np.ones_like(range(num_addr))
-        for hhh in hhhs:  # set entries to 0 for IPs that are blocked by hhh
-            address_space[hhh.id:hhh.id + Label.subnet_size(hhh.len)] = 0
+        observed_address_space = max(0, self.state.highest_ip - self.state.lowest_ip + 1)
+        # count number of covered addresses (ok to count, since no overlapping rules exist at this point)
+        covered_addresses = 0
+        for hhh in hhhs:
+            covered_addresses += Label.subnet_size(hhh.len)
 
-        non_blocked_addresses = address_space.sum()
-        blocked_addresses = num_addr - non_blocked_addresses
-        blacklist_coverage = blocked_addresses / num_addr
+        blacklist_coverage = min(1.0, covered_addresses / observed_address_space)
+        print(f'blacklist coverage={blacklist_coverage}')
         return blacklist_coverage
 
     def _calc_hhh_distance_metrics(self, b, s):
