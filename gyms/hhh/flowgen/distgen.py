@@ -161,8 +161,8 @@ class TraceSampler(object):
         if self.maxtime is not None:
             maxtime = min(self.maxtime, maxtime)
 
-        self.rate_grid = np.zeros((maxtime, maxaddr + 1), dtype=int)
-        self.attack_grid = np.zeros((maxtime, maxaddr + 1), dtype=int)
+        self.rate_grid = np.zeros((maxtime + 1, maxaddr + 1), dtype=int)
+        self.attack_grid = np.zeros((maxtime + 1, maxaddr + 1), dtype=int)
 
         for f in self.flows:
             # Assign total rate to rate grid from flow start to flow end

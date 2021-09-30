@@ -427,9 +427,11 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
 
         fgs = [self.benign_fgs]
 
+        trace_duration = self.maxtime + 1
+
         first_attack_fgs = [
             FlowGroupSampler(num, UniformSampler(0, 0),
-                             UniformSampler(self.maxtime / 2 - 1, self.maxtime / 2 - 1),
+                             UniformSampler(trace_duration / 2 - 1, trace_duration / 2 - 1),
                              ChoiceSampler(addr, replace=False),
                              rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]),
                              attack=True)
@@ -439,8 +441,8 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
         ]
 
         second_attack_fgs = [
-            FlowGroupSampler(num, UniformSampler(self.maxtime / 2, self.maxtime / 2),
-                             UniformSampler(self.maxtime / 2, self.maxtime / 2),
+            FlowGroupSampler(num, UniformSampler(trace_duration / 2, trace_duration / 2),
+                             UniformSampler(trace_duration / 2 - 1, trace_duration / 2 - 1),
                              ChoiceSampler(addr, replace=False), attack=True,
                              rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[1]))
             for num, addr in used_patterns[1].values()
@@ -508,11 +510,6 @@ class SourcePattern(ABC):
     @abstractmethod
     def generate_addresses(self, num_addr):
         pass
-
-
-class Pattern:
-    def __init__(self, source_pattern: SourcePattern, rate_pattern: RatePattern):
-        pass  # TODO
 
 
 class UniformRandomSourcePattern(SourcePattern):

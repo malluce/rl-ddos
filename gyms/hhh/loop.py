@@ -105,12 +105,14 @@ class Loop(object):
         self.hhh = HHHAlgo(epsilon)
         self.trace_ended = False
         self.image_gen = image_gen
+        self.time_index = 0
 
     def reset(self):
         self.blacklist = Blacklist([])
         self.hhh.clear()
         self.state = self.create_state_fn()
         self.trace_ended = False
+        self.time_index = 0
 
         if isinstance(self.actionset, HafnerActionSet):
             self.actionset.re_roll_phi()
@@ -135,6 +137,7 @@ class Loop(object):
                 if time_index_finished:
                     interval += 1
                     self.blacklist_history.append(self.blacklist)
+                    self.time_index += 1
         else:
             s.rewind()
 
@@ -166,7 +169,6 @@ class Loop(object):
         s.samples = 0
         time_index_finished = False
         interval = 0
-
         while not (time_index_finished and interval == self.action_interval):
             try:
                 p, time_index_finished = self.trace.next()
@@ -177,6 +179,9 @@ class Loop(object):
                 if time_index_finished:
                     interval += 1
                     self.blacklist_history.append(self.blacklist)
+                    self.time_index += 1
+                if self.time_index == self.trace.trace_sampler.maxtime + 1:  # rate grid ended
+                    raise StopIteration()
             except StopIteration:
                 self.trace_ended = True
                 break
@@ -233,7 +238,6 @@ class Loop(object):
             covered_addresses += Label.subnet_size(hhh.len)
 
         blacklist_coverage = min(1.0, covered_addresses / observed_address_space)
-        print(f'blacklist coverage={blacklist_coverage}')
         return blacklist_coverage
 
     def _calc_hhh_distance_metrics(self, b, s):

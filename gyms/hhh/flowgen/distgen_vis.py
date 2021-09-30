@@ -9,8 +9,9 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler
-from gyms.hhh.flowgen.traffic_traces import T1, T2, T3, T4, TRandomPatternSwitch, THauke
+from gyms.hhh.flowgen.traffic_traces import HafnerT1, HafnerT2, SSDPTrace, T1, T2, T3, T4, TRandomPatternSwitch, THauke
 from gyms.hhh.label import Label
+from gyms.hhh.loop import apply_hafner_heuristic
 
 
 class ProgressBar(object):
@@ -84,7 +85,6 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
     bar = ProgressBar(trace_sampler.maxtime)
     frequencies = np.zeros_like(trace_sampler.rate_grid, dtype=np.float64)
     h = HHHAlgo(epsilon)
-    time_index = 0
     hhhs = []
     time_index = 0
 
@@ -92,18 +92,17 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
     for packet, time_index_finished in trace_sampler.samples():
         # update hhh algorithm
         h.update(packet.ip)
-
         if not time_index_finished:
             continue
-
         # perform query and calculate hhh coverage
-        if time_index % interval == interval - 1:
+        if time_index % interval == interval - 1 and time_index != trace_sampler.maxtime:
             # HHHs are sorted in descending order of prefix length
             hhhs = [HHHEntry.copy(_) for _ in h.query(phi, minprefix)]
             hhhs = reduce_hhhs(hhhs)
             # Reset the HHH algorithm after querying
             h.clear()
             print(f'===== time index {time_index} =====')
+            print(f'number of rules={len(hhhs)}')
             for r in hhhs:
                 print(f'{str(IPv4Address(r.id)).rjust(15)}/{r.len} {r.lo, r.hi}')
         render_hhhs(hhhs, frequencies, time_index)
@@ -146,11 +145,11 @@ def plot(args, flows, rate_grid, attack_grid, hhh_grid=None, squash=False):
         return scaled2, bins2
 
     def plot_heatmap(axis, grid, vmin=None, vmax=None):
-        scaled_grid, ybins = scale(grid, 300, 0)
+        scaled_grid, ybins = scale(grid, 600, 0)
         scaled_grid, _ = scale(scaled_grid, 200, 1, True)
         if squash:
             # squash values together for clearer visuals (e.g. for reflector-botnet switch)
-            scaled_grid = np.log(scaled_grid, out=np.zeros_like(scaled_grid, dtype=np.float), where=(scaled_grid >= 1))
+            scaled_grid = np.log(scaled_grid, out=np.zeros_like(scaled_grid, dtype=np.float), where=(scaled_grid > 1))
         vmin = vmin if vmin is not None else scaled_grid.min()
         vmax = vmax if vmax is not None else scaled_grid.max()
         mesh = axis.pcolormesh(np.arange(200) / 2, ybins, scaled_grid, cmap='gist_heat_r', shading='nearest', vmin=vmin,
@@ -245,6 +244,11 @@ def render_blacklist_history(blacklist_file, maxtime, maxaddr):
     for time_index in range(len(episode_blacklist)):
         hhhs = [HHHEntry.from_dict(_) for _ in sorted(episode_blacklist[time_index],
                                                       key=lambda x: x['len'], reverse=True)]
+        print(f'======== TIME IDX {time_index} ========')
+        print(f'number of rules={len(hhhs)}')
+        if len(hhhs) == 1:
+            for r in sorted(hhhs, key=lambda h: h.id):
+                print(f'{str(IPv4Address(r.id)).rjust(15)}/{r.len} {r.lo, r.hi}')
         render_hhhs(hhhs, hhhgrid, time_index)
     return hhhgrid
 
@@ -259,14 +263,14 @@ def cmdline():
                       help='Gzip-compressed numpy file containing attack rate information')
     argp.add_argument('blacklist_file', type=str, default=None, nargs='?', help='File containing blacklist information')
     BENIGN = 200  # 300
-    ATTACK = 40  # 150
+    ATTACK = 50  # 150
     argp.add_argument('--benign', type=int, default=BENIGN, help='Number of benign flows')
     argp.add_argument('--attack', type=int, default=ATTACK, help='Number of attack flows')
-    argp.add_argument('--steps', type=int, default=600, help='Number of time steps')
+    argp.add_argument('--steps', type=int, default=599, help='Number of time steps')
     argp.add_argument('--maxaddr', type=int, default=0xffff, help='Size of address space')
-    argp.add_argument('--epsilon', type=float, default=.005, help='Error bound')
-    argp.add_argument('--phi', type=float, default=.25, help='Query threshold')
-    argp.add_argument('--minprefix', type=int, default=18, help='Minimum prefix length')
+    argp.add_argument('--epsilon', type=float, default=.0001, help='Error bound')
+    argp.add_argument('--phi', type=float, default=0.07, help='Query threshold')
+    argp.add_argument('--minprefix', type=int, default=23, help='Minimum prefix length')
     argp.add_argument('--interval', type=int, default=10, help='HHH query interval')
     argp.add_argument('--nohhh', action='store_true', help='Skip HHH calculation')
 
@@ -281,31 +285,32 @@ def cmdline():
 
 def main():
     args = cmdline()
-    trace = TRandomPatternSwitch(args.benign, args.attack, args.steps, args.maxaddr,
-                                 is_eval=True)
-    trace = T2(maxaddr=0xffff)
-    # for i in range(0, 9):
-
-    if args.flow_file is None:
-        fgs = trace.get_flow_group_samplers()
-        trace_sampler = TraceSampler(fgs, args.steps)
-        trace_sampler.init_flows()
-    else:
-        trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
-                                          args.attack_grid_file)
-
-    if args.blacklist_file:
-        hhh_grid = render_blacklist_history(args.blacklist_file,
-                                            trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
-    elif not args.nohhh:
-        print('Calculating HHHs...')
-        hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
-                               args.minprefix, args.interval)
-    else:
-        hhh_grid = None
-
-    plot(args, trace_sampler.flows, trace_sampler.rate_grid,
-         trace_sampler.attack_grid, hhh_grid, squash=True)
+    trace = TRandomPatternSwitch(is_eval=True)
+    # trace = SSDPTrace()
+    # trace = TRandomPatternSwitch(is_eval=True)
+    for i in range(0, 9):
+        if args.flow_file is None:
+            fgs = trace.get_flow_group_samplers()
+            # if i != 8:
+            #    continue
+            trace_sampler = TraceSampler(fgs, args.steps)
+            trace_sampler.init_flows()
+            print(trace_sampler.num_samples)
+            print(trace_sampler.attack_grid[trace_sampler.attack_grid != 0])
+        else:
+            trace_sampler = load_tracesampler(args.flow_file, args.rate_grid_file,
+                                              args.attack_grid_file)
+        if args.blacklist_file:
+            hhh_grid = render_blacklist_history(args.blacklist_file,
+                                                trace_sampler.rate_grid.shape[0], trace_sampler.maxaddr)
+        elif not args.nohhh:
+            print('Calculating HHHs...')
+            hhh_grid = playthrough(trace_sampler, args.epsilon, args.phi,
+                                   args.minprefix, args.interval)
+        else:
+            hhh_grid = None
+        plot(args, trace_sampler.flows, trace_sampler.rate_grid,
+             trace_sampler.attack_grid, hhh_grid, squash=False)
 
 
 if __name__ == '__main__':
