@@ -110,9 +110,12 @@ class HHHEnv(gym.Env):
         # get numpy observation array
         observation = self._build_observation(previous_action=action)
 
-        # print(f'observation={observation}')
-        # print(f'reward={reward}')
-        # print(f'trace_ended={trace_ended}')
+        print(f'reward={reward}')
+
+        if trace_ended:
+            print('==========================================================')
+        else:
+            print('===================')
 
         return observation, reward, trace_ended, {}
 
@@ -150,15 +153,15 @@ class HHHEnv(gym.Env):
             return_undiscounted = np.sum(rewards)
 
             self.ds.add_numpy_data(self.loop.trace.trace_sampler.flows,
-                                   'flows_{}'.format(self.episode + 1))
+                                   'flows_{}'.format(self.episode))
             self.ds.add_numpy_data(self.loop.trace.trace_sampler.rate_grid,
-                                   'combined_{}'.format(self.episode + 1))
+                                   'combined_{}'.format(self.episode))
             self.ds.add_numpy_data(self.loop.trace.trace_sampler.attack_grid,
-                                   'attack_{}'.format(self.episode + 1))
+                                   'attack_{}'.format(self.episode))
             self.ds.add_blacklist([b.to_serializable() for b in self.blacklists],
-                                  'blacklist_{}'.format(self.episode + 1))
+                                  'blacklist_{}'.format(self.episode))
 
-            self.ds.add_episode(self.episode + 1, 0, source_seq, rate_seq, change_id,
+            self.ds.add_episode(self.episode, 0, source_seq, rate_seq, change_id,
                                 np.mean(self.rules), np.mean(self.precisions),
                                 np.mean(self.recalls), np.mean(self.fprs),
                                 np.mean(self.hhh_distance_sums), np.mean(self.rewards), return_discounted,
