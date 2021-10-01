@@ -385,21 +385,22 @@ class SSDPTrace(SamplerTrafficTrace):
 
 @gin.configurable
 class TRandomPatternSwitch(SamplerTrafficTrace):
-    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False):
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False, interval=10):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
         self.maxtime = maxtime
         self.maxaddr = maxaddr
         self.deterministic_cycle = is_eval  # cycle all possible pattern switches in eval or sample them in train
+        self.interval = interval
 
         if self.deterministic_cycle:
             self.current_pattern_combination = 0  # idx for possible pattern combinations
 
         self.benign_fgs = FlowGroupSampler(self.benign_flows,
-                                           UniformSampler(0, 0.95 * self.maxtime),
+                                           UniformSampler(0 - self.interval, self.maxtime - self.interval),
                                            WeibullSampler(3 / 2,
-                                                          (1 / WeibullSampler.quantile(99,
+                                                          (1 / WeibullSampler.quantile(95,
                                                                                        3 / 2)) * 1 / 8 * self.maxtime),
                                            UniformSampler(0, self.maxaddr),
                                            attack=False

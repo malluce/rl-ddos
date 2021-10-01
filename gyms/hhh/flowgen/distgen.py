@@ -165,11 +165,14 @@ class TraceSampler(object):
         self.attack_grid = np.zeros((maxtime + 1, maxaddr + 1), dtype=int)
 
         for f in self.flows:
+            flow_start = f[0] if f[0] >= 0 else 0  # flows that virtually started before trace start at trace
+            flow_end = f[1] if f[1] >= 0 else 0  # avoid flow_start=0, flow_end=-x
+
             # Assign total rate to rate grid from flow start to flow end
             # for the respective address
-            self.rate_grid[f[0]: f[1] + 1, f[3]] += f[4]
+            self.rate_grid[flow_start: flow_end + 1, f[3]] += f[4]
             # Same with attack rate
-            self.attack_grid[f[0]: f[1] + 1, f[3]] += f[5]
+            self.attack_grid[flow_start: flow_end + 1, f[3]] += f[5]
 
         self.num_samples = self.rate_grid.sum()
         self.num_attack_samples = self.attack_grid.sum()
