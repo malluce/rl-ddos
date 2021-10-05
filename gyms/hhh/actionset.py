@@ -23,19 +23,40 @@ class ActionSet(Observation, ABC):
         """ transform selected action into phi and min-prefix values """
         pass
 
-    @abc.abstractmethod
-    def get_min_prefixlen(self):
-        pass
-
     def __repr__(self):
         return 'ActionSet'
 
 
-class DiscreteActionSet(ActionSet):
+class RejectionActionSet(Observation, ABC):
+    def __init__(self):
+        self.actionspace = None
+
+    @abc.abstractmethod
+    def resolve(self, action):
+        """ transform selected action into phi and rejection threshold """
+        pass
+
+
+@gin.register
+class ContinuousRejectionActionSet(RejectionActionSet):
+    def __init__(self):
+        super().__init__()
+        self.actionspace = Box(
+            low=-1.0,
+            high=1.0,
+            shape=(2,),
+            dtype=np.float32
+        )
+        self.shape = self.actionspace.shape
+
+    def resolve(self, action):
+        resolved = agent_action_to_resolved(action, lower_bound=0.0, upper_bound=1.0)
+        phi = resolved[0]
+        thresh = resolved[1]
+        return phi, thresh
+
     def get_observation(self, action):
-        one_hot_obs = np.zeros(self.shape)
-        one_hot_obs[action if isinstance(action, (int, np.integer)) else tuple(action)] = 1.0
-        return one_hot_obs.flatten()
+        return np.array(self.resolve(action))
 
     def get_lower_bound(self):
         return np.zeros(self.shape)
@@ -47,6 +68,33 @@ class DiscreteActionSet(ActionSet):
         return np.zeros(self.shape)
 
 
+class DiscreteActionSet(ActionSet, ABC):
+    def __init__(self):
+        super().__init__()
+        self.actions = None
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+        # one_hot_obs = np.zeros(self.shape)
+        # one_hot_obs[action if isinstance(action, (int, np.integer)) else tuple(action)] = 1.0
+        # return one_hot_obs.flatten()
+
+    def get_lower_bound(self):
+        return np.array([0.0, 16])
+
+    def get_upper_bound(self):
+        return np.array([1.0, 32])
+
+    def get_initialization(self):
+        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
+
+    def __repr__(self):
+        return self.__class__.__name__ + str(self.actions)
+
+    def resolve(self, action):
+        return self.actions[action]
+
+
 @gin.configurable
 class SmallDiscreteActionSet(DiscreteActionSet):
 
@@ -54,16 +102,6 @@ class SmallDiscreteActionSet(DiscreteActionSet):
         super().__init__()
         self.actions = [(0.25, 17), (0.25, 20), (0.07, 18), (0.02, 17), (0.02, 20)]
         self.actionspace = Discrete(len(self.actions))
-        self.shape = tuple((len(self.actions),))
-
-    def resolve(self, action):
-        return self.actions[action]
-
-    def get_min_prefixlen(self):
-        return 17
-
-    def __repr__(self):
-        return self.__class__.__name__ + str(self.actions)
 
 
 @gin.configurable
@@ -73,16 +111,6 @@ class MediumDiscreteActionSet(DiscreteActionSet):
         super().__init__()
         self.actions = [(x, y) for x in [0.25, 0.07, 0.02] for y in [17, 18, 19, 20]]
         self.actionspace = Discrete(len(self.actions))
-        self.shape = tuple((len(self.actions),))
-
-    def resolve(self, action):
-        return self.actions[action]
-
-    def get_min_prefixlen(self):
-        return 17
-
-    def __repr__(self):
-        return self.__class__.__name__ + str(self.actions)
 
 
 @gin.configurable
@@ -94,16 +122,6 @@ class LargeDiscreteActionSet(DiscreteActionSet):
                         for x in [(_ + 1) * 1e-2 for _ in range(24)]
                         for y in [_ + 16 for _ in range(7)]]
         self.actionspace = Discrete(len(self.actions))
-        self.shape = tuple((len(self.actions),))
-
-    def resolve(self, action):
-        return self.actions[action]
-
-    def get_min_prefixlen(self):
-        return 16
-
-    def __repr__(self):
-        return self.__class__.__name__ + str(self.actions)
 
 
 @gin.configurable
@@ -116,16 +134,18 @@ class VeryLargeDiscreteActionSet(DiscreteActionSet):
                         for x in [(_ + 1) * 1e-2 for _ in range(25)] + [_ * 1e-1 for _ in range(3, 11)]
                         for y in [_ + 16 for _ in range(17)]]
         self.actionspace = Discrete(len(self.actions))
-        self.shape = tuple((len(self.actions),))
 
-    def resolve(self, action):
-        return self.actions[action]
 
-    def get_min_prefixlen(self):
-        return 16
+@gin.configurable
+class HugeDiscreteActionSet(DiscreteActionSet):
 
-    def __repr__(self):
-        return self.__class__.__name__ + str(self.actions)
+    def __init__(self):
+        super().__init__()
+        self.actions = [(x, y)
+                        # high resolution for low phi values, low resolution for high values
+                        for x in [(_ + 1) * 1e-3 for _ in range(250)] + [_ * 1e-1 for _ in range(3, 11)]
+                        for y in [_ + 16 for _ in range(17)]]
+        self.actionspace = Discrete(len(self.actions))
 
 
 class DirectResolveActionSet(ActionSet):
@@ -155,27 +175,9 @@ class DirectResolveActionSet(ActionSet):
         pass
 
 
-@gin.configurable
-class MultiDiscreteActionSet(DiscreteActionSet):
-
-    def __init__(self):
-        super().__init__()
-        self.actionspace = MultiDiscrete((48, 7))
-        self.shape = self.actionspace.nvec
-
-    def resolve(self, action):
-        return (action[0] + 1) * 0.5 * 1e-2, action[1] + 16
-
-    def get_min_prefixlen(self):
-        return 16
-
-    def __repr__(self):
-        return str(self.actionspace)
-
-
-def agent_action_to_phi(agent_action, lower_bound, upper_bound):
+def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     """
-    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid phi value.
+    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [0, 1.0].
     :param upper_bound: upper bound on the output
     :param lower_bound: lower bound on the output
     :param agent_action: action in [-1.0, 1.0]
@@ -194,16 +196,12 @@ class TupleActionSet(ActionSet):
         self.actionspace = Tuple((phi_space, prefix_space))
 
     def resolve(self, action):
-        phi = agent_action_to_phi(action[0], self.get_lower_bound(), self.get_upper_bound())
-        prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES+1
+        phi = agent_action_to_resolved(action[0], self.get_lower_bound(), self.get_upper_bound())
+        prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES-1
         return phi, prefix_len
 
-    def get_min_prefixlen(self):
-        return 32 - self.NUMBER_OF_PREFIXES + 1
-
     def get_observation(self, action):
-        # TODO also min_prefix here? (action[1])
-        return agent_action_to_phi(action[0], self.get_lower_bound(), self.get_upper_bound())
+        return np.array(self.resolve(action))
 
     def get_lower_bound(self):
         return 0.001
@@ -226,8 +224,7 @@ class ContinuousActionSet(ActionSet):
                                dtype=np.float32)
 
     def get_observation(self, action):
-        # return action
-        return agent_action_to_phi(action, self.get_lower_bound(), self.get_upper_bound())
+        return np.array(self.resolve(action))
 
     def get_lower_bound(self):
         return 0.01
@@ -239,7 +236,7 @@ class ContinuousActionSet(ActionSet):
         return 0.12
 
     def resolve(self, action):
-        phi = agent_action_to_phi(action, self.get_lower_bound(), self.get_upper_bound())
+        phi = agent_action_to_resolved(action, self.get_lower_bound(), self.get_upper_bound())
         min_prefixlen = self._phi_to_prefixlen(phi)
 
         return phi, min_prefixlen
@@ -257,9 +254,6 @@ class ContinuousActionSet(ActionSet):
         if phi > 0.8:
             min_prefixlen = 17
         return min_prefixlen
-
-    def get_min_prefixlen(self):
-        return 17
 
     def __repr__(self):
         return str(self.actionspace)
@@ -300,11 +294,8 @@ class HafnerActionSet(ActionSet):
         print(f'resolved actions=({self.current_phi}, {min_prefix})')
         return self.current_phi, min_prefix
 
-    def get_min_prefixlen(self):
-        return 16
-
     def get_observation(self, action):
-        return self.current_phi
+        return np.array(self.current_phi)
 
     def get_lower_bound(self):
         return 0.0001

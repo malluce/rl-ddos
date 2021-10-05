@@ -76,42 +76,26 @@ class DistVolStd(Observation):
 
 
 @gin.register
-class BlocklistDistribution(Observation):
-
-    def get_observation(self, state):
-        return np.array(state.bl_dist)
-
-    def get_lower_bound(self):
-        return np.zeros(16)
-
-    def get_upper_bound(self):
-        return np.ones(16)
-
-    def get_initialization(self):
-        return np.zeros(16) * 64.0
-
-
-@gin.register
 class BaseObservations(Observation):
 
     def get_observation(self, state):
-        return np.array([state.trace_start, state.min_prefix,
+        return np.array([state.trace_start,
                          # state.estimated_precision, state.estimated_recall,
                          state.blacklist_size
                          ])
 
     def get_lower_bound(self):
         # return np.array([0.0, 16.0, 0.0, 0.0, 0.0])
-        return np.array([0.0, 16.0, 0.0])
+        return np.array([0.0, 0.0])
 
     def get_upper_bound(self):
         # return np.array([1.0, 32.0, 1.2, 1.2, 128.0])
-        return np.array([1.0, 32.0, 128.0])
+        return np.array([1.0, 128.0])
 
     def get_initialization(self):
         # return np.array([1.0, 32.0, 0.2 * random(),
         #                 0.2 * random(), 1.0 * randint(16, 32)])
-        return np.array([1.0, 32.0, 1.0 * randint(16, 32)])
+        return np.array([1.0, 1.0 * randint(16, 32)])
 
 
 @gin.register
@@ -151,7 +135,7 @@ class State(object):
         self.selection: [Observation] = selection
         self.trace_start = 1.0
         self.phi = 0.5
-        self.min_prefix = 20
+        self.min_prefix = -1
         self.total = 0  # total packets
 
         # Hafner Observation: for address space covered by rules
@@ -174,7 +158,6 @@ class State(object):
         self.estimated_benign = 0
         self.estimated_benign_blocked = 0
         self.blacklist_size = 0
-        self.episode_progress = 0.0
         self.hhh_distance_mean = 0
         self.hhh_distance_avg = 0
         self.hhh_distance_sum = 0
