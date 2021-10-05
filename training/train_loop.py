@@ -365,22 +365,33 @@ class PpoTrainLoop(TrainLoop):
             global_step = tf.compat.v1.train.get_or_create_global_step()
 
             # phi params
-            dist_params_phi = step.policy_info['dist_params'][0]
-            stddev = dist_params_phi['scale']
-            mean = dist_params_phi['loc']
-            with tf.name_scope('DistParams/'):
-                tf.compat.v2.summary.scalar(name='phi stddev median', data=np.median(stddev), step=global_step)
-                tf.compat.v2.summary.scalar(name='phi mean median', data=np.median(mean), step=global_step)
+            if 'loc' in step.policy_info['dist_params'] and 'scale' in step.policy_info['dist_params']:  # phi, thresh
+                median_loc = np.median(step.policy_info['dist_params']['loc'], axis=0)
+                median_scale = np.median(step.policy_info['dist_params']['scale'], axis=0)
 
-            # L params
-            logits = step.policy_info['dist_params'][1]['logits']
-            categorical_distr = tfp.distributions.Categorical(logits=logits)
-            probs = categorical_distr.probs_parameter()
-            mean_probs = np.mean(probs, axis=0)
-            most_likely_min_prefix = TupleActionSet().resolve((0, np.argmax(mean_probs)))[1]
-            with tf.name_scope('DistParams/'):
-                tf.compat.v2.summary.scalar(name='most likely L', data=most_likely_min_prefix,
-                                            step=global_step)
+                with tf.name_scope('DistParams/'):
+                    tf.compat.v2.summary.scalar(name='phi stddev', data=median_scale[0], step=global_step)
+                    tf.compat.v2.summary.scalar(name='phi mean', data=median_loc[0], step=global_step)
+                    tf.compat.v2.summary.scalar(name='thresh stddev', data=median_scale[1], step=global_step)
+                    tf.compat.v2.summary.scalar(name='thresh mean', data=median_loc[1], step=global_step)
+
+            else:  # phi, L
+                dist_params_phi = step.policy_info['dist_params'][0]
+                stddev = dist_params_phi['scale']
+                mean = dist_params_phi['loc']
+                with tf.name_scope('DistParams/'):
+                    tf.compat.v2.summary.scalar(name='phi stddev median', data=np.median(stddev), step=global_step)
+                    tf.compat.v2.summary.scalar(name='phi mean median', data=np.median(mean), step=global_step)
+
+                # L params
+                logits = step.policy_info['dist_params'][1]['logits']
+                categorical_distr = tfp.distributions.Categorical(logits=logits)
+                probs = categorical_distr.probs_parameter()
+                mean_probs = np.mean(probs, axis=0)
+                most_likely_min_prefix = TupleActionSet().resolve((0, np.argmax(mean_probs)))[1]
+                with tf.name_scope('DistParams/'):
+                    tf.compat.v2.summary.scalar(name='most likely L', data=most_likely_min_prefix,
+                                                step=global_step)
 
         self.collect_driver = DynamicStepDriver(
             self.train_env,
