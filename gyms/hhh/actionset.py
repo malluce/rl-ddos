@@ -50,7 +50,8 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         self.shape = self.actionspace.shape
 
     def resolve(self, action):
-        resolved = agent_action_to_resolved(action, lower_bound=0.0, upper_bound=1.0)
+        resolved = agent_action_to_resolved(action, lower_bound=self.get_lower_bound(),
+                                            upper_bound=self.get_upper_bound())
         phi = resolved[0]
         thresh = resolved[1]
         return phi, thresh
@@ -59,10 +60,10 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         return np.array(self.resolve(action))
 
     def get_lower_bound(self):
-        return np.zeros(self.shape)
+        return np.array([0.001, 0.0])
 
     def get_upper_bound(self):
-        return np.ones(self.shape)
+        return np.array([1.0, 1.0])
 
     def get_initialization(self):
         return np.zeros(self.shape)
