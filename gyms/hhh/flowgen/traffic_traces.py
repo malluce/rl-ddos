@@ -357,11 +357,12 @@ class SSDPTrace(SamplerTrafficTrace):
         self.benign_flows = benign_flows
         self.maxtime = maxtime
         self.maxaddr = maxaddr
+        self.interval = 10
 
         self.benign_fgs = [FlowGroupSampler(self.benign_flows,
-                                            UniformSampler(0, 0.95 * self.maxtime),
+                                            UniformSampler(0 - self.interval, self.maxtime - self.interval),
                                             WeibullSampler(3 / 2,
-                                                           (1 / WeibullSampler.quantile(99,
+                                                           (1 / WeibullSampler.quantile(95,
                                                                                         3 / 2)) * 1 / 8 * self.maxtime),
                                             UniformSampler(0, self.maxaddr),
                                             attack=False
