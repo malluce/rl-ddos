@@ -4,16 +4,66 @@ from ipaddress import IPv4Address
 import gin
 import numpy as np
 
-from collections import Counter
+from collections import Counter, defaultdict, namedtuple
 from gym.spaces import Box, Discrete, MultiDiscrete
 from math import log2, log10, sqrt, exp
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 
-from gyms.hhh.actionset import HafnerActionSet
+from gyms.hhh.actionset import HafnerActionSet, RejectionActionSet
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
 from gyms.hhh.state import State
+
+
+class RulePerformanceTable:
+    def __init__(self):
+        self.RulePerformance = namedtuple('RulePerformance',
+                                          ('num_pkt', 'num_mal_pkt', 'num_ben_pkt', 'rule_perf'))
+        # stores (start IP, end IP, len) -> ()
+        # both IPs are inclusive
+        self.table = {}
+
+    def print_rules(self):
+        print('all rules: ')
+        for start_ip, end_ip, hhh_len in self.table.keys():
+            print(f' {str(IPv4Address(start_ip))}/{hhh_len} (perf={self.table[(start_ip, end_ip, hhh_len)]})')
+
+    def set_rules(self, hhhs):
+        self.table = {}
+        for hhh in hhhs:
+            start_ip = hhh.id
+            end_ip = start_ip + Label.subnet_size(hhh.len) - 1
+            self.table[(start_ip, end_ip, hhh.len)] = self.RulePerformance(0, 0, 0, 1.0)
+
+    def update(self, id, is_malicious):
+        for start_ip, end_ip, hhh_len in self.table.keys():
+            if start_ip <= id <= end_ip:
+                self._update_entry(start_ip, end_ip, hhh_len, is_malicious)
+
+    def _update_entry(self, start_ip, end_ip, hhh_len, is_malicious):
+        # current perf
+        n, nm, nb, _ = self.table[(start_ip, end_ip, hhh_len)]
+
+        # update rule performance entries
+        n += 1
+
+        if is_malicious:
+            nm += 1
+        else:
+            nb += 1
+
+        prec = nm / n
+
+        # set new perf
+        self.table[(start_ip, end_ip, hhh_len)] = self.RulePerformance(n, nm, nb, prec)
+
+    def get_rejected_rules(self, performance_threshold):
+        for start_ip, end_ip, hhh_len in list(self.table):
+            if self.table[(start_ip, end_ip, hhh_len)].rule_perf < performance_threshold:
+                # remove rule from table and return it
+                self.table.pop((start_ip, end_ip, hhh_len))
+                yield start_ip, end_ip, hhh_len
 
 
 class Blacklist(object):
@@ -34,6 +84,11 @@ class Blacklist(object):
     def to_serializable(self):
         return [{'id': h.id, 'len': h.len, 'hi': h.hi, 'lo': h.lo}
                 for h in self.hhhs]
+
+    def remove_rule(self, ip_start, hhh_len):
+        for idx, h in enumerate(self.hhhs):
+            if h.id == ip_start and h.len == hhh_len:
+                self.hhhs.pop(idx)
 
 
 def remove_overlapping_rules(hhhs):  # remove specific rules that are covered by more general rules
@@ -107,6 +162,8 @@ class Loop(object):
         self.image_gen = image_gen
         self.time_index = 0
 
+        self.rule_perf_table = RulePerformanceTable()
+
     def reset(self):
         self.blacklist = Blacklist([])
         self.hhh.clear()
@@ -114,6 +171,7 @@ class Loop(object):
         self.trace_ended = False
         self.time_index = 0
 
+        # TODO handle start for our traces in a similar way (first action is otherwise based on random initialized obs)
         if isinstance(self.actionset, HafnerActionSet):
             self.actionset.re_roll_phi()
             self.step(0)  # execute one step with randomly chosen phi
@@ -126,7 +184,10 @@ class Loop(object):
         else:
             s.rewind()
 
-        s.phi, s.min_prefix = self.actionset.resolve(action)
+        if isinstance(self.actionset, RejectionActionSet):
+            pass  # TODO
+        else:
+            s.phi, s.min_prefix = self.actionset.resolve(action)
 
         # Reverse order to sort by HHH size in descending order
         # Avoids double checking IP coverage
@@ -135,7 +196,10 @@ class Loop(object):
         if isinstance(self.actionset, HafnerActionSet):
             hhhs = apply_hafner_heuristic(hhhs)
 
-        hhhs = remove_overlapping_rules(hhhs)
+        if self.rule_perf_table is None:
+            hhhs = remove_overlapping_rules(hhhs)
+        else:
+            self.rule_perf_table.set_rules(hhhs)
 
         self._calc_blocklist_distr(hhhs, s)
 
@@ -160,11 +224,6 @@ class Loop(object):
             s.lowest_ip = min(s.lowest_ip, p.ip)
             s.highest_ip = max(s.highest_ip, p.ip)
 
-            if time_index_finished:
-                interval += 1
-                self.blacklist_history.append(self.blacklist)
-                self.time_index += 1
-
             s.total += 1
             s.packets_per_step += 1
 
@@ -180,6 +239,8 @@ class Loop(object):
                 if np.random.random() < self.sampling_rate:
                     s.samples += 1
                     self.hhh.update(p.ip, int(self.weight))
+                    if self.rule_perf_table is not None:
+                        self.rule_perf_table.update(p.ip, p.malicious)
 
                     # Estimate the number of mal packets
                     # filtered by the blacklist by sampling
@@ -195,7 +256,15 @@ class Loop(object):
                 else:
                     s.benign_passed += 1
 
-        s.episode_progress = 1.0 * s.total / self.trace.N
+            if time_index_finished:
+                interval += 1
+                self.blacklist_history.append(self.blacklist)
+                self.time_index += 1
+                if self.rule_perf_table is not None:
+                    for rejected_rule in self.rule_perf_table.get_rejected_rules(0.99):
+                        start_ip, end_ip, hhh_len = rejected_rule
+                        self.blacklist.remove_rule(start_ip, hhh_len)
+                print(len(self.blacklist.hhhs))
 
         s.complete()
 
