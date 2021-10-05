@@ -162,7 +162,10 @@ class Loop(object):
         self.image_gen = image_gen
         self.time_index = 0
 
-        self.rule_perf_table = RulePerformanceTable()
+        self.is_hafner = isinstance(self.actionset, HafnerActionSet)
+        self.is_rejection = isinstance(self.actionset, RejectionActionSet)
+        if self.is_rejection:
+            self.rule_perf_table = RulePerformanceTable()
 
     def reset(self):
         self.blacklist = Blacklist([])
@@ -172,7 +175,7 @@ class Loop(object):
         self.time_index = 0
 
         # TODO handle start for our traces in a similar way (first action is otherwise based on random initialized obs)
-        if isinstance(self.actionset, HafnerActionSet):
+        if self.is_hafner:
             self.actionset.re_roll_phi()
             self.step(0)  # execute one step with randomly chosen phi
 
@@ -184,29 +187,34 @@ class Loop(object):
         else:
             s.rewind()
 
-        if isinstance(self.actionset, RejectionActionSet):
-            pass  # TODO
+        if self.is_rejection:
+            s.phi, s.thresh = self.actionset.resolve(action)
+            min_prefix = 16
+            print(f'phi={s.phi}')
+            print(f'thresh={s.thresh}')
         else:
             s.phi, s.min_prefix = self.actionset.resolve(action)
+            min_prefix = s.min_prefix
 
         # Reverse order to sort by HHH size in descending order
         # Avoids double checking IP coverage
-        hhhs = self.hhh.query(s.phi, s.min_prefix)[::-1]
+        hhhs = self.hhh.query(s.phi, min_prefix)[::-1]
 
-        if isinstance(self.actionset, HafnerActionSet):
+        if self.is_hafner:
             hhhs = apply_hafner_heuristic(hhhs)
 
-        if self.rule_perf_table is None:
-            hhhs = remove_overlapping_rules(hhhs)
-        else:
+        if self.is_rejection:
+            # don't remove overlaps (overlapped rules might be useful after rejecting more coarse-grained rules)
             self.rule_perf_table.set_rules(hhhs)
+        else:
+            hhhs = remove_overlapping_rules(hhhs)
 
         self._calc_blocklist_distr(hhhs, s)
-
         self.blacklist = Blacklist(hhhs)
         s.blacklist_size = len(self.blacklist)
         s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
         self._calc_hhh_distance_metrics(hhhs, s)
+        print(print(f'initial number of rules={len(self.blacklist.hhhs)}'))
 
         if self.image_gen is not None:
             s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
@@ -239,7 +247,7 @@ class Loop(object):
                 if np.random.random() < self.sampling_rate:
                     s.samples += 1
                     self.hhh.update(p.ip, int(self.weight))
-                    if self.rule_perf_table is not None:
+                    if self.is_rejection:
                         self.rule_perf_table.update(p.ip, p.malicious)
 
                     # Estimate the number of mal packets
@@ -260,11 +268,12 @@ class Loop(object):
                 interval += 1
                 self.blacklist_history.append(self.blacklist)
                 self.time_index += 1
-                if self.rule_perf_table is not None:
-                    for rejected_rule in self.rule_perf_table.get_rejected_rules(0.99):
+                if self.is_rejection:
+                    for rejected_rule in self.rule_perf_table.get_rejected_rules(s.thresh):
                         start_ip, end_ip, hhh_len = rejected_rule
                         self.blacklist.remove_rule(start_ip, hhh_len)
-                print(len(self.blacklist.hhhs))
+
+        print(f'final number of rules={len(self.blacklist.hhhs)}')
 
         s.complete()
 
