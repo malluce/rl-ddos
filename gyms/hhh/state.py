@@ -136,6 +136,7 @@ class State(object):
         self.trace_start = 1.0
         self.phi = 0.5
         self.min_prefix = -1
+        self.thresh = -1
         self.total = 0  # total packets
 
         # Hafner Observation: for address space covered by rules
