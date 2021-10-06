@@ -33,7 +33,25 @@ def plot_training(environment_file_path: str, pattern):
 
 
 def plot_train_for_pattern(env_csv, environment_file_path, pat):
+    print('========== TRAIN =========')
     pat_csv = filter_by_pattern(env_csv, pat)
+    m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
+    print(f'{m}')
+    plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
+    plt.yscale('log')
+    plt.show()
+    m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
+    print(f'{m}')
+    m = pat_csv['Precision'].mean()
+    print(f'precision avg={m}')
+    m = pat_csv['Recall'].mean()
+    print(f'recall avg={m}')
+    m = pat_csv['Reward'].mean()
+    print(f'reward avg={m}')
+    m = pat_csv['Phi'].mean()
+    print(f'phi avg={m}')
+    m = pat_csv['BlackSize'].mean()
+    print(f'blacksize avg={m}')
     grouped_by_episode = pat_csv.groupby(['Episode'])
     mean = grouped_by_episode.mean()
     quantiles = get_quantiles(grouped_by_episode)
@@ -60,7 +78,7 @@ def plot_train_for_pattern(env_csv, environment_file_path, pat):
 
 
 def get_quantiles(data: pandas.DataFrame):
-    return [(q, data.quantile(q)) for q in [0.2, 0.4, 0.6, 0.8]]
+    return [(q, data.quantile(q)) for q in [0.1, 0.2, 0.4, 0.6, 0.8]]
 
 
 def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
@@ -73,12 +91,13 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
         for quantile in data_quantiles:
             q, quantile_value = quantile
             alpha = 0.9 - 1.5 * abs(0.5 - q)
+            color = (0, 0.5, 0, alpha)  # RGBA
             y_err = quantile_value.loc[:, col]
             if labels is None:
-                ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q} quant')
+                ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color, label=f'{q} quant')
             else:
-                ax.plot(x, y_err, color=color, alpha=alpha)  # plot without label for discounted and undiscounted
-            ax.fill_between(x, y, y_err, color=color, alpha=alpha)
+                ax.fill_between(x, y, y_err, edgecolor=color,
+                                facecolor=color)  # plot without label for discounted and undiscounted
 
         ax.set_xlabel(x_label)
 
@@ -89,9 +108,9 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
 
         median_color = 'navy' if idx == 0 else 'red'
         if labels is None:
-            ax.plot(x, y, median_color, label=data_label)
+            ax.plot(x, y, median_color, label=data_label, linewidth=1)
         else:
-            ax.plot(x, y, median_color, label=labels[idx])
+            ax.plot(x, y, median_color, label=labels[idx], linewidth=1)
     if y_max is not None:
         ax.set_ylim(bottom=0, top=y_max if type(y_max) == int else y_max + 0.1)
     else:
@@ -154,6 +173,25 @@ def get_patterns(env_csv, pattern):
 
 def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     pat_csv = filter_by_pattern(env_csv, pat)
+    print('========== EVAL =========')
+    pat_csv = filter_by_pattern(env_csv, pat)
+    m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
+    print(f'{m}')
+    plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
+    plt.yscale('log')
+    plt.show()
+    m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
+    print(f'{m}')
+    m = pat_csv['Precision'].mean()
+    print(f'precision avg={m}')
+    m = pat_csv['Recall'].mean()
+    print(f'recall avg={m}')
+    m = pat_csv['Reward'].mean()
+    print(f'reward avg={m}')
+    m = pat_csv['Phi'].mean()
+    print(f'phi avg={m}')
+    m = pat_csv['BlackSize'].mean()
+    print(f'blacksize avg={m}')
     eps = pat_csv.loc[:, 'Episode']
     unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
     eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
@@ -187,7 +225,13 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward']:
             title_means[col] = means_for_title[col].mean()
     plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
-    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label)
+    if data['MinPrefix'].max() > 1:
+        y_max_pref = 32  # L column
+        title = 'MinPrefix'
+    else:
+        y_max_pref = 1.0  # Thresh Column
+        title = 'Performance Threshold'
+    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=y_max_pref, x_label=x_label, data_label=data_label, title=title)
     plot(fig, data, quantiles, ['Precision'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Precision'])
     plot(fig, data, quantiles, ['Recall'], 4, y_max=1.0, x_label=x_label, data_label=data_label,
@@ -196,8 +240,10 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
          mean_for_title=title_means['BlackSize'])
     plot(fig, data, quantiles, ['FPR'], 6, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['FPR'])
+    reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
+    # reward_max = 400
     handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label,
-                           y_max=1.0, mean_for_title=title_means['Reward'])
+                           y_max=reward_max, mean_for_title=title_means['Reward'])
 
     fig.suptitle(title)
 
@@ -274,8 +320,9 @@ def plot_training_kickoff(environment_file_path: str):
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
 
-    ds_base = '/home/bachmann/test-pycharm/data/dqn_20210922-140313/datastore'
-    # ds_base = '/home/bachmann/test-pycharm/data/dqn_20210915-060751/datastore'
+    ds_base = '/srv/bachmann/data/hafner/dqn_20210930-072309/datastore'
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211006-073532/datastore'
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20211001-080033/datastore'
     if ds_base.split('/')[-2].startswith('ppo'):
         train_dir = 'train1'
     else:
@@ -286,6 +333,6 @@ if __name__ == '__main__':
     if not paths_exist:
         raise ValueError('Paths do not exist')
 
-    pattern = 'all'
+    pattern = None
     plot_training(environment_file_path=train_path, pattern=pattern)
-    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(1, 0))
+    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(10, 0))
