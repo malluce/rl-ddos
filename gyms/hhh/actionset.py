@@ -81,7 +81,7 @@ class DiscreteActionSet(ActionSet, ABC):
         # return one_hot_obs.flatten()
 
     def get_lower_bound(self):
-        return np.array([0.0, 16])
+        return np.array([0.001, 16])
 
     def get_upper_bound(self):
         return np.array([1.0, 32])
@@ -144,7 +144,11 @@ class HugeDiscreteActionSet(DiscreteActionSet):
         super().__init__()
         self.actions = [(x, y)
                         # high resolution for low phi values, low resolution for high values
-                        for x in [(_ + 1) * 1e-3 for _ in range(250)] + [_ * 1e-1 for _ in range(3, 11)]
+                        # for x in [(_ + 1) * 1e-3 for _ in range(250)] + [_ * 1e-1 for _ in range(3, 11)]
+                        for x in
+                        [(_ + 1) * 1e-3 for _ in range(100)] +
+                        [(_ + 1) * 1e-2 for _ in range(10, 29)] +
+                        [_ * 1e-1 for _ in range(3, 11)]
                         for y in [_ + 16 for _ in range(17)]]
         self.actionspace = Discrete(len(self.actions))
 
@@ -205,13 +209,13 @@ class TupleActionSet(ActionSet):
         return np.array(self.resolve(action))
 
     def get_lower_bound(self):
-        return 0.001
+        return np.array([0.001, 16])
 
     def get_upper_bound(self):
-        return 1.0
+        return np.array([1.0, 32])
 
     def get_initialization(self):
-        return 0.12
+        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
 
 
 @gin.configurable
