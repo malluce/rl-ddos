@@ -66,6 +66,7 @@ class Datastore(object):
     def _format_step(episode, split, reward, source_pattern, rate_pattern, change_pattern, discounted_return_so_far,
                      undiscounted_return_so_far, state):
         assert state.thresh != state.min_prefix
+        assert max(state.thresh, state.min_prefix) > -1
         l_or_thresh = state.min_prefix if state.min_prefix != -1 else state.thresh
 
         return '{:5d}, {:5.1f}, {:7.3f}, {}, {}, {}, {:7.3f},{:7.3f},{:7.5f}, {}, {:5d}, {:5.3f}, {:5.3f}, {:5.3f}, ' \
