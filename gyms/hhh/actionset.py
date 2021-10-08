@@ -96,6 +96,27 @@ class DiscreteActionSet(ActionSet, ABC):
         return self.actions[action]
 
 
+@gin.register
+class DiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSet):
+    def __init__(self):
+        super().__init__()
+        self.actions = [(x, y)
+                        for x in
+                        [(_ + 1) * 1e-3 for _ in range(100)] +
+                        [(_ + 1) * 1e-2 for _ in range(10, 29)] +
+                        [_ * 1e-1 for _ in range(3, 11)]
+                        for y in [_ * 1e-1 for _ in range(5, 10)]  # 0.5,...,0.9
+                        + [_ * 1e-2 for _ in range(91, 101)]  # 0.9,...,0.99,1.0
+                        ]
+        self.actionspace = Discrete(len(self.actions))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.0])
+
+    def get_upper_bound(self):
+        return np.array([1.0, 1.0])
+
+
 @gin.configurable
 class SmallDiscreteActionSet(DiscreteActionSet):
 
