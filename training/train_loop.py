@@ -364,27 +364,31 @@ class PpoTrainLoop(TrainLoop):
         def log_dist_params(step):  # TODO fix that global step is the same for several calls due to T
             global_step = tf.compat.v1.train.get_or_create_global_step()
 
-            # phi params
-            if 'loc' in step.policy_info['dist_params'] and 'scale' in step.policy_info['dist_params']:  # phi, thresh
-                median_loc = np.median(step.policy_info['dist_params']['loc'], axis=0)
-                median_scale = np.median(step.policy_info['dist_params']['scale'], axis=0)
+            # continuous params
+            continuous_policy_info = step.policy_info['dist_params'][0]
+            shape = continuous_policy_info['loc'].shape
+            if len(shape) == 2 and shape[1] == 2:  # phi AND thresh
+                median_loc = np.median(continuous_policy_info['loc'], axis=0)
+                median_scale = np.median(continuous_policy_info['scale'], axis=0)
 
                 with tf.name_scope('DistParams/'):
                     tf.compat.v2.summary.scalar(name='phi stddev', data=median_scale[0], step=global_step)
                     tf.compat.v2.summary.scalar(name='phi mean', data=median_loc[0], step=global_step)
                     tf.compat.v2.summary.scalar(name='thresh stddev', data=median_scale[1], step=global_step)
                     tf.compat.v2.summary.scalar(name='thresh mean', data=median_loc[1], step=global_step)
-
-            else:  # phi, L
-                dist_params_phi = step.policy_info['dist_params'][0]
-                stddev = dist_params_phi['scale']
-                mean = dist_params_phi['loc']
+            elif len(shape) == 1:  # only phi
+                stddev = continuous_policy_info['scale']
+                mean = continuous_policy_info['loc']
                 with tf.name_scope('DistParams/'):
-                    tf.compat.v2.summary.scalar(name='phi stddev median', data=np.median(stddev), step=global_step)
-                    tf.compat.v2.summary.scalar(name='phi mean median', data=np.median(mean), step=global_step)
+                    tf.compat.v2.summary.scalar(name='phi stddev', data=np.median(stddev), step=global_step)
+                    tf.compat.v2.summary.scalar(name='phi mean', data=np.median(mean), step=global_step)
+            else:
+                raise ValueError('Unknown action space in TB Logging.')
 
-                # L params
-                logits = step.policy_info['dist_params'][1]['logits']
+            # L params
+            if len(step.policy_info['dist_params']) == 2:
+                discrete_policy_info = step.policy_info['dist_params'][1]
+                logits = discrete_policy_info['logits']
                 categorical_distr = tfp.distributions.Categorical(logits=logits)
                 probs = categorical_distr.probs_parameter()
                 mean_probs = np.mean(probs, axis=0)
