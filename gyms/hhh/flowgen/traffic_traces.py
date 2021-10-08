@@ -386,7 +386,8 @@ class SSDPTrace(SamplerTrafficTrace):
 
 @gin.configurable
 class TRandomPatternSwitch(SamplerTrafficTrace):
-    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False, interval=10):
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False, interval=10,
+                 random_toggle_time=False):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
@@ -406,6 +407,8 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
                                            UniformSampler(0, self.maxaddr),
                                            attack=False
                                            )
+
+        self.random_toggle_time = random_toggle_time
 
     def get_flow_group_samplers(self):
         address_space = round(math.log2(self.maxaddr))
@@ -431,9 +434,14 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
 
         trace_duration = self.maxtime + 1
 
+        if self.random_toggle_time:
+            self.toggle_time = default_rng().uniform(5 * self.interval, trace_duration - 5 * self.interval)
+        else:
+            self.toggle_time = trace_duration / 2
+
         first_attack_fgs = [
             FlowGroupSampler(num, UniformSampler(0, 0),
-                             UniformSampler(trace_duration / 2 - 1, trace_duration / 2 - 1),
+                             UniformSampler(self.toggle_time - 1, self.toggle_time - 1),
                              ChoiceSampler(addr, replace=False),
                              rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]),
                              attack=True)
@@ -443,8 +451,8 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
         ]
 
         second_attack_fgs = [
-            FlowGroupSampler(num, UniformSampler(trace_duration / 2, trace_duration / 2),
-                             UniformSampler(trace_duration / 2 - 1, trace_duration / 2 - 1),
+            FlowGroupSampler(num, UniformSampler(self.toggle_time, self.toggle_time),
+                             UniformSampler(self.maxtime - self.toggle_time, self.maxtime - self.toggle_time),
                              ChoiceSampler(addr, replace=False), attack=True,
                              rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[1]))
             for num, addr in used_patterns[1].values()
@@ -473,13 +481,16 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
             return None
 
     def get_change_pattern_id(self):
-        return f'fix={(self.maxtime / 2) / Loop.ACTION_INTERVAL}'
+        if self.random_toggle_time:
+            return f'var={self.toggle_time}'
+        else:
+            return f'fix={self.toggle_time}'
 
     def get_rate_pattern_id(self, time_step):
         return 'constant-rate'
 
     def _is_before_pattern_switch(self, time_step):
-        return time_step < (self.maxtime / 2) / Loop.ACTION_INTERVAL
+        return time_step < self.toggle_time / Loop.ACTION_INTERVAL
 
     def _is_before_trace_end(self, time_step):
         return time_step <= self.maxtime / Loop.ACTION_INTERVAL
