@@ -125,7 +125,7 @@ class ImageGenerator:
         second_smallest_value = np.partition(np.unique(image.flatten()), 1)[1]
         # print(f'ratio={np.max(image) / second_smallest_value}')
         if np.max(image) / second_smallest_value >= self.hhh_squash_threshold:
-            image = np.log(image, where=np.invert(np.isclose(image, 0.0)))
+            image = np.log(image, where=image > 1, out=np.zeros_like(image))
 
         # normalize values to be in  [0,1]
         image = image / np.max(image) * self.max_pixel_value
