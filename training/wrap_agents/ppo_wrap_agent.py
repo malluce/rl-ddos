@@ -1,8 +1,10 @@
 from typing import Any, List, Optional, Tuple
 
 import gin
+import numpy as np
 from tf_agents.agents.ppo.ppo_clip_agent import PPOClipAgent
 from tf_agents.agents.tf_agent import LossInfo
+from tf_agents.networks import normal_projection_network
 from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork
 from tf_agents.networks.value_network import ValueNetwork
@@ -12,6 +14,18 @@ import tensorflow as tf
 
 from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
+
+
+def _normal_projection_net(action_spec,
+                           init_action_stddev=0.2,  # 0.2 instead of 0.35 -> less exploration?
+                           init_means_output_factor=0.1):
+    std_bias_initializer_value = np.log(np.exp(init_action_stddev) - 1)
+
+    return normal_projection_network.NormalProjectionNetwork(
+        action_spec,
+        init_means_output_factor=init_means_output_factor,
+        std_bias_initializer_value=std_bias_initializer_value,
+        scale_distribution=False)
 
 
 @gin.configurable
@@ -43,12 +57,14 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                                                     output_fc_layer_params=act_rnn_out_layers,
                                                     activation_fn=actor_act_func,
                                                     preprocessing_layers=preprocessing_layers,
-                                                    preprocessing_combiner=preprocessing_combiner)
+                                                    preprocessing_combiner=preprocessing_combiner,
+                                                    continuous_projection_net=_normal_projection_net)
         else:
             actor_net = ActorDistributionNetwork(time_step_spec().observation, action_spec(),
                                                  fc_layer_params=actor_layers, activation_fn=actor_act_func,
                                                  preprocessing_layers=preprocessing_layers,
-                                                 preprocessing_combiner=preprocessing_combiner)
+                                                 preprocessing_combiner=preprocessing_combiner,
+                                                 continuous_projection_net=_normal_projection_net)
 
         # set value net
         if use_value_rnn:
