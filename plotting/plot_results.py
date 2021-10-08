@@ -37,9 +37,9 @@ def plot_train_for_pattern(env_csv, environment_file_path, pat):
     pat_csv = filter_by_pattern(env_csv, pat)
     m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
     print(f'{m}')
-    plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
-    plt.yscale('log')
-    plt.show()
+    # plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
+    # plt.yscale('log')
+    # plt.show()
     m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
     print(f'{m}')
     m = pat_csv['Precision'].mean()
@@ -59,21 +59,7 @@ def plot_train_for_pattern(env_csv, environment_file_path, pat):
     title = f'training (all episodes) \n {run_id}'
     if pat is not None:
         title += f'\n (pattern={pat})'
-    fig = create_plots(mean, quantiles, title=title, x_label='episode', data_label='mean')
-    if 'UndiscountedReturnSoFar' in pat_csv and 'DiscountedReturnSoFar' in pat_csv:  # plot return
-        max_step = pat_csv.loc[:, 'Step'].max()
-        last_steps = pat_csv.loc[pat_csv.loc[:, 'Step'] == max_step]
-        undiscounted_return = last_steps.loc[:, 'UndiscountedReturnSoFar']
-        discounted_return = last_steps.loc[:, 'DiscountedReturnSoFar']
-        assert undiscounted_return.shape[0] == discounted_return.shape[0]
-        ax = fig.add_subplot(2, 4, 8)
-        x = range(undiscounted_return.shape[0])
-        ax.plot(x, undiscounted_return, label='undiscounted')
-        ax.plot(x, discounted_return, label='discounted')
-        ax.set_title('Return')
-        ax.set_ylim(bottom=0)
-        ax.set_xlabel('episode')
-        plt.legend()
+    create_plots(mean, quantiles, title=title, x_label='episode', data_label='mean')
     plt.show()
 
 
@@ -177,9 +163,9 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     pat_csv = filter_by_pattern(env_csv, pat)
     m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
     print(f'{m}')
-    plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
-    plt.yscale('log')
-    plt.show()
+    # plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
+    # plt.yscale('log')
+    # plt.show()
     m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
     print(f'{m}')
     m = pat_csv['Precision'].mean()
@@ -204,17 +190,10 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     if pat is not None:
         title += f'\n (pattern={pat})'
     # plot common data
-    fig = create_plots(last_median, last_quantiles,
-                       title=title,
-                       x_label='step',
-                       data_label='median', means_for_title=last_means)
-    if 'UndiscountedReturnSoFar' in pat_csv and 'DiscountedReturnSoFar' in pat_csv:
-        # plot return until step
-        handles, labels = plot(fig, last_median, last_quantiles,
-                               ['UndiscountedReturnSoFar', 'DiscountedReturnSoFar'],
-                               8, 'step',
-                               'median', title='Return until step', labels=['undiscounted', 'discounted'])
-        plt.legend(handles, labels)
+    create_plots(last_median, last_quantiles,
+                 title=title,
+                 x_label='step',
+                 data_label='median', means_for_title=last_means)
     plt.show()
 
 
@@ -225,24 +204,24 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward']:
             title_means[col] = means_for_title[col].mean()
     plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
-    if data['MinPrefix'].max() > 1:
-        y_max_pref = 32  # L column
-        title = 'MinPrefix'
+    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label)
+    if 'Thresh' in data:
+        plot(fig, data, quantiles, ['Thresh'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['Thresh'], title='Performance Threshold')
+        offset = 1
     else:
-        y_max_pref = 1.0  # Thresh Column
-        title = 'Performance Threshold'
-    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=y_max_pref, x_label=x_label, data_label=data_label, title=title)
-    plot(fig, data, quantiles, ['Precision'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
+        offset = 0
+    plot(fig, data, quantiles, ['Precision'], 3 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Precision'])
-    plot(fig, data, quantiles, ['Recall'], 4, y_max=1.0, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['Recall'], 4 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Recall'])
-    plot(fig, data, quantiles, ['BlackSize'], 5, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['BlackSize'], 5 + offset, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['BlackSize'])
-    plot(fig, data, quantiles, ['FPR'], 6, y_max=1.0, x_label=x_label, data_label=data_label,
+    plot(fig, data, quantiles, ['FPR'], 6 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['FPR'])
     reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
     # reward_max = 400
-    handles, labels = plot(fig, data, quantiles, ['Reward'], 7, x_label=x_label, data_label=data_label,
+    handles, labels = plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
                            y_max=reward_max, mean_for_title=title_means['Reward'])
 
     fig.suptitle(title)
@@ -321,8 +300,8 @@ if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
 
     ds_base = '/srv/bachmann/data/hafner/dqn_20210930-072309/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211006-073532/datastore'
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20211001-080033/datastore'
+    ds_base = '/srv/bachmann/data/ppo/ppo_20211005-141248/datastore'
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211008-064042/datastore'
     if ds_base.split('/')[-2].startswith('ppo'):
         train_dir = 'train1'
     else:
@@ -333,6 +312,6 @@ if __name__ == '__main__':
     if not paths_exist:
         raise ValueError('Paths do not exist')
 
-    pattern = None
+    pattern = 'ntp->ssdp'
     plot_training(environment_file_path=train_path, pattern=pattern)
-    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(10, 0))
+    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(30, 2))
