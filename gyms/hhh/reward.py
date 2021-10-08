@@ -101,4 +101,4 @@ class MultiplicativeReward(DefaultRewardCalc):
         return recall ** self.recall_weight
 
     def weighted_bl_size(self, bl_size):
-        return 1.0 - self.bl_weight * np.sqrt(np.log2(bl_size))
+        return 1.0 - self.bl_weight * np.sqrt(np.log2(max(1, bl_size)))  # max to avoid nan, avg bl_size can be < 1
