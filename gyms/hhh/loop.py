@@ -187,18 +187,11 @@ class Loop(object):
         else:
             s.rewind()
 
-        if self.is_rejection:
-            s.phi, s.thresh = self.actionset.resolve(action)
-            min_prefix = 16
-            print(f'phi={s.phi}')
-            print(f'thresh={s.thresh}')
-        else:
-            s.phi, s.min_prefix = self.actionset.resolve(action)
-            min_prefix = s.min_prefix
+        self.resolve_action(action, s)
 
         # Reverse order to sort by HHH size in descending order
         # Avoids double checking IP coverage
-        hhhs = self.hhh.query(s.phi, min_prefix)[::-1]
+        hhhs = self.hhh.query(s.phi, s.min_prefix)[::-1]
 
         if self.is_hafner:
             hhhs = apply_hafner_heuristic(hhhs)
@@ -209,12 +202,11 @@ class Loop(object):
         else:
             hhhs = remove_overlapping_rules(hhhs)
 
-        self._calc_blocklist_distr(hhhs, s)
         self.blacklist = Blacklist(hhhs)
         s.blacklist_size = len(self.blacklist)
         s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
         self._calc_hhh_distance_metrics(hhhs, s)
-        print(print(f'initial number of rules={len(self.blacklist.hhhs)}'))
+        # print(f'initial number of rules={len(self.blacklist.hhhs)}')
 
         if self.image_gen is not None:
             s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
@@ -268,12 +260,17 @@ class Loop(object):
                 interval += 1
                 self.blacklist_history.append(self.blacklist)
                 self.time_index += 1
-                if self.is_rejection:
+                if self.is_rejection and interval != self.action_interval:
+                    # delete rejected rules
                     for rejected_rule in self.rule_perf_table.get_rejected_rules(s.thresh):
                         start_ip, end_ip, hhh_len = rejected_rule
+                        print(f'removing {hhh_len}')
                         self.blacklist.remove_rule(start_ip, hhh_len)
 
-        print(f'final number of rules={len(self.blacklist.hhhs)}')
+                    # adapt average bl size for state and reward
+                    s.blacklist_size = (s.blacklist_size * interval + len(self.blacklist)) / (interval + 1)
+
+        # print(f'final number of rules={len(self.blacklist)}')
 
         s.complete()
 
@@ -284,6 +281,19 @@ class Loop(object):
             self.trace_ended = True
 
         return self.trace_ended, self.state, self.blacklist_history
+
+    def resolve_action(self, action, s):
+        if self.is_rejection:
+            resolved_action = self.actionset.resolve(action)
+            if len(resolved_action) == 2:  # only use phi and threshold
+                s.phi, s.thresh = resolved_action
+                s.min_prefix = 17
+            elif len(resolved_action) == 3:  # use phi, threshold and min prefix
+                s.phi, s.thresh, s.min_prefix = resolved_action
+            else:
+                raise ValueError('Unexpected resolved actions')
+        else:
+            s.phi, s.min_prefix = self.actionset.resolve(action)
 
     def pre_sample(self):  # Initialize the HHH instance with pre-sampled items
         self.state.trace_start = 0.0
@@ -340,9 +350,3 @@ class Loop(object):
                 s.hhh_distance_std = squash(np.std(vd), 9)
                 s.hhh_min = crop(H[0].id)
                 s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
-
-    def _calc_blocklist_distr(self, b, s):
-        s.bl_dist = np.zeros(16)
-        blcnt = Counter([_.len for _ in b])
-        for k, v in blcnt.items():
-            s.bl_dist[k - 17] = v
