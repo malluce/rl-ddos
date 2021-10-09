@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import time
 from ipaddress import IPv4Address
 
 import gin
@@ -71,12 +72,15 @@ class Blacklist(object):
     def __init__(self, hhhs):
         self.hhhs = hhhs
 
-    def covers(self, ip):
+        # set up bitmap that indicates whether each IP gets blocked or not
+        self.filter_bitmap = np.full((2 ** Loop.ADDRESS_SPACE), False)
         for h in self.hhhs:
-            if ip & Label.PREFIXMASK[h.len] == h.id:
-                return True
+            start = h.id
+            end = start + Label.subnet_size(h.len)
+            self.filter_bitmap[start:end] = True
 
-        return False
+    def covers(self, ip):
+        return self.filter_bitmap[ip]
 
     def __len__(self):
         return len(self.hhhs)
@@ -264,7 +268,7 @@ class Loop(object):
                     # delete rejected rules
                     for rejected_rule in self.rule_perf_table.get_rejected_rules(s.thresh):
                         start_ip, end_ip, hhh_len = rejected_rule
-                        print(f'removing {hhh_len}')
+                        # print(f'removing {hhh_len}')
                         self.blacklist.remove_rule(start_ip, hhh_len)
 
                     # adapt average bl size for state and reward
