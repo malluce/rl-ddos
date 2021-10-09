@@ -14,7 +14,7 @@ from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.actionset import HafnerActionSet, RejectionActionSet
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
-from gyms.hhh.state import State
+from gyms.hhh.state import DistVol, DistVolStd, State
 
 
 class RulePerformanceTable:
@@ -148,6 +148,32 @@ class Loop(object):
 
         return n * m * d + n * Loop.gauss(m - 1) + m * Loop.gauss(n - 1)
 
+    @staticmethod
+    def _calc_hhh_distance_metrics(b, s):
+        H = list(sorted(b, key=lambda _: _.id))
+        if len(H) > 1:
+            vd = [Loop.hhh_voldist(H[i], H[j])
+                  for i in range(len(H))
+                  for j in range(i + 1, len(H))]
+
+            # Remove (negative) voldist of any two overlapping HHHs
+            vd = [_ for _ in vd if _ > 0]
+
+            if vd:
+                scale = lambda x, n: log10(x) / n
+                sigmoid = lambda x: 1.0 / (1.0 + exp(-x))
+                squash = lambda x, n: 0 if x == 0 else sigmoid(10.0 * (scale(x, n) - 0.5))
+                #				crop = lambda x : 1.0 * (x - 0xffff0000) / 0xffff
+                crop = lambda x: 1.0 * x / 0xffffffff
+
+                s.hhh_distance_avg = squash(np.mean(vd), 14)
+                s.hhh_distance_sum = squash(sum(vd), 14)
+                s.hhh_distance_min = squash(min(vd), 14)
+                s.hhh_distance_max = squash(max(vd), 14)
+                s.hhh_distance_std = squash(np.std(vd), 9)
+                s.hhh_min = crop(H[0].id)
+                s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
+
     def __init__(self, trace, create_state_fn, actionset, image_gen: ImageGenerator = None, epsilon=HHH_EPSILON,
                  sampling_rate=SAMPLING_RATE,
                  action_interval=ACTION_INTERVAL):
@@ -165,6 +191,9 @@ class Loop(object):
         self.trace_ended = False
         self.image_gen = image_gen
         self.time_index = 0
+
+        self.use_hhh_distvol = max(
+            [isinstance(feature, DistVol) or isinstance(feature, DistVolStd) for feature in self.state.selection]) > 0
 
         self.is_hafner = isinstance(self.actionset, HafnerActionSet)
         self.is_rejection = isinstance(self.actionset, RejectionActionSet)
@@ -209,7 +238,8 @@ class Loop(object):
         self.blacklist = Blacklist(hhhs)
         s.blacklist_size = len(self.blacklist)
         s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
-        self._calc_hhh_distance_metrics(hhhs, s)
+        if self.use_hhh_distvol:
+            self._calc_hhh_distance_metrics(hhhs, s)
         # print(f'initial number of rules={len(self.blacklist.hhhs)}')
 
         if self.image_gen is not None:
@@ -329,28 +359,3 @@ class Loop(object):
 
         blacklist_coverage = min(1.0, covered_addresses / observed_address_space)
         return blacklist_coverage
-
-    def _calc_hhh_distance_metrics(self, b, s):
-        H = list(sorted(b, key=lambda _: _.id))
-        if len(H) > 1:
-            vd = [Loop.hhh_voldist(H[i], H[j])
-                  for i in range(len(H))
-                  for j in range(i + 1, len(H))]
-
-            # Remove (negative) voldist of any two overlapping HHHs
-            vd = [_ for _ in vd if _ > 0]
-
-            if vd:
-                scale = lambda x, n: log10(x) / n
-                sigmoid = lambda x: 1.0 / (1.0 + exp(-x))
-                squash = lambda x, n: 0 if x == 0 else sigmoid(10.0 * (scale(x, n) - 0.5))
-                #				crop = lambda x : 1.0 * (x - 0xffff0000) / 0xffff
-                crop = lambda x: 1.0 * x / 0xffffffff
-
-                s.hhh_distance_avg = squash(np.mean(vd), 14)
-                s.hhh_distance_sum = squash(sum(vd), 14)
-                s.hhh_distance_min = squash(min(vd), 14)
-                s.hhh_distance_max = squash(max(vd), 14)
-                s.hhh_distance_std = squash(np.std(vd), 9)
-                s.hhh_min = crop(H[0].id)
-                s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
