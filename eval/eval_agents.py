@@ -24,12 +24,16 @@ class RandomEvalAgent(EvalAgent):
 
 class FixedEvalAgent(EvalAgent):
 
-    def __init__(self, phi: float, min_prefix_length: int):
+    def __init__(self, phi: float, min_prefix_length: int, thresh: float = None):
         self.phi = phi
         self.min_prefix_length = min_prefix_length
+        self.thresh = thresh
 
     def action(self, observation):
-        return self.phi, self.min_prefix_length
+        if self.thresh is not None:
+            return self.phi, self.thresh, self.min_prefix_length
+        else:
+            return self.phi, self.min_prefix_length
 
 
 class ProgressDependentEvalAgent(EvalAgent):
@@ -54,5 +58,4 @@ class ProgressDependentEvalAgent(EvalAgent):
             pass
 
         self.steps += 1
-        print(self.bounds_progress)
         return self.phis[self.bounds_progress], self.ls[self.bounds_progress]
