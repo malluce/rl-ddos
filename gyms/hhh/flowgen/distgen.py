@@ -74,10 +74,10 @@ class NormalSampler(Sampler):
 
     def _crop(self, samples):
         if self.min is not None:
-            samples = np.where(samples < self.min, self.min, samples)
+            np.clip(samples, a_min=self.min, a_max=None, out=samples)
 
         if self.max is not None:
-            samples = np.where(samples > self.max, self.max, samples)
+            np.clip(samples, a_min=None, a_max=self.max, out=samples)
 
         return samples
 
