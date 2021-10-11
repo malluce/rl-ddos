@@ -5,6 +5,7 @@ from typing import List, Tuple
 
 import gin
 import numpy as np
+from ipaddress import IPv4Address
 from numpy.random import default_rng
 
 from gyms.hhh.flowgen.distgen import ChoiceSampler, FlowGroupSampler, NormalSampler, UniformSampler, WeibullSampler
@@ -300,7 +301,7 @@ class HafnerRandomSwitch(SamplerTrafficTrace):
 @gin.configurable
 class THauke(SamplerTrafficTrace):
 
-    def __init__(self, benign_flows, attack_flows, maxtime, maxaddr):
+    def __init__(self, benign_flows, attack_flows, maxtime, maxaddr, **kwargs):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
@@ -384,17 +385,68 @@ class SSDPTrace(SamplerTrafficTrace):
         return self.benign_fgs + self.ssdp_fgs
 
 
+@gin.register
+class MixedSSDPBot(SamplerTrafficTrace):
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False):
+        super().__init__(maxtime)
+        self.attack_flows = attack_flows
+        self.benign_flows = benign_flows
+        self.maxtime = maxtime
+        self.maxaddr = maxaddr
+        self.interval = 10
+
+        self.benign_fgs = [FlowGroupSampler(self.benign_flows,
+                                            UniformSampler(0 - self.interval, self.maxtime - self.interval),
+                                            WeibullSampler(3 / 2,
+                                                           (1 / WeibullSampler.quantile(95,
+                                                                                        3 / 2)) * 1 / 8 * self.maxtime),
+                                            UniformSampler(0, self.maxaddr),
+                                            attack=False
+                                            )]
+
+        bot = BotnetSourcePattern(address_space=15, subnet=22).generate_addresses(int(self.attack_flows / 2))
+
+        ssdp = ReflectorSourcePattern('ssdp', address_space=16, start_address=2 ** 15).generate_addresses(
+            int(self.attack_flows / 2))
+        self.bot_fgs = [FlowGroupSampler(num, UniformSampler(0, 0),
+                                         UniformSampler(self.maxtime, self.maxtime),
+                                         ChoiceSampler(addr, replace=False),
+                                         rate_sampler=None,
+                                         attack=True)
+                        for
+                        num, addr in
+                        bot.values()]
+
+        self.ssdp_fgs = [FlowGroupSampler(num, UniformSampler(0, 0),
+                                          UniformSampler(self.maxtime, self.maxtime),
+                                          ChoiceSampler(addr, replace=False),
+                                          rate_sampler=UniformSampler(
+                                              self.attack_flows / 2 * 4 // list(ssdp.values())[0][0],
+                                              self.attack_flows / 2 * 4 // list(ssdp.values())[0][0]),
+                                          attack=True)
+                         for
+                         num, addr in
+                         ssdp.values()]
+        print(bot.values())
+        print(ssdp.values())
+
+    def get_flow_group_samplers(self):
+        return self.benign_fgs + self.ssdp_fgs + self.bot_fgs
+
+
 @gin.configurable
 class TRandomPatternSwitch(SamplerTrafficTrace):
-    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False, interval=10,
-                 random_toggle_time=False):
+    SMOOTH_TRANSITION_OFFSET_INTERVAL = 10  # number of intervals before and after toggle for smooth transition
+
+    def __init__(self, benign_flows=200, attack_flows=50, maxtime=599, maxaddr=0xffff, is_eval=False,
+                 random_toggle_time=False, smooth_transition=False):
         super().__init__(maxtime)
         self.attack_flows = attack_flows
         self.benign_flows = benign_flows
         self.maxtime = maxtime
         self.maxaddr = maxaddr
         self.deterministic_cycle = is_eval  # cycle all possible pattern switches in eval or sample them in train
-        self.interval = interval
+        self.interval = Loop.ACTION_INTERVAL
 
         if self.deterministic_cycle:
             self.current_pattern_combination = 0  # idx for possible pattern combinations
@@ -408,13 +460,21 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
                                            attack=False
                                            )
 
-        self.random_toggle_time = random_toggle_time
+        self.random_toggle_time = random_toggle_time  # whether to toggle patterns at random point (otherwise at half)
+        self.smooth_transition = smooth_transition  # whether to transition smoothly (ramp-up/ramp-down) or hard toggle
+        self.smooth_transition_offset = self.SMOOTH_TRANSITION_OFFSET_INTERVAL * self.interval
 
     def get_flow_group_samplers(self):
         address_space = round(math.log2(self.maxaddr))
-        botnet = BotnetSourcePattern(address_space, subnet=22).generate_addresses(self.attack_flows)
-        ntp_reflection = ReflectorSourcePattern('ntp', address_space).generate_addresses(1)
-        ssdp_reflection = ReflectorSourcePattern('ssdp', address_space).generate_addresses(100)
+
+        def botnet():
+            return BotnetSourcePattern(address_space, subnet=22).generate_addresses(self.attack_flows)
+
+        def ntp_reflection():
+            return ReflectorSourcePattern('ntp', address_space).generate_addresses(1)
+
+        def ssdp_reflection():
+            return ReflectorSourcePattern('ssdp', address_space).generate_addresses(100)
 
         if not self.deterministic_cycle:
             # sample patterns
@@ -425,37 +485,54 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
                                 for y in [botnet, ntp_reflection, ssdp_reflection]]
             used_patterns = all_combinations[self.current_pattern_combination]
             self.current_pattern_combination = (self.current_pattern_combination + 1) % len(all_combinations)
-        # print(used_patterns)
 
-        self.first_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(used_patterns[0])
-        self.second_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(used_patterns[1])
+        first_pattern = used_patterns[0]()
+        second_pattern = used_patterns[1]()
+
+        self.first_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(first_pattern)
+        self.second_source_pattern_id = self._get_source_pattern_id_for_attack_pattern(second_pattern)
 
         fgs = [self.benign_fgs]
 
         trace_duration = self.maxtime + 1
 
         if self.random_toggle_time:
-            self.toggle_time = default_rng().uniform(5 * self.interval, trace_duration - 5 * self.interval)
+            self.toggle_time = default_rng().uniform(15 * self.interval, trace_duration - 15 * self.interval)
         else:
             self.toggle_time = trace_duration / 2
 
+        if self.smooth_transition:
+            first_duration_sampler = NormalSampler(self.toggle_time - 1, .05 * self.maxtime,
+                                                   min=self.toggle_time - 1 - self.smooth_transition_offset,
+                                                   max=self.toggle_time - 1 + self.smooth_transition_offset)
+        else:
+            first_duration_sampler = UniformSampler(self.toggle_time - 1, self.toggle_time - 1)
+
         first_attack_fgs = [
             FlowGroupSampler(num, UniformSampler(0, 0),
-                             UniformSampler(self.toggle_time - 1, self.toggle_time - 1),
+                             first_duration_sampler,
                              ChoiceSampler(addr, replace=False),
-                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[0]),
+                             rate_sampler=self._get_rate_sampler_for_attack_pattern(first_pattern),
                              attack=True)
             for
             num, addr in
-            used_patterns[0].values()
+            first_pattern.values()
         ]
 
+        if self.smooth_transition:
+            second_start_sampler = NormalSampler(self.toggle_time, .05 * self.maxtime,
+                                                 min=self.toggle_time - self.smooth_transition_offset,
+                                                 max=self.toggle_time + self.smooth_transition_offset)
+        else:
+            second_start_sampler = UniformSampler(self.toggle_time, self.toggle_time)
+
         second_attack_fgs = [
-            FlowGroupSampler(num, UniformSampler(self.toggle_time, self.toggle_time),
-                             UniformSampler(self.maxtime - self.toggle_time, self.maxtime - self.toggle_time),
+            FlowGroupSampler(num,
+                             second_start_sampler,
+                             UniformSampler(self.maxtime, self.maxtime),  # until end (clipped in TraceSampler anyway)
                              ChoiceSampler(addr, replace=False), attack=True,
-                             rate_sampler=self._get_rate_sampler_for_attack_pattern(used_patterns[1]))
-            for num, addr in used_patterns[1].values()
+                             rate_sampler=self._get_rate_sampler_for_attack_pattern(second_pattern))
+            for num, addr in second_pattern.values()
         ]
 
         fgs.extend(first_attack_fgs)
@@ -481,7 +558,9 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
             return None
 
     def get_change_pattern_id(self):
-        if self.random_toggle_time:
+        if self.random_toggle_time and self.smooth_transition:
+            return f'smooth={self.toggle_time}+/-{self.smooth_transition_offset}'
+        elif self.random_toggle_time:
             return f'var={self.toggle_time}'
         else:
             return f'fix={self.toggle_time}'
@@ -490,33 +569,38 @@ class TRandomPatternSwitch(SamplerTrafficTrace):
         return 'constant-rate'
 
     def _is_before_pattern_switch(self, time_step):
-        return time_step < self.toggle_time / Loop.ACTION_INTERVAL
+        return time_step < self.toggle_time / self.interval
 
     def _is_before_trace_end(self, time_step):
-        return time_step <= self.maxtime / Loop.ACTION_INTERVAL
+        return time_step <= self.maxtime / self.interval
+
+    def _is_in_between_patterns(self, time_step):
+        if not self.smooth_transition:
+            return False
+        else:
+            # time index bounds of smooth transition
+            smooth_region_start = self.toggle_time - 1 - self.smooth_transition_offset
+            smooth_region_end = self.toggle_time + self.smooth_transition_offset
+
+            # time index bounds of time step
+            time_step_start_idx = time_step * self.interval
+            time_step_end_idx = time_step * self.interval + self.interval - 1
+
+            # if at least time index is in between smooth region bounds return True
+            for time_index in range(time_step_start_idx, time_step_end_idx + 1):
+                if smooth_region_start <= time_index <= smooth_region_end:
+                    return True
+            return False
 
     def get_source_pattern_id(self, time_step):
-        if self._is_before_pattern_switch(time_step):
+        if self._is_in_between_patterns(time_step):
+            return f'{self.first_source_pattern_id}+{self.second_source_pattern_id}'
+        elif self._is_before_pattern_switch(time_step):
             return self.first_source_pattern_id
         elif self._is_before_trace_end(time_step):
             return self.second_source_pattern_id
         else:
             raise ValueError(f'No source pattern for time step {time_step}; maxtime={self.maxtime}!')
-
-
-class RatePattern(ABC):
-    @abstractmethod
-    def generate_rates(self):
-        pass
-
-
-class ConstantRatePattern(RatePattern):
-
-    def __init__(self, maxtime):
-        self.maxtime = maxtime
-
-    def generate_rates(self, addresses):
-        pass
 
 
 class SourcePattern(ABC):
@@ -537,13 +621,17 @@ class UniformRandomSourcePattern(SourcePattern):
 
 
 class ReflectorSourcePattern(SourcePattern):
-    def __init__(self, refl_id, address_space=16):
+    def __init__(self, refl_id, address_space=16, start_address=0):
         self.address_space = address_space
         self.refl_id = refl_id
 
+        # if set, indicates that addresses should be generated from [start_addr,2**addr_space)
+        # otherwise [0,2**addr_space)
+        self.start_address = start_address
+
     def generate_addresses(self, num_addr):
         # reflectors can be all over the address space (simplification)
-        return {self.refl_id: (num_addr, np.arange(0, 2 ** self.address_space))}
+        return {self.refl_id: (num_addr, np.arange(self.start_address, 2 ** self.address_space))}
 
 
 class BotnetSourcePattern(SourcePattern):
@@ -555,9 +643,8 @@ class BotnetSourcePattern(SourcePattern):
     }
 
     def __init__(self, address_space=16, subnet=22):
-        self.address_space = address_space
         self.subnet = subnet
-        self.number_of_subnets = 2 ** (subnet - address_space)
+        self.number_of_subnets = int(2 ** address_space / Label.subnet_size(subnet))
 
         # how many /SUBNET networks to assign to each botnet country
         # depends on share of global IP addresses; but at least one per country
