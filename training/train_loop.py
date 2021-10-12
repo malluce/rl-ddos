@@ -2,12 +2,14 @@ import time
 from abc import ABC, abstractmethod
 
 import gin
+import os
 import tensorflow as tf
 from typing import List, Tuple
 import numpy as np
 
 import tf_agents
 from absl import logging
+from tensorflow.python.saved_model.save_options import SaveOptions
 from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
 import tensorflow_probability as tfp
 from tf_agents.drivers.dynamic_step_driver import DynamicStepDriver
@@ -16,6 +18,7 @@ from tf_agents.environments.parallel_py_environment import ParallelPyEnvironment
 from tf_agents.environments.tf_py_environment import TFPyEnvironment
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
+from tf_agents.policies.policy_saver import PolicySaver
 from tf_agents.policies.random_tf_policy import RandomTFPolicy
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 from tf_agents.utils import common
@@ -82,8 +85,7 @@ class TrainLoop(ABC):
         self.agent = self._get_agent(gamma)
         self.ds_eval.commit_config(gin.operative_config_str())
 
-        # set in _init_checkpointers
-        (self.policy_checkpointer, self.train_checkpointer, self.rb_checkpointer) = (None, None, None)
+        self.collect_policy_checkpointer, self.policy_checkpointer = (None, None)
 
     @abstractmethod
     def _get_agent(self, gamma):
@@ -108,6 +110,19 @@ class TrainLoop(ABC):
                                              collect_raw=collect_raw)
         self.eval_env = TFPyEnvironment(
             suite_gym.load(env_name, gym_kwargs={'is_eval': True, 'data_store': self.ds_eval, **gym_kwargs}))
+
+    def _init_checkpointers(self):
+        global_step = tf.compat.v1.train.get_or_create_global_step()
+        self.policy_checkpointer = common.Checkpointer(
+            ckpt_dir=self.dirs['policy_chkpt'],
+            policy=self.agent.policy,
+            global_step=global_step)
+        self.collect_policy_checkpointer = common.Checkpointer(
+            ckpt_dir=self.dirs['collect_policy_chkpt'],
+            policy=self.agent.collect_policy,
+            global_step=global_step)
+        self.policy_checkpointer.initialize_or_restore()
+        self.collect_policy_checkpointer.initialize_or_restore()
 
     def _get_train_env(self, env_name, gym_kwargs, root_dir, collect_raw):
         ds_train = Datastore(root_dir, 'train', collect_raw)
@@ -163,25 +178,6 @@ class TrainLoop(ABC):
         # self.initial_collect_driver.run = common.function(self.initial_collect_driver.run)
         # self.collect_driver.run = common.function(self.collect_driver.run)
 
-    def _init_checkpointers(self, dirs):
-        global_step = tf.compat.v1.train.get_or_create_global_step()
-        self.train_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['chkpt'],
-            agent=self.agent,
-            global_step=global_step,
-            metrics=metric_utils.MetricsGroup(self.train_metrics, 'train_metrics'))
-        self.policy_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['policy_chkpt'],
-            policy=self.agent.policy,
-            global_step=global_step)
-        self.rb_checkpointer = common.Checkpointer(
-            ckpt_dir=dirs['replay_buf_chkpt'],
-            max_to_keep=1,
-            replay_buffer=self.replay_buffer)
-        self.train_checkpointer.initialize_or_restore()
-        self.rb_checkpointer.initialize_or_restore()
-        self.policy_checkpointer.initialize_or_restore()
-
     def _eval(self, eval_policy, global_step):
         logging.info(f'eval for {self.num_eval_episodes} episodes')
         metric_utils.eager_compute(
@@ -222,7 +218,8 @@ class TrainLoop(ABC):
         self._init_metrics()
         self._init_replay_buffer()
         self._init_drivers(collect_policy)
-        self._init_checkpointers(self.dirs)
+
+        self._init_checkpointers()
 
         global_step = tf.compat.v1.train.get_or_create_global_step()
 
@@ -285,8 +282,7 @@ class TrainLoop(ABC):
 
     def _maybe_save_checkpoints(self, global_step):
         if global_step.numpy() % self.checkpoint_interval == 0:  # checkpoints
-            self.rb_checkpointer.save(global_step=global_step.numpy())
-            self.train_checkpointer.save(global_step=global_step.numpy())
+            self.collect_policy_checkpointer.save(global_step=global_step.numpy())
             self.policy_checkpointer.save(global_step=global_step.numpy())
 
 
