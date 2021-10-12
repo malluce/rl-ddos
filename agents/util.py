@@ -12,6 +12,6 @@ def get_dirs(root_dir, timestamp, alg_name):
     dirs['tf_train'] = tf_train_dir
     dirs['tf_eval'] = os.path.join(tf_dir, 'eval')
     dirs['chkpt'] = tf_train_dir
+    dirs['collect_policy_chkpt'] = os.path.join(tf_train_dir, 'collect_policy')
     dirs['policy_chkpt'] = os.path.join(tf_train_dir, 'policy')
-    dirs['replay_buf_chkpt'] = os.path.join(tf_train_dir, 'replay_buffer')
     return dirs
