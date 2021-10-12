@@ -365,7 +365,9 @@ class PpoTrainLoop(TrainLoop):
             global_step = tf.compat.v1.train.get_or_create_global_step()
 
             # continuous params
-            continuous_policy_info = step.policy_info['dist_params'][0]
+            continuous_policy_info = step.policy_info['dist_params'][0] if isinstance(step.policy_info['dist_params'],
+                                                                                      tuple) else step.policy_info[
+                'dist_params']
             shape = continuous_policy_info['loc'].shape
             if len(shape) == 2 and shape[1] == 2:  # phi AND thresh
                 median_loc = np.median(continuous_policy_info['loc'], axis=0)
@@ -386,7 +388,7 @@ class PpoTrainLoop(TrainLoop):
                 raise ValueError('Unknown action space in TB Logging.')
 
             # L params
-            if len(step.policy_info['dist_params']) == 2:
+            if isinstance(step.policy_info['dist_params'], tuple):
                 discrete_policy_info = step.policy_info['dist_params'][1]
                 logits = discrete_policy_info['logits']
                 categorical_distr = tfp.distributions.Categorical(logits=logits)
