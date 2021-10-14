@@ -28,6 +28,34 @@ class RewardCalc(ABC):
         pass
 
 
+@gin.configurable
+class AdditiveRewardCalc(RewardCalc):
+
+    def __init__(self, precision_weight=1, fpr_weight=1, recall_weight=1, bl_weight=1):
+        self.precision_weight = precision_weight
+        self.fpr_weight = fpr_weight
+        self.recall_weight = recall_weight
+        self.bl_weight = bl_weight
+
+    def calc_reward(self, state: State):
+        return self.weighted_precision(state.precision) \
+               + self.weighted_bl_size(state.blacklist_size) \
+               + self.weighted_recall(state.recall) \
+               + self.weighted_fpr(state.fpr)
+
+    def weighted_precision(self, precision: float):
+        return self.precision_weight * precision
+
+    def weighted_recall(self, recall: float):
+        return self.recall_weight * recall
+
+    def weighted_fpr(self, fpr: float):
+        return self.fpr_weight * (1 - fpr)
+
+    def weighted_bl_size(self, bl_size: int):
+        return 1 - self.bl_weight * np.log2(np.maximum(1, bl_size))
+
+
 @gin.register
 class HafnerRewardCalc(RewardCalc):
     TCAM_CAP = 0
@@ -101,4 +129,11 @@ class MultiplicativeReward(DefaultRewardCalc):
         return recall ** self.recall_weight
 
     def weighted_bl_size(self, bl_size):
-        return 1.0 - self.bl_weight * np.sqrt(np.log2(max(1, bl_size)))  # max to avoid nan, avg bl_size can be < 1
+        # max to avoid nan, avg bl_size can be < 1
+        return 1.0 - self.bl_weight * np.sqrt(np.log2(np.maximum(1, bl_size)))
+
+
+@gin.configurable
+class MultiplicativeRewardSpecificity(MultiplicativeReward):
+    def weighted_fpr(self, fpr):
+        return (1 - fpr) ** self.fpr_weight
