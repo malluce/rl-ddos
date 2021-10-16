@@ -31,7 +31,7 @@ class RewardCalc(ABC):
 @gin.configurable
 class AdditiveRewardCalc(RewardCalc):
 
-    def __init__(self, precision_weight=1, fpr_weight=1, recall_weight=1, bl_weight=1):
+    def __init__(self, precision_weight, fpr_weight, recall_weight, bl_weight):
         self.precision_weight = precision_weight
         self.fpr_weight = fpr_weight
         self.recall_weight = recall_weight
@@ -113,7 +113,7 @@ class DefaultRewardCalc(RewardCalc):
 @gin.configurable
 class MultiplicativeReward(DefaultRewardCalc):
 
-    def __init__(self, precision_weight=4, fpr_weight=0.5, recall_weight=2, bl_weight=0.3):
+    def __init__(self, precision_weight, fpr_weight, recall_weight, bl_weight):
         self.precision_weight = precision_weight
         self.fpr_weight = fpr_weight
         self.recall_weight = recall_weight
