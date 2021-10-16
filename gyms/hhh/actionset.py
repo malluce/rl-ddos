@@ -117,6 +117,28 @@ class DiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSet):
         return np.array([1.0, 1.0])
 
 
+@gin.register
+class DiscreteRejectionActionSetWithL(DiscreteActionSet, RejectionActionSet):
+    def __init__(self):
+        super().__init__()
+        self.actions = [(x, y, z)
+                        for x in
+                        [(_ + 1) * 1e-3 for _ in range(100)] +
+                        [(_ + 1) * 1e-2 for _ in range(10, 29)] +
+                        [_ * 1e-1 for _ in range(3, 11)]
+                        for y in [_ * 1e-1 for _ in range(5, 10)]  # 0.5,...,0.9
+                        + [_ * 1e-2 for _ in range(91, 101)]  # 0.9,...,0.99,1.0
+                        for z in range(16, 23)
+                        ]
+        self.actionspace = Discrete(len(self.actions))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.0, 16])
+
+    def get_upper_bound(self):
+        return np.array([1.0, 1.0, 32])
+
+
 @gin.configurable
 class SmallDiscreteActionSet(DiscreteActionSet):
 
@@ -176,14 +198,14 @@ class HugeDiscreteActionSet(DiscreteActionSet):
 
 class DirectResolveActionSet(ActionSet):
     """
-    Used for eval purposes, where actions are not used as observations (e.g., actions are chosen randomly or fixed)
+    Used for eval purposes
     """
 
     def __init__(self):
-        self.actionspace = Tuple((Box(-1.0, 1.0, shape=(), dtype=np.float32), Discrete(17)))
+        self.actionspace = None
 
     def resolve(self, action):
-        return action[0], action[1]
+        return action
 
     def get_min_prefixlen(self):
         pass
@@ -199,6 +221,12 @@ class DirectResolveActionSet(ActionSet):
 
     def get_initialization(self):
         pass
+
+
+class DirectResolveRejectionActionSet(DirectResolveActionSet, RejectionActionSet):
+    """
+    Used for eval purposes
+    """
 
 
 def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
@@ -222,7 +250,7 @@ class TupleActionSet(ActionSet):
         self.actionspace = Tuple((phi_space, prefix_space))
 
     def resolve(self, action):
-        phi = agent_action_to_resolved(action[0], self.get_lower_bound(), self.get_upper_bound())
+        phi = agent_action_to_resolved(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
         prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES-1
         return phi, prefix_len
 
@@ -234,6 +262,36 @@ class TupleActionSet(ActionSet):
 
     def get_upper_bound(self):
         return np.array([1.0, 32])
+
+    def get_initialization(self):
+        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
+
+
+@gin.configurable
+class RejectionTupleActionSet(RejectionActionSet):
+    NUMBER_OF_PREFIXES = 17  # number of different prefixes, e.g. 3 means /32, /31, /30 and 17 means /32.../16
+
+    def __init__(self):
+        super(RejectionTupleActionSet, self).__init__()
+        phi_thresh_space = Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
+        prefix_space = Discrete(self.NUMBER_OF_PREFIXES)  # values 0..NUMBER_OF_PREFIXES-1
+        self.actionspace = Tuple((phi_thresh_space, prefix_space))
+
+    def resolve(self, action):
+        phi_thresh = agent_action_to_resolved(action[0], self.get_lower_bound()[:2], self.get_upper_bound()[:2])
+        phi = phi_thresh[0]
+        thresh = phi_thresh[1]
+        prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES-1
+        return phi, thresh, prefix_len
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.0, 16])
+
+    def get_upper_bound(self):
+        return np.array([1.0, 1.0, 32])
 
     def get_initialization(self):
         return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
