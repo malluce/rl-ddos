@@ -353,7 +353,10 @@ class Loop(object):
         benign_blocked_idx = 0
         benign_idx = 0
         while not (time_index_finished and interval == self.action_interval):
-            p, time_index_finished = self.trace.next()
+            try:
+                p, time_index_finished = self.trace.next()
+            except StopIteration:
+                print(f'Encountered StopIteration at time index {self.time_index}, no packet at this time index?')
 
             s.lowest_ip = min(s.lowest_ip, p.ip)
             s.highest_ip = max(s.highest_ip, p.ip)
