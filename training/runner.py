@@ -45,8 +45,5 @@ def main(_):
 
 
 if __name__ == '__main__':
-    try:
-        flags.mark_flag_as_required('gin_file')
-        app.run(main)
-    except KeyboardInterrupt:
-        pass
+    flags.mark_flag_as_required('gin_file')
+    app.run(main)
