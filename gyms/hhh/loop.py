@@ -356,49 +356,52 @@ class Loop(object):
             try:
                 p, time_index_finished = self.trace.next()
             except StopIteration:
-                print(f'Encountered StopIteration at time index {self.time_index}, no packet at this time index?')
+                print(f'Encountered StopIteration at time index {self.time_index}, no packet at this time index.')
+                p = None
+                time_index_finished = True
 
-            s.lowest_ip = min(s.lowest_ip, p.ip)
-            s.highest_ip = max(s.highest_ip, p.ip)
+            if p is not None:
+                s.lowest_ip = min(s.lowest_ip, p.ip)
+                s.highest_ip = max(s.highest_ip, p.ip)
 
-            s.total += 1
-            s.packets_per_step += 1
-
-            if p.malicious:
-                s.malicious += 1
-            else:
-                benign_idx += 1
-
-            if self.blacklist.covers(p.ip):
-                s.blocked += 1
+                s.total += 1
+                s.packets_per_step += 1
 
                 if p.malicious:
-                    s.malicious_blocked += 1
+                    s.malicious += 1
                 else:
-                    # print(f'blocked benign IP={str(IPv4Address(p.ip))}')
-                    benign_blocked_idx += 1
+                    benign_idx += 1
 
-                if np.random.random() < self.sampling_rate:
-                    s.samples += 1
-                    self.hhh.update(p.ip, int(self.weight))
-                    if self.is_rejection:
-                        self.rule_perf_table.update(p.ip, p.malicious)
-                        self.rule_perf_table.update_cache(p.ip, p.malicious, int(1 / self.sampling_rate))
-                    # Estimate the number of mal packets
-                    # filtered by the blacklist by sampling
+                if self.blacklist.covers(p.ip):
+                    s.blocked += 1
+
                     if p.malicious:
-                        s.estimated_malicious_blocked += 1
+                        s.malicious_blocked += 1
                     else:
-                        s.estimated_benign_blocked += 1
-            else:
-                self.hhh.update(p.ip)
-                if self.is_rejection:
-                    self.rule_perf_table.update_cache(p.ip, p.malicious, 1)
+                        # print(f'blocked benign IP={str(IPv4Address(p.ip))}')
+                        benign_blocked_idx += 1
 
-                if p.malicious:
-                    s.malicious_passed += 1
+                    if np.random.random() < self.sampling_rate:
+                        s.samples += 1
+                        self.hhh.update(p.ip, int(self.weight))
+                        if self.is_rejection:
+                            self.rule_perf_table.update(p.ip, p.malicious)
+                            self.rule_perf_table.update_cache(p.ip, p.malicious, int(1 / self.sampling_rate))
+                        # Estimate the number of mal packets
+                        # filtered by the blacklist by sampling
+                        if p.malicious:
+                            s.estimated_malicious_blocked += 1
+                        else:
+                            s.estimated_benign_blocked += 1
                 else:
-                    s.benign_passed += 1
+                    self.hhh.update(p.ip)
+                    if self.is_rejection:
+                        self.rule_perf_table.update_cache(p.ip, p.malicious, 1)
+
+                    if p.malicious:
+                        s.malicious_passed += 1
+                    else:
+                        s.benign_passed += 1
 
             if time_index_finished:
                 # print(f'blocked {benign_blocked_idx} benign pkts from {benign_idx} benign pkts')
