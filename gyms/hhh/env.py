@@ -89,6 +89,7 @@ class HHHEnv(gym.Env):
 
     def step(self, action):
         # call loop.step
+        # print(self.trace.traffic_trace.get_source_pattern_id(self.current_step))
         trace_ended, state, blacklist_history = self.loop.step(action)
 
         # reward
@@ -109,14 +110,13 @@ class HHHEnv(gym.Env):
 
         # get numpy observation array
         observation = self._build_observation(previous_action=action)
+        # print(
+        #    f'reward={reward} (prec={self.loop.state.precision}, rec={self.loop.state.recall}, fpr={self.loop.state.fpr}, bl size={self.loop.state.blacklist_size})')
 
-        print(f'reward={reward}')
-
-        if trace_ended:
-            print('==========================================================')
-        else:
-            print('===================')
-
+        # if trace_ended:
+        #    print('==========================================================')
+        # else:
+        #    print('===================')
         return observation, reward, trace_ended, {}
 
     def _log_to_datastore(self, trace_ended, reward, state):
@@ -171,7 +171,6 @@ class HHHEnv(gym.Env):
                 self.ds.flush()
 
     def _build_observation(self, previous_action=None):
-        # print(f'building observation, previous={previous_action}')
         action_observation, state_observation = (None, None)
         img_obs, hhh_img_obs = (None, None)
         use_images = self.image_gen is not None
