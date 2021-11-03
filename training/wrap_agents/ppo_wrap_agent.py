@@ -17,7 +17,7 @@ from training.wrap_agents.wrap_agent import WrapAgent
 
 
 def _normal_projection_net(action_spec,
-                           init_action_stddev=0.2,  # 0.2 instead of 0.35 -> less exploration?
+                           init_action_stddev=0.1,  # 0.1 instead of 0.35 -> less exploration?
                            init_means_output_factor=0.1):
     std_bias_initializer_value = np.log(np.exp(init_action_stddev) - 1)
 

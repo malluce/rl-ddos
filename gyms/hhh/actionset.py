@@ -60,7 +60,7 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         return np.array(self.resolve(action))
 
     def get_lower_bound(self):
-        return np.array([0.001, 0.0])
+        return np.array([0.001, 0.75])
 
     def get_upper_bound(self):
         return np.array([1.0, 1.0])
