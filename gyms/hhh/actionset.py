@@ -23,9 +23,6 @@ class ActionSet(Observation, ABC):
         """ transform selected action into phi and min-prefix values """
         pass
 
-    def __repr__(self):
-        return 'ActionSet'
-
 
 class RejectionActionSet(Observation, ABC):
     def __init__(self):
@@ -35,6 +32,12 @@ class RejectionActionSet(Observation, ABC):
     def resolve(self, action):
         """ transform selected action into phi and rejection threshold """
         pass
+
+    def get_initialization(self):
+        """
+        Randomly samples action for use in env.reset(), to build first observation on some action.
+        """
+        return self.actionspace.sample()
 
 
 @gin.register
@@ -65,9 +68,6 @@ class ContinuousRejectionActionSet(RejectionActionSet):
     def get_upper_bound(self):
         return np.array([1.0, 1.0])
 
-    def get_initialization(self):
-        return np.zeros(self.shape)
-
 
 class DiscreteActionSet(ActionSet, ABC):
     def __init__(self):
@@ -85,9 +85,6 @@ class DiscreteActionSet(ActionSet, ABC):
 
     def get_upper_bound(self):
         return np.array([1.0, 32])
-
-    def get_initialization(self):
-        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
 
     def __repr__(self):
         return self.__class__.__name__ + str(self.actions)
@@ -220,7 +217,7 @@ class DirectResolveActionSet(ActionSet):
         pass
 
     def get_initialization(self):
-        pass
+        return np.array([0.09, 1])
 
 
 class DirectResolveRejectionActionSet(DirectResolveActionSet, RejectionActionSet):
@@ -231,12 +228,14 @@ class DirectResolveRejectionActionSet(DirectResolveActionSet, RejectionActionSet
 
 def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     """
-    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [0, 1.0].
+    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [lower_bound, upper_bound].
     :param upper_bound: upper bound on the output
     :param lower_bound: lower bound on the output
     :param agent_action: action in [-1.0, 1.0]
     """
-    return np.clip(0.5 + 0.5 * agent_action, lower_bound, upper_bound)
+    middle = (upper_bound + lower_bound) / 2
+    middle_to_bound = np.abs(middle - upper_bound)
+    return np.clip(middle + middle_to_bound * agent_action, lower_bound, upper_bound)
 
 
 @gin.configurable
@@ -262,9 +261,6 @@ class TupleActionSet(ActionSet):
 
     def get_upper_bound(self):
         return np.array([1.0, 32])
-
-    def get_initialization(self):
-        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
 
 
 @gin.configurable
@@ -292,55 +288,6 @@ class RejectionTupleActionSet(RejectionActionSet):
 
     def get_upper_bound(self):
         return np.array([1.0, 1.0, 32])
-
-    def get_initialization(self):
-        return default_rng().uniform(low=self.get_lower_bound(), high=self.get_upper_bound())
-
-
-@gin.configurable
-class ContinuousActionSet(ActionSet):
-
-    def __init__(self):
-        super().__init__()
-        self.actionspace = Box(low=-1.0,
-                               high=1.0,
-                               shape=(),
-                               dtype=np.float32)
-
-    def get_observation(self, action):
-        return np.array(self.resolve(action))
-
-    def get_lower_bound(self):
-        return 0.01
-
-    def get_upper_bound(self):
-        return 1.0
-
-    def get_initialization(self):
-        return 0.12
-
-    def resolve(self, action):
-        phi = agent_action_to_resolved(action, self.get_lower_bound(), self.get_upper_bound())
-        min_prefixlen = self._phi_to_prefixlen(phi)
-
-        return phi, min_prefixlen
-
-    def _phi_to_prefixlen(self, phi):
-        min_prefixlen = 0
-        if phi <= 0.06:
-            min_prefixlen = 21
-        if 0.06 < phi <= 0.2:
-            min_prefixlen = 20
-        if 0.2 < phi <= 0.48:
-            min_prefixlen = 19
-        if 0.48 < phi <= 0.8:
-            min_prefixlen = 18
-        if phi > 0.8:
-            min_prefixlen = 17
-        return min_prefixlen
-
-    def __repr__(self):
-        return str(self.actionspace)
 
 
 @gin.register

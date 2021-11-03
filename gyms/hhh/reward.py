@@ -3,7 +3,8 @@ from abc import ABC, abstractmethod
 import gin
 import numpy as np
 
-from gyms.hhh.state import HafnerObservations, State
+from gyms.hhh.state import State
+from gyms.hhh.obs import HafnerObservations
 
 
 class RewardCalc(ABC):

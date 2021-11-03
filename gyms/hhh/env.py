@@ -170,36 +170,21 @@ class HHHEnv(gym.Env):
             if trace_ended:
                 self.ds.flush()
 
-    def _build_observation(self, previous_action=None):
-        action_observation, state_observation = (None, None)
-        img_obs, hhh_img_obs = (None, None)
+    def _build_observation(self, previous_action):
+        assert previous_action is not None
         use_images = self.image_gen is not None
-        if previous_action is None:
-            state_observation = self.loop.state.get_initialization()
-            if self.use_prev_action_as_obs:
-                action_observation = maybe_cast_to_arr(self.loop.actionset.get_initialization())
-            if use_images:
-                img_obs = np.zeros(self.observation_space['image'].shape, dtype=self.observation_space['image'].dtype)
-                hhh_img_obs = np.zeros(self.observation_space['hhh_image'].shape,
-                                       dtype=self.observation_space['hhh_image'].dtype)
-        else:
-            state_observation = self.loop.state.get_features()
-            if self.use_prev_action_as_obs:
-                action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
-            if use_images:
-                img_obs = self.loop.state.image
-                hhh_img_obs = self.loop.state.hhh_image
-        if not self.use_prev_action_as_obs:
-            vector_obs = state_observation
-        else:
+        state_observation = self.loop.state.get_features()
+        if self.use_prev_action_as_obs:
+            action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
             vector_obs = np.concatenate((state_observation, action_observation))
+        else:
+            vector_obs = state_observation
 
         if use_images:
-            assert img_obs is not None
             return {
                 'vector': vector_obs,
-                'image': img_obs,
-                'hhh_image': hhh_img_obs
+                'image': self.loop.state.image,
+                'hhh_image': self.loop.state.hhh_image
             }
         else:
             return vector_obs
@@ -230,8 +215,6 @@ class HHHEnv(gym.Env):
     def reset(self):
         self.episode += 1
         self.current_step = 0
-        self.trace.rewind()
-        self.loop.reset()
         self.rewards = []
         self.rules = []
         self.precisions = []
@@ -244,11 +227,10 @@ class HHHEnv(gym.Env):
         self.source_pattern_ids = []
         self.rate_pattern_ids = []
         self.change_pattern_ids = []
-
-        if isinstance(self.loop.actionset, HafnerActionSet):
-            return self._build_observation(previous_action=0)
-        else:
-            return self._build_observation(previous_action=None)
+        self.trace.rewind()
+        first_action, blacklist_history = self.loop.reset()  # make one step with randomly chosen action (for first observation)
+        self.blacklists += blacklist_history
+        return self._build_observation(previous_action=first_action)
 
     def render(self, mode):
         pass

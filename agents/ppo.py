@@ -38,7 +38,8 @@ from tf_agents.utils import common
 from agents.util import get_dirs
 from gyms.hhh.actionset import ContinuousActionSet, LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
-from gyms.hhh.state import BaseObservations, BlocklistDistribution, DistVol, DistVolStd, FalsePositiveRate
+from gyms.hhh.state import BlocklistDistribution
+from gyms.hhh.obs import BaseObservations, DistVol, DistVolStd, FalsePositiveRate
 from lib.datastore import Datastore
 
 import numpy as np

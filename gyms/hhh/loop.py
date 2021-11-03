@@ -14,7 +14,8 @@ from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from gyms.hhh.actionset import HafnerActionSet, RejectionActionSet
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
-from gyms.hhh.state import DistVol, DistVolStd, State
+from gyms.hhh.state import State
+from gyms.hhh.obs import DistVol, DistVolStd
 
 
 @gin.configurable
@@ -313,6 +314,12 @@ class Loop(object):
         if self.is_hafner:
             self.actionset.re_roll_phi()
             self.step(0)  # execute one step with randomly chosen phi
+            return 0, self.blacklist_history
+        else:
+            first_action = self.actionset.get_initialization()
+            print(f'first action: {first_action}')
+            self.step(first_action)
+            return first_action, self.blacklist_history
 
     def step(self, action):
         s = self.state
