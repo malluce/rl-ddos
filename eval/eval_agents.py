@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
+import numpy as np
 from gym import Space
 
 from gyms.hhh.actionset import ActionSet
@@ -24,38 +25,26 @@ class RandomEvalAgent(EvalAgent):
 
 class FixedEvalAgent(EvalAgent):
 
-    def __init__(self, phi: float, min_prefix_length: int, thresh: float = None):
+    def __init__(self, phi: float, min_prefix_length: int, thresh: float = None, actionset=None):
         self.phi = phi
         self.min_prefix_length = min_prefix_length
         self.thresh = thresh
+        self.actionset = actionset
 
     def action(self, observation):
+
+        # action() has to return unresolved actions, but API should take resolved actions, hence require inverse resolve
+        # e.g. phi=0.002 will be "inverse resolved" to approx 0
+        def inverse_resolve(x):
+            lb = self.actionset.get_lower_bound()
+            ub = self.actionset.get_upper_bound()
+
+            return 1 / (ub - (ub + lb) / 2) * x - ((ub + lb) / 2) / (ub - (ub + lb) / 2)
+
         if self.thresh is not None:
-            return self.phi, self.thresh, self.min_prefix_length
+            if self.min_prefix_length is not None:
+                return inverse_resolve(np.array([self.phi, self.thresh, self.min_prefix_length]))
+            else:
+                return inverse_resolve(np.array([self.phi, self.thresh]))
         else:
-            return self.phi, self.min_prefix_length
-
-
-class ProgressDependentEvalAgent(EvalAgent):
-
-    def __init__(self, phis: List[float], min_prefix_lengths: List[int], step_bounds: List[int]):
-        self.phis = phis
-        self.ls = min_prefix_lengths
-        self.step_bounds = step_bounds
-        self.steps = 0
-        self.bounds_progress = 0
-        assert len(phis) == len(min_prefix_lengths) == len(step_bounds) + 1
-
-    def action(self, obs, step, new_episode):
-        if new_episode:
-            self.steps = 0
-            self.bounds_progress = 0
-
-        try:
-            if self.step_bounds[self.bounds_progress] <= self.steps:
-                self.bounds_progress += 1
-        except IndexError:
-            pass
-
-        self.steps += 1
-        return self.phis[self.bounds_progress], self.ls[self.bounds_progress]
+            return inverse_resolve(np.array([self.phi, self.min_prefix_length]))
