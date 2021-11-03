@@ -29,7 +29,7 @@ class RulePerformanceTable:
         self.table = {}
 
         self.use_cache = use_cache
-        print(f'using cache: {self.use_cache}')
+        print(f'using cache: {self.use_cache} (capacity={cache_capacity})')
 
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
         self.cache = {}
@@ -297,6 +297,8 @@ class Loop(object):
 
         self.is_hafner = isinstance(self.actionset, HafnerActionSet)
         self.is_rejection = isinstance(self.actionset, RejectionActionSet)
+        print(f'is rejection: {self.is_rejection}')
+        print(f'is hafner: {self.is_hafner}')
         if self.is_rejection:
             self.rule_perf_table = RulePerformanceTable()
 
