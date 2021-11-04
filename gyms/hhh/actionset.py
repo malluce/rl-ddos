@@ -23,6 +23,10 @@ class ActionSet(Observation, ABC):
         """ transform selected action into phi and min-prefix values """
         pass
 
+    @abc.abstractmethod
+    def inverse_resolve(self, chosen_action):
+        pass
+
 
 class RejectionActionSet(Observation, ABC):
     def __init__(self):
@@ -31,6 +35,10 @@ class RejectionActionSet(Observation, ABC):
     @abc.abstractmethod
     def resolve(self, action):
         """ transform selected action into phi and rejection threshold """
+        pass
+
+    @abc.abstractmethod
+    def inverse_resolve(self, chosen_action):
         pass
 
     def get_initialization(self):
@@ -42,6 +50,7 @@ class RejectionActionSet(Observation, ABC):
 
 @gin.register
 class ContinuousRejectionActionSet(RejectionActionSet):
+
     def __init__(self):
         super().__init__()
         self.actionspace = Box(
@@ -58,6 +67,9 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         phi = resolved[0]
         thresh = resolved[1]
         return phi, thresh
+
+    def inverse_resolve(self, chosen_action):
+        return inverse_resolve(chosen_action, self.get_lower_bound(), self.get_upper_bound())
 
     def get_observation(self, action):
         return np.array(self.resolve(action))
@@ -92,6 +104,12 @@ class DiscreteActionSet(ActionSet, ABC):
     def resolve(self, action):
         return self.actions[action]
 
+    def inverse_resolve(self, chosen_action):
+        for idx, action in enumerate(self.actions):
+            if action == chosen_action:
+                return idx
+        raise ValueError('Chosen action not included in actions.')
+
 
 @gin.register
 class DiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSet):
@@ -108,7 +126,7 @@ class DiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSet):
         self.actionspace = Discrete(len(self.actions))
 
     def get_lower_bound(self):
-        return np.array([0.001, 0.0])
+        return np.array([0.001, 0.5])
 
     def get_upper_bound(self):
         return np.array([1.0, 1.0])
@@ -193,39 +211,6 @@ class HugeDiscreteActionSet(DiscreteActionSet):
         self.actionspace = Discrete(len(self.actions))
 
 
-class DirectResolveActionSet(ActionSet):
-    """
-    Used for eval purposes
-    """
-
-    def __init__(self):
-        self.actionspace = None
-
-    def resolve(self, action):
-        return action
-
-    def get_min_prefixlen(self):
-        pass
-
-    def get_observation(self, observed_object):
-        pass
-
-    def get_lower_bound(self):
-        pass
-
-    def get_upper_bound(self):
-        pass
-
-    def get_initialization(self):
-        return np.array([0.09, 1])
-
-
-class DirectResolveRejectionActionSet(DirectResolveActionSet, RejectionActionSet):
-    """
-    Used for eval purposes
-    """
-
-
 def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     """
     Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [lower_bound, upper_bound].
@@ -236,6 +221,17 @@ def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     middle = (upper_bound + lower_bound) / 2
     middle_to_bound = np.abs(middle - upper_bound)
     return np.clip(middle + middle_to_bound * agent_action, lower_bound, upper_bound)
+
+
+def inverse_resolve(chosen_action, lower_bound, upper_bound):
+    """
+    Inverse of agent_action_to_resolved.
+    :param chosen_action: the chosen action e.g. phi=0.2
+    :param lower_bound: lower bound of action space
+    :param upper_bound: upper bound of action space
+    """
+    ub, lb = upper_bound, lower_bound
+    return 1 / (ub - (ub + lb) / 2) * chosen_action - ((ub + lb) / 2) / (ub - (ub + lb) / 2)
 
 
 @gin.configurable
@@ -250,7 +246,7 @@ class TupleActionSet(ActionSet):
 
     def resolve(self, action):
         phi = agent_action_to_resolved(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
-        prefix_len = 32 - action[1]  # values 32..NUMBER_OF_PREFIXES-1
+        prefix_len = int(32 - action[1])  # values 32..NUMBER_OF_PREFIXES-1
         return phi, prefix_len
 
     def get_observation(self, action):
@@ -261,6 +257,15 @@ class TupleActionSet(ActionSet):
 
     def get_upper_bound(self):
         return np.array([1.0, 32])
+
+    def get_initialization(self):
+        return self.actionspace.sample()
+
+    def inverse_resolve(self, chosen_action):
+        assert len(chosen_action) == 2
+        inverse_phi = inverse_resolve(chosen_action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
+        inverse_l = 32 - chosen_action[1]
+        return np.array([inverse_phi, inverse_l])
 
 
 @gin.configurable
@@ -289,9 +294,16 @@ class RejectionTupleActionSet(RejectionActionSet):
     def get_upper_bound(self):
         return np.array([1.0, 1.0, 32])
 
+    def inverse_resolve(self, chosen_action):
+        assert len(chosen_action) == 3
+        inverse_phi_thresh = inverse_resolve(chosen_action[:2], self.get_lower_bound()[0], self.get_upper_bound()[1])
+        inverse_l = 32 - chosen_action[2]
+        return np.array([inverse_phi_thresh, inverse_l])
+
 
 @gin.register
 class HafnerActionSet(ActionSet):
+
     def __init__(self):
         super().__init__()
         self.re_roll_phi()
@@ -336,3 +348,6 @@ class HafnerActionSet(ActionSet):
 
     def get_initialization(self):
         raise NotImplementedError('Initialization not fitting for Hafner')
+
+    def inverse_resolve(self, chosen_action):
+        raise NotImplementedError('Inverse resolve not implemented for Hafner')
