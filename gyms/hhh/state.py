@@ -47,6 +47,12 @@ class State(object):
         self.hhh_image = None  # 1-channel image of current traffic
         self.blacklist_coverage = 0  # Hafner observation: fraction of blocked address space
 
+        self.precision_per_idx = []
+        self.recall_per_idx = []
+        self.blacksize_per_idx = []
+        self.fpr_per_idx = []
+        self.cache_per_idx = []
+
     def complete(self):
         self._estimate_packet_counters()
         self._calc_precision()

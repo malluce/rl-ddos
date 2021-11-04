@@ -28,7 +28,7 @@ class Datastore(object):
 
     STEP_HEADER = 'Episode, Step, Reward, SrcPattern, RatePattern, ChangePattern, DiscountedReturnSoFar, UndiscountedReturnSoFar, Phi, Thresh, MinPrefix, BlackSize, ' \
                   'Precision, EstPrecision, ' \
-                  'Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax '
+                  'Recall, EstRecall, FPR, EstFPR, HHHDistanceAvg, HHHDistanceSum, HHHDistanceMin, HHHDistanceMax, PrecisionIdx, FPRIdx, RecallIdx, BlackSizeIdx, CacheIdx '
 
     @staticmethod
     def get_timestamp():
@@ -65,10 +65,28 @@ class Datastore(object):
     @staticmethod
     def _format_step(episode, split, reward, source_pattern, rate_pattern, change_pattern, discounted_return_so_far,
                      undiscounted_return_so_far, state):
-        assert max(state.thresh, state.min_prefix) > -1
+        def list_to_csv_string(in_list, format):
+            result = ''
+            for idx, item in enumerate(in_list):
+                formatted = format.format(item)
+                result += f';{formatted}' if idx != 0 else formatted
+            return result
+
+        def cache_to_csv_string(cache):
+            result = ''
+            for idx, len_to_count in enumerate(cache):
+                if len_to_count is None:
+                    result += f';{None}' if idx != 0 else None
+                else:
+                    if idx != 0:
+                        result += ';'
+                    for idx2, length in enumerate(len_to_count):
+                        count = len_to_count[length]
+                        result += f'-{length}:{count}' if idx2 != 0 else f'{length}:{count}'
+            return result
 
         return '{:5d}, {:5.1f}, {:7.3f}, {}, {}, {}, {:7.3f},{:7.3f},{:7.5f}, {:5.3f}, {:2d}, {:5.3f}, {:5.3f}, ' \
-               '{:5.3f}, {:5.3f},{:5.3f}, {:5.3f}, {:5.3f}, {:9.7f}, {:9.7f}, {:7.5f}, {:7.5f}' \
+               '{:5.3f}, {:5.3f},{:5.3f}, {:5.3f}, {:5.3f}, {:9.7f}, {:9.7f}, {:7.5f}, {:7.5f}, {}, {}, {}, {}, {}' \
             .format(
             episode, split, reward,
             source_pattern, rate_pattern, change_pattern,
@@ -77,7 +95,11 @@ class Datastore(object):
             state.estimated_precision, state.recall, state.estimated_recall,
             state.fpr, state.estimated_fpr,
             state.hhh_distance_avg, state.hhh_distance_sum, state.hhh_min,
-            state.hhh_max)
+            state.hhh_max, list_to_csv_string(state.precision_per_idx, '{:5.3f}'),
+            list_to_csv_string(state.fpr_per_idx, '{:5.3f}'),
+            list_to_csv_string(state.recall_per_idx, '{:5.3f}'),
+            list_to_csv_string(state.blacksize_per_idx, '{}'),
+            cache_to_csv_string(state.cache_per_idx))
 
     class NumpyWriter(object):
         """ An asynchronous writer to avoid blocking the main env thread
