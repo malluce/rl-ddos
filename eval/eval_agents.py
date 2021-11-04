@@ -32,19 +32,5 @@ class FixedEvalAgent(EvalAgent):
         self.actionset = actionset
 
     def action(self, observation):
-
-        # action() has to return unresolved actions, but API should take resolved actions, hence require inverse resolve
-        # e.g. phi=0.002 will be "inverse resolved" to approx 0
-        def inverse_resolve(x):
-            lb = self.actionset.get_lower_bound()
-            ub = self.actionset.get_upper_bound()
-
-            return 1 / (ub - (ub + lb) / 2) * x - ((ub + lb) / 2) / (ub - (ub + lb) / 2)
-
-        if self.thresh is not None:
-            if self.min_prefix_length is not None:
-                return inverse_resolve(np.array([self.phi, self.thresh, self.min_prefix_length]))
-            else:
-                return inverse_resolve(np.array([self.phi, self.thresh]))
-        else:
-            return inverse_resolve(np.array([self.phi, self.min_prefix_length]))
+        action = [x for x in filter(lambda y: y is not None, [self.phi, self.thresh, self.min_prefix_length])]
+        return self.actionset.inverse_resolve(np.array(action))

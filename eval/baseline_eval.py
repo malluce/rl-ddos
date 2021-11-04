@@ -2,9 +2,8 @@ import time
 
 import gym
 from eval_agents import FixedEvalAgent, RandomEvalAgent
-from gyms.hhh.actionset import ContinuousRejectionActionSet, DirectResolveActionSet, \
-    DirectResolveRejectionActionSet, \
-    LargeDiscreteActionSet
+from gyms.hhh.actionset import ContinuousRejectionActionSet, DiscreteRejectionActionSet, LargeDiscreteActionSet, \
+    TupleActionSet
 from gyms.hhh.env import register_hhh_gym
 from gyms.hhh.flowgen.traffic_traces import MixedSSDPBot, SSDPTrace, T4, THauke, TRandomPatternSwitch
 from gyms.hhh.images import ImageGenerator
@@ -23,8 +22,8 @@ env_name = register_hhh_gym()
 # gin.bind_parameter('THauke.maxaddr', 0xffff)
 
 
-gin.bind_parameter('DistributionTrace.traffic_trace_construct', SSDPTrace)
-gin.bind_parameter('RulePerformanceTable.use_cache', True)
+gin.bind_parameter('DistributionTrace.traffic_trace_construct', MixedSSDPBot)  # SSDPTrace)
+gin.bind_parameter('RulePerformanceTable.use_cache', False)
 gin.bind_parameter('RulePerformanceTable.cache_capacity', 100)
 
 
@@ -55,10 +54,7 @@ def run_eval_episodes(env, eval_agent, num_episodes=2):
         step_cnt = 0
         while not done:
             print(obs)
-            if type(eval_agent) == ProgressDependentEvalAgent:
-                action = eval_agent.action(obs, step=None, new_episode=step_cnt == 0)
-            else:
-                action = eval_agent.action(obs)
+            action = eval_agent.action(obs)
             obs, rew, done, info = env.step(action)
             step_cnt += 1
 
@@ -78,10 +74,10 @@ def make_env(dirs, actionset):
 
 
 # phi = 0.045
-phi = 0.002
-thresh = 0.9
+phi = 0.006
+thresh = 0.98
 L = None
-actionset = DirectResolveActionSet() if thresh is None else DirectResolveRejectionActionSet()
 actionset = ContinuousRejectionActionSet()
+# actionset = TupleActionSet()
 eval_agent = FixedEvalAgent(phi, L, thresh, actionset)
 eval(eval_agent, actionset)
