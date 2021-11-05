@@ -4,7 +4,7 @@ from ipaddress import IPv4Address
 
 import gin
 import numpy as np
-
+from absl import logging
 from collections import Counter, defaultdict, namedtuple
 from gym.spaces import Box, Discrete, MultiDiscrete
 from math import log2, log10, sqrt, exp
@@ -30,7 +30,7 @@ class RulePerformanceTable:
         self.table = {}
 
         self.use_cache = use_cache
-        print(f'using cache: {self.use_cache} (capacity={cache_capacity})')
+        logging.info(f'using cache: {self.use_cache} (capacity={cache_capacity})')
 
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
         self.cache = {}
@@ -38,19 +38,22 @@ class RulePerformanceTable:
         self.ewma_weight = ewma_weight
 
     def print_rules(self):
-        print('all rules: ')
-        for start_ip, end_ip, hhh_len in self.table.keys():
-            print(f' {str(IPv4Address(start_ip))}/{hhh_len} (perf={self.table[(start_ip, end_ip, hhh_len)]})')
+        if logging.get_verbosity() == 'debug':
+            logging.debug('all rules: ')
+            for start_ip, end_ip, hhh_len in self.table.keys():
+                logging.debug(
+                    f' {str(IPv4Address(start_ip))}/{hhh_len} (perf={self.table[(start_ip, end_ip, hhh_len)]})')
 
     def print_cache(self):
-        if self.use_cache:
-            print(f'all cache entries: (total={len(self.cache)})')
+        if self.use_cache and logging.get_verbosity() == 'debug':
+            logging.debug(f'all cache entries: (total={len(self.cache)})')
             len_to_count = defaultdict(lambda: 0)
             for start_ip, end_ip, hhh_len in self.cache.keys():
                 len_to_count[hhh_len] += 1
-                # print(f' {str(IPv4Address(start_ip))}/{hhh_len} (perf={self.cache[(start_ip, end_ip, hhh_len)]})')
+                logging.debug(
+                    f' {str(IPv4Address(start_ip))}/{hhh_len} (perf={self.cache[(start_ip, end_ip, hhh_len)]})')
             for l in sorted(len_to_count.keys()):
-                print(f' {l}:{len_to_count[l]}')
+                logging.debug(f' {l}:{len_to_count[l]}')
 
     def set_rules(self, hhhs):
         self.table = {}
@@ -70,8 +73,7 @@ class RulePerformanceTable:
             if (start_ip, end_ip, hhh.len) not in self.cache:
                 result.append(hhh)
             else:
-                pass
-                # print(f'not applying HHH {str(IPv4Address(start_ip))}/{hhh.len}, because in cache')
+                logging.debug(f'not applying HHH {str(IPv4Address(start_ip))}/{hhh.len}, because in cache')
         return result
 
     def update(self, id, is_malicious, num):
@@ -122,14 +124,13 @@ class RulePerformanceTable:
             # best performing rule in cache
             best_rule, best_performance = cache_by_performance[-1]
             if rule_perf <= best_performance.rule_perf:
-                # print(f' Replacement of {best_rule, best_performance}')
+                logging.debug(f' Replacement of {best_rule, best_performance}')
                 self.cache.pop(best_rule)
                 self.cache[(start_ip, end_ip, hhh_len)] = self.RulePerformance(0, 0, 0, rule_perf)
             else:
-                pass
-                # print(f' Not replacing, performance better')
+                logging.debug(f' Not replacing, performance better')
         elif len(self.cache) < self.cache_capacity:
-            # print(f' Cache not full, just adding')
+            logging.debug(f' Cache not full, just adding')
             self.cache[(start_ip, end_ip, hhh_len)] = self.RulePerformance(0, 0, 0, rule_perf)
 
         assert len(self.cache) <= self.cache_capacity
@@ -157,8 +158,8 @@ class RulePerformanceTable:
                 new_perf = max(0, 1 - new_rule_fpr)
             ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
             if ewma_perf >= perf_thresh:
-                # print(
-                #    f' removing rule {str(IPv4Address(rule[0]))}/{rule[2]} from cache because it got better {n, nm, nb, ewma_perf}')
+                logging.debug(
+                    f' removing rule {str(IPv4Address(rule[0]))}/{rule[2]} from cache because it got better {n, nm, nb, ewma_perf}')
                 self.cache.pop(rule)  # delete rules that have better performance
             else:
                 self.cache[rule] = self.RulePerformance(0, 0, 0, ewma_perf)  # otherwise reset counters
@@ -168,7 +169,8 @@ class RulePerformanceTable:
             rule_perf = self.table[(start_ip, end_ip, hhh_len)].rule_perf
             if rule_perf < performance_threshold:
                 if self.use_cache:
-                    print(f' rejecting rule {str(IPv4Address(start_ip))}/{hhh_len} (perf={rule_perf}); adding to cache')
+                    logging.debug(
+                        f' rejecting rule {str(IPv4Address(start_ip))}/{hhh_len} (perf={rule_perf}); adding to cache')
                     self._add_to_cache(start_ip, end_ip, hhh_len, rule_perf)
 
                 # remove rule from table and return it
@@ -309,8 +311,8 @@ class Loop(object):
 
         self.is_hafner = isinstance(self.actionset, HafnerActionSet)
         self.is_rejection = isinstance(self.actionset, RejectionActionSet)
-        print(f'is rejection: {self.is_rejection}')
-        print(f'is hafner: {self.is_hafner}')
+        logging.info(f'is rejection: {self.is_rejection}')
+        logging.info(f'is hafner: {self.is_hafner}')
         if self.is_rejection:
             self.rule_perf_table = RulePerformanceTable()
 
@@ -321,14 +323,13 @@ class Loop(object):
         self.trace_ended = False
         self.time_index = 0
 
-        # TODO handle start for our traces in a similar way (first action is otherwise based on random initialized obs)
         if self.is_hafner:
             self.actionset.re_roll_phi()
             self.step(0)  # execute one step with randomly chosen phi
             return 0, self.blacklist_history
         else:
             first_action = self.actionset.get_initialization()
-            print(f'first action: {first_action}')
+            logging.info(f'first action: {first_action}')
             self.step(first_action)
             return first_action, self.blacklist_history
 
@@ -350,7 +351,7 @@ class Loop(object):
             hhhs = apply_hafner_heuristic(hhhs)
 
         if self.is_rejection:
-            # print('Setting rules.')
+            logging.debug('Setting rules.')
             # don't remove overlaps (overlapped rules might be useful after rejecting more coarse-grained rules)
             hhhs = self.rule_perf_table.filter_hhhs(hhhs)
             self.rule_perf_table.set_rules(hhhs)
@@ -362,7 +363,7 @@ class Loop(object):
         s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
         if self.use_hhh_distvol:
             self._calc_hhh_distance_metrics(hhhs, s)
-        # print(f'initial number of rules={len(self.blacklist.hhhs)}')
+        logging.debug(f'initial number of rules={len(self.blacklist.hhhs)}')
 
         if self.image_gen is not None:
             s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
@@ -386,7 +387,8 @@ class Loop(object):
             try:
                 p, time_index_finished = self.trace.next()
             except StopIteration:
-                print(f'Encountered StopIteration at time index {self.time_index}, no packet at this time index.')
+                logging.info(
+                    f'Encountered StopIteration at time index {self.time_index}, no packet at this time index.')
                 p = None
                 time_index_finished = True
 
@@ -427,10 +429,10 @@ class Loop(object):
                         else:
                             s.estimated_benign_blocked += 1
                             sampled_benign_blocked_idx += 1
-                            print(f'[sampled] benign blocked: {str(IPv4Address(p.ip))}')
+                            logging.debug(f'[sampled] benign blocked: {str(IPv4Address(p.ip))}')
                     else:
                         if not p.malicious:
-                            print(f'[not sampled] benign blocked: {str(IPv4Address(p.ip))}')
+                            logging.debug(f'[not sampled] benign blocked: {str(IPv4Address(p.ip))}')
                 else:
                     self.hhh.update(p.ip)
                     if self.is_rejection:  # update cache with non-blocked traffic
@@ -443,25 +445,27 @@ class Loop(object):
                         benign_passed_idx += 1
 
             if time_index_finished:
-                # print(f'benign per idx={benign_idx}')
+                logging.debug(f'benign per idx={benign_idx}')
                 interval += 1
                 self.blacklist_history.append(self.blacklist)
                 self.time_index += 1
                 if self.is_rejection:
-                    # self.rule_perf_table.print_rules()
-                    # self.rule_perf_table.print_cache()
+                    logging.debug('end of time index; before rejection and updates')
+                    self.rule_perf_table.print_rules()
+                    self.rule_perf_table.print_cache()
                     estimated_benign_idx = benign_passed_idx + self.weight * sampled_benign_blocked_idx
                     # refresh cached rule performance
-                    # print('Refreshing cache.')
+                    logging.debug('Refreshing cache.')
                     self.rule_perf_table.refresh_cache(s.thresh, estimated_benign_idx)
                     # delete rejected rules
-                    # print('Updating performances for table.')
+                    logging.debug('Updating performances for table.')
                     self.rule_perf_table.refresh_table_perf(estimated_benign_idx)
-                    # print('Rejecting rules.')
+                    logging.debug('Rejecting rules.')
                     for rejected_rule in self.rule_perf_table.get_rejected_rules(s.thresh):
                         start_ip, end_ip, hhh_len = rejected_rule
                         self.blacklist.remove_rule(start_ip, hhh_len)
 
+                    logging.debug('end of time index; after rejection and updates')
                     self.rule_perf_table.print_rules()
                     self.rule_perf_table.print_cache()
 
@@ -487,7 +491,7 @@ class Loop(object):
                 sampled_benign_blocked_idx = 0
                 benign_blocked_idx = 0
 
-        print(f'final number of rules={len(self.blacklist)}')
+        logging.debug(f'final number of rules={len(self.blacklist)}')
 
         s.complete()
 

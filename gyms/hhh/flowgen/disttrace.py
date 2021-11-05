@@ -5,6 +5,7 @@ import gin
 from .distgen import TraceSampler
 from gyms.hhh.packet import Packet
 from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke, SamplerTrafficTrace
+from absl import logging
 
 
 @gin.configurable
@@ -46,7 +47,7 @@ class DistributionTrace(object):
 
         self.samples = self.trace_sampler.samples()
         self.N = self.trace_sampler.num_samples
-        print(f'number of packets next episode: {self.N}')
+        logging.info(f'number of packets next episode: {self.N}')
 
     def __len__(self):
         """

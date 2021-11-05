@@ -2,6 +2,7 @@ from collections import Callable, OrderedDict
 
 import gin
 import tensorflow as tf
+from absl import logging
 from tensorflow.keras.layers import Lambda
 
 from tensorflow.python.keras.optimizer_v2.learning_rate_schedule import ExponentialDecay, LearningRateSchedule, \
@@ -85,7 +86,7 @@ def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func):
     """
     obs_spec = time_step_spec().observation if callable(time_step_spec) else time_step_spec.observation
     if type(obs_spec) is OrderedDict and 'image' in obs_spec and 'hhh_image' in obs_spec:
-        print('setting up CNN!')
+        logging.info('setting up CNN!')
 
         cnn = build_cnn_from_spec(cnn_spec, act_func)
         hhh_cnn = build_cnn_from_spec(cnn_spec, act_func)
@@ -97,7 +98,7 @@ def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func):
         }
         preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
     else:
-        print('not using CNN')
+        logging.info('not using CNN')
         preprocessing_layers = None
         preprocessing_combiner = None
     return preprocessing_combiner, preprocessing_layers

@@ -11,6 +11,8 @@ from numpy.random import default_rng
 
 from gyms.hhh.obs import Observation
 
+from absl import logging
+
 
 class ActionSet(Observation, ABC):
 
@@ -327,14 +329,14 @@ class HafnerActionSet(ActionSet):
 
     def re_roll_phi(self):
         self.current_phi = default_rng().uniform(0.0001, 1.0)
-        print(f're-rolled phi, new: {self.current_phi}')
+        logging.debug(f're-rolled phi, new: {self.current_phi}')
 
     def resolve(self, action):
         self.current_phi = self.possible_actions[action](self.current_phi)
         self.current_phi = np.clip(self.current_phi, 0.0001, 1.0)
         min_prefix = 16  # allow unbounded propagation at query time, use pre-processing for L heuristic
-        print(f'action={action}')
-        print(f'resolved actions=({self.current_phi}, {min_prefix})')
+        logging.debug(f'action={action}')
+        logging.debug(f'resolved actions=({self.current_phi}, {min_prefix})')
         return self.current_phi, min_prefix
 
     def get_observation(self, action):
