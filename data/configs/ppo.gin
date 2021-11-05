@@ -1,26 +1,42 @@
 # basic params
 get_train_loop.alg_name='ppo'
-TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.root_dir='/srv/bachmann/data/ppo'
 TrainLoop.eval_interval = 6000
 TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
 TrainLoop.log_interval = 600
 
 # debug
-TrainLoop.collect_raw = False # TODO warn
+TrainLoop.collect_raw = True # TODO warn
 PPOWrapAgent.sum_grad_vars=False # TODO warn
 
 # state
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+
+RulePerformanceTable.metric='fpr'
+RulePerformanceTable.use_cache=True
+RulePerformanceTable.cache_capacity=100
 
 # action
-TrainLoop.actionset_selection=@TupleActionSet()
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet()
 
 # reward
-HHHEnv.reward_calc=@DefaultRewardCalc()
+#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#MultiplicativeReward.precision_weight=6
+#MultiplicativeReward.recall_weight=1.5
+#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.bl_weight=0.3
+
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=1
+AdditiveRewardCalc.recall_weight=2
+AdditiveRewardCalc.fpr_weight=1.5
+AdditiveRewardCalc.bl_weight=0.15
 
 # trace settings
 DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+TRandomPatternSwitch.random_toggle_time=True
+TRandomPatternSwitch.smooth_transition=True
 Loop.action_interval=10
 
 # generic params
@@ -32,9 +48,9 @@ TrainLoop.num_iterations = 100000
 PPOWrapAgent.gradient_clip=None
 
 # PPO-specific params
-PPOWrapAgent.entropy_regularization=0.01
+PPOWrapAgent.entropy_regularization=0
 PPOWrapAgent.num_epochs=10
-PPOWrapAgent.importance_ratio_clipping=0.1
+PPOWrapAgent.importance_ratio_clipping=0.15
 PpoTrainLoop.num_parallel_envs = 1 # N
 PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
 

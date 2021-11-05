@@ -23,11 +23,15 @@ class RulePerformanceTable:
     CACHE_CAP = 100
     EWMA_WEIGHT = 0.5
 
-    def __init__(self, use_cache, cache_capacity=CACHE_CAP, ewma_weight=EWMA_WEIGHT):
+    def __init__(self, use_cache, metric, cache_capacity=CACHE_CAP, ewma_weight=EWMA_WEIGHT):
         self.RulePerformance = namedtuple('RulePerformance',
                                           ('num_pkt', 'num_mal_pkt', 'num_ben_pkt', 'rule_perf'))
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
         self.table = {}
+
+        assert metric in ['fpr', 'prec']
+        self.metric = metric
+        logging.info(f'using {self.metric} metric for rule performance')
 
         self.use_cache = use_cache
         logging.info(f'using cache: {self.use_cache} (capacity={cache_capacity})')
@@ -81,6 +85,15 @@ class RulePerformanceTable:
             if start_ip <= id <= end_ip:
                 self._update_entry_in(self.table, start_ip, end_ip, hhh_len, is_malicious, num=num)
 
+    def _compute_rule_performance(self, n, nb, nm, total_benign):
+        if self.metric == 'fpr':
+            rule_fpr = nb / total_benign if total_benign != 0 else 0.0
+            return max(0, 1 - rule_fpr)
+        elif self.metric == 'prec':
+            return nm / n if n != 0 else 1.0
+        else:
+            raise ValueError(f'Unexpected metric for rule performance: {self.metric}')
+
     def _update_entry_in(self, table_to_update, start_ip, end_ip, hhh_len, is_malicious, num):
         """
         Updates the counters of a given rule in a given table without re-computing the rule performance.
@@ -106,13 +119,7 @@ class RulePerformanceTable:
         """
         for rule in self.table.keys():
             n, nm, nb, _ = self.table[rule]
-
-            # rule_prec = nm / n if n != 0 else 1.0
-            # rule_perf = rule_prec
-
-            rule_fpr = nb / total_benign if total_benign != 0 else 0.0
-            rule_perf = max(0, 1 - rule_fpr)
-
+            rule_perf = self._compute_rule_performance(n, nm, nb, total_benign)
             self.table[rule] = self.RulePerformance(n, nm, nb, rule_perf)
 
     def _add_to_cache(self, start_ip, end_ip, hhh_len, rule_perf):
@@ -151,11 +158,7 @@ class RulePerformanceTable:
             if n == 0:  # no packet applied to this rule, incentivize deletion of this rule
                 new_perf = 1.0
             else:
-                # new_rule_prec = nm / n
-                # new_perf = new_rule_prec
-
-                new_rule_fpr = nb / total_benign if total_benign != 0 else 0.0
-                new_perf = max(0, 1 - new_rule_fpr)
+                new_perf = self._compute_rule_performance(n, nm, nb, total_benign)
             ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
             if ewma_perf >= perf_thresh:
                 logging.debug(

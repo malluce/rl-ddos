@@ -1,22 +1,39 @@
 # basic params
 get_train_loop.alg_name='dqn'
-TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+TrainLoop.root_dir='/srv/bachmann/data/dqn'
 TrainLoop.eval_interval = 3000
-TrainLoop.num_eval_episodes = 5
+TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
+TrainLoop.collect_raw = True # TODO warn
+
+RulePerformanceTable.metric='fpr'
+RulePerformanceTable.use_cache=True
+RulePerformanceTable.cache_capacity=100
 
 # state
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@VeryLargeDiscreteActionSet()
+TrainLoop.actionset_selection=@DiscreteRejectionActionSet() #@DiscreteRejectionActionSetWithL()
 
 # reward
-HHHEnv.reward_calc=@DefaultRewardCalc()
+#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#MultiplicativeReward.precision_weight=6
+#MultiplicativeReward.recall_weight=1.5
+#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.bl_weight=0.3
+
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=0
+AdditiveRewardCalc.recall_weight=2
+AdditiveRewardCalc.fpr_weight=1
+AdditiveRewardCalc.bl_weight=0.15
 
 # trace settings
 DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+TRandomPatternSwitch.random_toggle_time=True
+TRandomPatternSwitch.smooth_transition=True
 Loop.action_interval=10
 
 # generic params
@@ -27,19 +44,19 @@ DQNWrapAgent.eps_greedy=1.0
 DQNWrapAgent.eps_greedy_end=0.0
 DQNWrapAgent.eps_greedy_steps=75000
 TrainLoop.gamma=0
-TrainLoop.num_iterations = 300000
+TrainLoop.num_iterations = 150000
 TrainLoop.batch_size = 64
 TrainLoop.replay_buf_size = 150000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 
 # NN
-#DQNWrapAgent.use_rnn=True
-TrainLoop.train_sequence_length=1
-#DQNWrapAgent.rnn_input_layers=(200, 200)
-#DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
-#DQNWrapAgent.rnn_output_layers=(200,)
-DQNWrapAgent.q_layers=(200,200,200)
+DQNWrapAgent.use_rnn=True
+TrainLoop.train_sequence_length=10
+DQNWrapAgent.rnn_input_layers=(200, 200)
+DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
+DQNWrapAgent.rnn_output_layers=(200,)
+#DQNWrapAgent.q_layers=(200,200,200)
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
