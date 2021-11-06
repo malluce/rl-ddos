@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pandas
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_rgb
 
 from gyms.hhh.env import pattern_ids_to_pattern_sequence
 
@@ -32,27 +33,34 @@ def plot_training(environment_file_path: str, pattern):
         plot_train_for_pattern(env_csv, environment_file_path, pat)
 
 
-def plot_train_for_pattern(env_csv, environment_file_path, pat):
-    print('========== TRAIN =========')
-    pat_csv = filter_by_pattern(env_csv, pat)
-    m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
-    print(f'{m}')
+def print_csv_stats(csv):
+    # m = csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
+    # print(f'{m}')
     # plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
     # plt.yscale('log')
     # plt.show()
-    m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
-    print(f'{m}')
-    m = pat_csv['Precision'].mean()
+    # m = csv.groupby(['BlackSize']).size().sort_values(ascending=False)
+    # print(f'{m}')
+    m = csv['Precision'].mean()
     print(f'precision avg={m}')
-    m = pat_csv['Recall'].mean()
+    m = csv['Recall'].mean()
     print(f'recall avg={m}')
-    m = pat_csv['Reward'].mean()
+    m = csv['Reward'].mean()
     print(f'reward avg={m}')
-    m = pat_csv['Phi'].mean()
+    m = csv['Phi'].mean()
     print(f'phi avg={m}')
-    m = pat_csv['BlackSize'].mean()
+    m = csv['BlackSize'].mean()
     print(f'blacksize avg={m}')
+    m = csv['FPR'].mean()
+    print(f'fpr avg={m}')
+
+
+def plot_train_for_pattern(env_csv, environment_file_path, pat):
+    print('========== TRAIN =========')
+    pat_csv = filter_by_pattern(env_csv, pat)
+    # print_csv_stats(pat_csv)
     grouped_by_episode = pat_csv.groupby(['Episode'])
+
     mean = grouped_by_episode.mean()
     quantiles = get_quantiles(grouped_by_episode)
     run_id = environment_file_path.split('/')[-4]
@@ -89,7 +97,7 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
 
         base_title = title if title is not None else col
 
-        title = '{} (avg={:3.2f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
+        title = '{} (avg={:3.3f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
         ax.set_title(title)
 
         median_color = 'navy' if idx == 0 else 'red'
@@ -130,9 +138,7 @@ def filter_by_pattern(environment_csv, pattern):
 
 
 def get_rows_with_episode_in(environment_csv, episodes):
-    filtered_rows = environment_csv.loc[environment_csv['Episode'].isin(episodes),
-                    :]  # get rows where episode in episodes
-    return filtered_rows.groupby(['Step'])  # return all columns grouped for each step
+    return environment_csv.loc[environment_csv['Episode'].isin(episodes), :]  # get rows where episode in episodes
 
 
 def plot_episode_behavior(environment_file_path, pattern, window: Tuple[int, int]):
@@ -157,39 +163,87 @@ def get_patterns(env_csv, pattern):
     return patterns
 
 
+def plot_time_index(last, metric, ax, label):
+    new_df = last.loc[:, ['Episode', 'Step', metric]]
+
+    new_df = pd.DataFrame(
+        pd.DataFrame(data=new_df[metric].str.split(';').tolist(),
+                     index=[last.Episode, last.Step]).stack(), columns=[metric])
+    new_df.index = new_df.index.set_names(['Episode', 'Step', 'Index'])
+    new_df.reset_index(inplace=True)
+    if metric == 'CacheIdx':
+        new_df[metric] = new_df[metric].apply(
+            lambda x: sum(
+                map(lambda z: int(z[1]) if len(z) == 2 else 0, map(lambda y: y.split(':'), x.split('-')))))
+    new_df = new_df.astype(float)
+    new_df['Index'] = new_df['Index'] + new_df['Step'] * 10
+    new_df_grouped = new_df.loc[:, ['Index', metric]].groupby(['Index'])
+    new_df_mean = new_df_grouped.mean()
+    new_df_quantiles = get_quantiles(new_df_grouped)
+
+    lines = ax.plot(new_df_mean, linewidth=1.5, label=label)
+    plot_color = to_rgb(lines[0].get_color())
+    for quantile in new_df_quantiles:
+        q, quantile_value = quantile
+        alpha = 0.7 - 1.5 * abs(0.5 - q)
+
+        color = (plot_color[0], plot_color[1], plot_color[2], alpha)  # RGBA
+        y = new_df_mean.loc[:, metric]
+        y_err = quantile_value.loc[:, metric]
+        ax.fill_between(range(len(new_df_grouped.groups)), y, y_err,
+                        edgecolor=color,
+                        facecolor=color)
+
+    ax.vlines(range(0, int(new_df['Index'].max()), 10), ymin=0, ymax=new_df_mean.max(), linestyles='--',
+              linewidth=1, alpha=0.6)
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0)
+    ax.legend()
+
+
 def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
-    pat_csv = filter_by_pattern(env_csv, pat)
     print('========== EVAL =========')
     pat_csv = filter_by_pattern(env_csv, pat)
-    m = pat_csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
-    print(f'{m}')
-    # plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
-    # plt.yscale('log')
-    # plt.show()
-    m = pat_csv.groupby(['BlackSize']).size().sort_values(ascending=False)
-    print(f'{m}')
-    m = pat_csv['Precision'].mean()
-    print(f'precision avg={m}')
-    m = pat_csv['Recall'].mean()
-    print(f'recall avg={m}')
-    m = pat_csv['Reward'].mean()
-    print(f'reward avg={m}')
-    m = pat_csv['Phi'].mean()
-    print(f'phi avg={m}')
-    m = pat_csv['BlackSize'].mean()
-    print(f'blacksize avg={m}')
+    print_csv_stats(pat_csv)
     eps = pat_csv.loc[:, 'Episode']
     unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
     eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
     last = get_rows_with_episode_in(pat_csv, eps_to_show)
-    last_median = last.median()
-    last_means = last.mean()
-    last_quantiles = get_quantiles(last)
+
+    # title
     run_id = environment_file_path.split('/')[-4]
     title = f'{window[0] - window[1]} eval episodes (first:{unique_eps[len(unique_eps) - window[0]]}, last:{unique_eps[len(unique_eps) - window[1] - 1]}) \n {run_id}'
     if pat is not None:
         title += f'\n (pattern={pat})'
-    # plot common data
+
+    # plot per time idx
+    if all(map(lambda x: x in last.columns, ['PrecisionIdx', 'FPRIdx', 'RecallIdx', 'BlackSizeIdx', 'CacheIdx'])):
+        fig: plt.Figure = plt.figure(figsize=(16, 9))
+        for idx, val in enumerate(
+                zip(['CacheIdx', 'BlackSizeIdx'], ['Cache Utilization', 'Number of Filter Rules'])):
+            metric, label = val
+            ax: plt.Axes = fig.add_subplot(2, 1, idx + 1)
+            ax.set_xlabel('time index')
+            plot_time_index(last, metric, ax, label=label)
+        fig.suptitle(title)
+        plt.show()
+
+        fig: plt.Figure = plt.figure(figsize=(16, 9))
+        for idx, val in enumerate(
+                zip(['PrecisionIdx', 'RecallIdx', 'FPRIdx'], ['Precision', 'Recall', 'False positive rate'])):
+            metric, label = val
+            ax: plt.Axes = fig.add_subplot(3, 1, idx + 1)
+            ax.set_xlabel('time index')
+            plot_time_index(last, metric, ax, label=label)
+        fig.suptitle(title)
+        plt.show()
+
+    last = last.groupby(['Step'])  # return all columns grouped for each step
+    last_median = last.median()
+    last_means = last.mean()
+    last_quantiles = get_quantiles(last)
+
+    # plot per time step
     create_plots(last_median, last_quantiles,
                  title=title,
                  x_label='step',
@@ -201,11 +255,12 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
     fig: plt.Figure = plt.figure(figsize=(16, 8))
     title_means = defaultdict(lambda: None)
     if means_for_title is not None:
-        for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward']:
+        for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh']:
             title_means[col] = means_for_title[col].mean()
-    plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
+    plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['Phi'])
     plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label)
-    if 'Thresh' in data:
+    if 'Thresh' in data and data['Thresh'].max() > -1:
         plot(fig, data, quantiles, ['Thresh'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
              mean_for_title=title_means['Thresh'], title='Performance Threshold')
         offset = 1
@@ -299,19 +354,48 @@ def plot_training_kickoff(environment_file_path: str):
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
 
-    ds_base = '/srv/bachmann/data/hafner/dqn_20210930-072309/datastore'
-    ds_base = '/srv/bachmann/data/ppo/ppo_20211005-141248/datastore'
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211008-064042/datastore'
-    if ds_base.split('/')[-2].startswith('ppo'):
-        train_dir = 'train1'
-    else:
-        train_dir = 'train'
-    train_path = os.path.join(ds_base, train_dir, 'environment.csv')
-    eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
-    paths_exist = os.path.exists(train_path) and os.path.exists(eval_path)
-    if not paths_exist:
-        raise ValueError('Paths do not exist')
 
-    pattern = 'ntp->ssdp'
-    plot_training(environment_file_path=train_path, pattern=pattern)
-    plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=(30, 2))
+    def plot_hl(ds_base, pattern, window):
+        if ds_base.split('/')[-2].startswith('ppo'):
+            train_dir = 'train1'
+        else:
+            train_dir = 'train'
+        train_path = os.path.join(ds_base, train_dir, 'environment.csv')
+        eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
+        paths_exist = os.path.exists(train_path) and os.path.exists(eval_path)
+        if not paths_exist:
+            raise ValueError('Paths do not exist')
+
+        plot_training(environment_file_path=train_path, pattern=pattern)
+        plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=window)
+
+
+    first_pattern = 'bot'
+    second_pattern = 'bot'
+
+    pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
+    window = (1, 0)
+    # pattern = None
+
+    # cap=100
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211106-091108/datastore'
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20211106-091143/datastore'
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-161136/datastore'
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-161029/datastore'
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-125019/datastore'
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211030-130706/datastore'
+    plot_hl(ds_base, pattern, window)
+
+    ## cap=10
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211031-105120/datastore'
+    ds_base = '/srv/bachmann/data/ppo/ppo_20211030-132151/datastore'
+    # plot_hl(ds_base, pattern=pattern, window=window)
+
+    ## cap=1
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211031-105245/datastore'
+    ds_base = '/srv/bachmann/data/ppo/ppo_20211102-073630/datastore'
+    # plot_hl(ds_base, pattern=pattern, window=window)
+
+    ## no cache
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211102-090601/datastore'
+    # plot_hl(ds_base, pattern=pattern, window=window)
