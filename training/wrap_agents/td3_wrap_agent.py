@@ -3,18 +3,16 @@ from typing import Any, List, Optional, Tuple
 
 import gin
 import tf_agents.utils.common
-from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tf_agents.agents import Td3Agent
-from tf_agents.agents.ddpg.actor_network import ActorNetwork
 from tf_agents.agents.ddpg.actor_rnn_network import ActorRnnNetwork
-from tf_agents.agents.ddpg.critic_network import CriticNetwork
 from tf_agents.agents.ddpg.critic_rnn_network import CriticRnnNetwork
 from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.typing import types
-from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
-from training.wrap_agents.util import get_optimizer
+from agents.nets.ddpg_actor_network import ActorNetwork
+from agents.nets.ddpg_critic_network import CriticNetwork
+from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
 
@@ -36,32 +34,45 @@ class TD3WrapAgent(Td3Agent, WrapAgent):
                  # critic
                  use_crt_rnn=False, rnn_crt_act_fc_layers=None, rnn_crt_obs_fc_layers=(200,),
                  rnn_crt_joint_fc_layers=(300,),
-                 rnn_crt_lstm_size=(50,), rnn_crt_out_fc_layers=(200,)
+                 rnn_crt_lstm_size=(50,), rnn_crt_out_fc_layers=(200,),
+                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu
                  ):
-        # set actor net
+
         self.gamma = gamma
-        actor_net = None
+
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
+
+        # set actor net
         if use_act_rnn:
+            # TODO preprocessing for RNN
             actor_net = ActorRnnNetwork(time_step_spec.observation, action_spec,
                                         input_fc_layer_params=rnn_act_in_fc_layers,
-                                        lstm_size=rnn_act_lstm_size, output_fc_layer_params=rnn_act_out_fc_layers)
+                                        lstm_size=rnn_act_lstm_size, output_fc_layer_params=rnn_act_out_fc_layers,
+                                        preprocessing_combiner=preprocessing_combiner,
+                                        preprocessing_layers=preprocessing_layers)
         else:
-            actor_net = ActorNetwork(time_step_spec.observation, action_spec, actor_layers)
+            actor_net = ActorNetwork(time_step_spec.observation, action_spec, actor_layers,
+                                     preprocessing_layers=preprocessing_layers,
+                                     preprocessing_combiner=preprocessing_combiner)
 
         # set critic net
-        critic_net = None
         if use_crt_rnn:
+            # TODO preprocessing for RNN
             critic_net = CriticRnnNetwork((time_step_spec.observation, action_spec),
                                           observation_fc_layer_params=rnn_crt_obs_fc_layers,
                                           action_fc_layer_params=rnn_crt_act_fc_layers,
                                           joint_fc_layer_params=rnn_crt_joint_fc_layers,
                                           lstm_size=rnn_crt_lstm_size,
-                                          output_fc_layer_params=rnn_crt_out_fc_layers)
+                                          output_fc_layer_params=rnn_crt_out_fc_layers,
+                                          preprocessing_layers=preprocessing_layers,
+                                          preprocessing_combiner=preprocessing_combiner)
         else:
             critic_net = CriticNetwork((time_step_spec.observation, action_spec),
                                        observation_fc_layer_params=critic_obs_layers,
                                        action_fc_layer_params=critic_act_layers,
-                                       joint_fc_layer_params=critic_joint_layers
+                                       joint_fc_layer_params=critic_joint_layers,
+                                       preprocessing_layers=preprocessing_layers,
+                                       preprocessing_combiner=preprocessing_combiner
                                        )
 
         # set lr (decay)

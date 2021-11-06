@@ -1,54 +1,63 @@
-# env params
-TrainLoop.root_dir='/home/bachmann/test-pycharm/data'
+# basic params
+get_train_loop.alg_name='td3'
+TrainLoop.root_dir='/srv/bachmann/data/td3'
+TrainLoop.eval_interval = 3000
+TrainLoop.num_eval_episodes = 9
+TrainLoop.log_interval = 600
+TrainLoop.collect_raw = True # TODO warn
+
+RulePerformanceTable.metric='fpr'
+RulePerformanceTable.use_cache=True
+RulePerformanceTable.cache_capacity=100
+
+# state
 TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(), @MinMaxBlockedAddress(), @DistVol(), @FalsePositiveRate())
-TrainLoop.actionset_selection=@ContinuousActionSet()
-TrainLoop.trace_length=100 #600
-TrainLoop.train_sequence_length=1 #10
-DistributionTrace.num_benign_flows=25 #500
-DistributionTrace.num_attack_flows=50 #1000
+TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+
+# action
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet() #@DiscreteRejectionActionSetWithL()
+
+# reward
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=0
+AdditiveRewardCalc.recall_weight=1.5
+AdditiveRewardCalc.fpr_weight=1.5
+AdditiveRewardCalc.bl_weight=0.15
+
+# trace settings
+DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+TRandomPatternSwitch.random_toggle_time=True
+TRandomPatternSwitch.smooth_transition=True
+Loop.action_interval=10
 
 
 ## agent params
-get_train_loop.alg_name='td3'
 # actor
 TD3WrapAgent.use_act_rnn=False
-#TD3WrapAgent.use_act_rnn=True
-#TD3WrapAgent.rnn_act_in_fc_layers=(400, 300)
-#TD3WrapAgent.rnn_act_out_fc_layers=(200,)
-#TD3WrapAgent.rnn_act_lstm_size=(128,)
 # critic
 TD3WrapAgent.use_crt_rnn=False
-#TD3WrapAgent.use_crt_rnn=True
-#TD3WrapAgent.rnn_crt_act_fc_layers=None
-#TD3WrapAgent.rnn_crt_obs_fc_layers=(300,)
-#TD3WrapAgent.rnn_crt_joint_fc_layers=(300,)
-#TD3WrapAgent.rnn_crt_lstm_size=(128,)
-#TD3WrapAgent.rnn_crt_out_fc_layers=(64,)
 # lr
-TD3WrapAgent.actor_lr=1e-5
-TD3WrapAgent.actor_lr_decay_steps=20000
-TD3WrapAgent.actor_lr_decay_rate=0.96
-TD3WrapAgent.critic_lr=1e-5
-TD3WrapAgent.critic_lr_decay_steps=20000
-TD3WrapAgent.critic_lr_decay_rate=0.96
+TD3WrapAgent.actor_lr=1e-3
+TD3WrapAgent.critic_lr=1e-3
 # exploration
-TD3WrapAgent.exploration_noise_std=0.2
+TD3WrapAgent.exploration_noise_std=0.1
 # updates
-TD3WrapAgent.target_update_tau=0.05 #1e-3
+TD3WrapAgent.target_update_tau=5e-3
 TD3WrapAgent.target_update_period=2
 TD3WrapAgent.actor_update_period=2
-# discount
-TD3WrapAgent.gamma=0.99
 # target policy
-TD3WrapAgent.target_policy_noise=0.2#0.2
+TD3WrapAgent.target_policy_noise=0.2
 TD3WrapAgent.target_policy_clip=0.5
 
 # train params
+TrainLoop.gamma=0
 TrainLoop.num_iterations = 200000
-TrainLoop.eval_interval = 6000
-TrainLoop.num_eval_episodes = 5
-TrainLoop.batch_size = 2048
-TrainLoop.replay_buf_size = 100000
+TrainLoop.batch_size = 100
+TrainLoop.replay_buf_size = 200000
 TrainLoop.initial_collect_steps = 1200
-TrainLoop.log_interval = 600
+
+
+# CNN parameters
+include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+TD3WrapAgent.cnn_spec=%cnn_256
+TD3WrapAgent.cnn_act_func=@tf.keras.activations.relu

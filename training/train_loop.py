@@ -291,7 +291,7 @@ class Td3TrainLoop(TrainLoop):
 
     def __init__(self, env_name: str):
         super(Td3TrainLoop, self).__init__(env_name=env_name,
-                                           supports_action_histogram=True)  # remainder of parameters are set via gin
+                                           supports_action_histogram=False)  # remainder of parameters are set via gin
 
     def _get_alg_name(self):
         return 'td3'

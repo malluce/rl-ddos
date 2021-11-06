@@ -23,7 +23,7 @@ returned.
 import gin
 import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
-from tf_agents.networks import network
+from tf_agents.networks import encoding_network, network
 from tf_agents.utils import common
 import agents.nets.ddpg_utils as utils
 
@@ -39,6 +39,8 @@ class ActorNetwork(network.Network):
                  dropout_layer_params=None,
                  conv_layer_params=None,
                  activation_fn=tf.keras.activations.relu,
+                 preprocessing_layers=None,
+                 preprocessing_combiner=None,
                  name='ActorNetwork'):
         """Creates an instance of `ActorNetwork`.
 
@@ -73,46 +75,38 @@ class ActorNetwork(network.Network):
             state_spec=(),
             name=name)
 
-        if len(tf.nest.flatten(input_tensor_spec)) > 1:
-            raise ValueError('Only a single observation is supported by this network')
+        self._action_spec = tf.nest.flatten(output_tensor_spec)
 
-        flat_action_spec = tf.nest.flatten(output_tensor_spec)
-        if len(flat_action_spec) > 1:
-            raise ValueError('Only a single action is supported by this network')
-        self._single_action_spec = flat_action_spec[0]
-
-        if self._single_action_spec.dtype not in [tf.float32, tf.float64]:
-            raise ValueError('Only float actions are supported by this network.')
-
-        # TODO(kbanoop): Replace mlp_layers with encoding networks.
-        self._mlp_layers = utils.mlp_layers(
-            conv_layer_params,
-            fc_layer_params,
-            dropout_layer_params,
+        self._encoder = encoding_network.EncodingNetwork(
+            input_tensor_spec,
+            preprocessing_layers=preprocessing_layers,
+            preprocessing_combiner=preprocessing_combiner,
+            conv_layer_params=conv_layer_params,
+            fc_layer_params=fc_layer_params,
+            dropout_layer_params=dropout_layer_params,
             activation_fn=activation_fn,
-            kernel_initializer=tf.compat.v1.keras.initializers.VarianceScaling(
-                scale=1. / 3., mode='fan_in', distribution='uniform'),
-            batch_normalization=True,  # added by hauke
-            name='input_mlp')
+            kernel_initializer=tf.compat.v1.keras.initializers.glorot_uniform(),
+            batch_squash=True,
+            dtype=tf.float32)
 
-        self._mlp_layers.append(
-            tf.keras.layers.Dense(
-                flat_action_spec[0].shape.num_elements(),
-                activation=tf.keras.activations.tanh,
-                kernel_initializer=tf.keras.initializers.RandomUniform(
-                    minval=-0.003, maxval=0.003),
-                name='action'))
+        self._last_layer = tf.keras.layers.Dense(
+            self._action_spec[0].shape[0],
+            activation=tf.keras.activations.tanh,
+            kernel_initializer=tf.keras.initializers.RandomUniform(
+                minval=-0.003, maxval=0.003),
+            name='custom-actions')
 
         self._output_tensor_spec = output_tensor_spec
 
     def call(self, observations, step_type=(), network_state=(), training=False):
-        del step_type  # unused.
-        observations = tf.nest.flatten(observations)
-        output = tf.cast(observations[0], tf.float32)
-        for layer in self._mlp_layers:
-            output = layer(output, training=training)
+        state, network_state = self._encoder(
+            observations,
+            step_type=step_type,
+            network_state=network_state,
+            training=training)
 
-        actions = common.scale_to_spec(output, self._single_action_spec)
+        state = self._last_layer(state, training=training)
+        actions = common.scale_to_spec(state, self._action_spec[0])
         output_actions = tf.nest.pack_sequence_as(self._output_tensor_spec,
                                                   [actions])
 
