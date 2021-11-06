@@ -88,6 +88,7 @@ class RulePerformanceTable:
     def _compute_rule_performance(self, n, nb, nm, total_benign):
         if self.metric == 'fpr':
             rule_fpr = nb / total_benign if total_benign != 0 else 0.0
+            print(nb, total_benign, rule_fpr, max(0, 1 - rule_fpr))
             return max(0, 1 - rule_fpr)
         elif self.metric == 'prec':
             return nm / n if n != 0 else 1.0
@@ -119,7 +120,7 @@ class RulePerformanceTable:
         """
         for rule in self.table.keys():
             n, nm, nb, _ = self.table[rule]
-            rule_perf = self._compute_rule_performance(n, nm, nb, total_benign)
+            rule_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
             self.table[rule] = self.RulePerformance(n, nm, nb, rule_perf)
 
     def _add_to_cache(self, start_ip, end_ip, hhh_len, rule_perf):
@@ -158,7 +159,7 @@ class RulePerformanceTable:
             if n == 0:  # no packet applied to this rule, incentivize deletion of this rule
                 new_perf = 1.0
             else:
-                new_perf = self._compute_rule_performance(n, nm, nb, total_benign)
+                new_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
             ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
             if ewma_perf >= perf_thresh:
                 logging.debug(
