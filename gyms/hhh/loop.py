@@ -88,7 +88,6 @@ class RulePerformanceTable:
     def _compute_rule_performance(self, n, nb, nm, total_benign):
         if self.metric == 'fpr':
             rule_fpr = nb / total_benign if total_benign != 0 else 0.0
-            print(nb, total_benign, rule_fpr, max(0, 1 - rule_fpr))
             return max(0, 1 - rule_fpr)
         elif self.metric == 'prec':
             return nm / n if n != 0 else 1.0
