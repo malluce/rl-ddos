@@ -155,11 +155,12 @@ class RulePerformanceTable:
         for rule in list(self.cache):
             # update perf via EWMA
             n, nm, nb, old_perf = self.cache[rule]
-            if n == 0:  # no packet applied to this rule, incentivize deletion of this rule
-                new_perf = 1.0
+            if n == 0:  # no packet applied to this rule, don't change EWMA performance
+                ewma_perf = old_perf
             else:
                 new_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
-            ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
+                ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
+
             if ewma_perf >= perf_thresh:
                 logging.debug(
                     f' removing rule {str(IPv4Address(rule[0]))}/{rule[2]} from cache because it got better {n, nm, nb, ewma_perf}')
