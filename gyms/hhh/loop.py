@@ -186,18 +186,34 @@ class Blacklist(object):
 
     def __init__(self, hhhs):
         self.hhhs = hhhs
+        self.match_counter = np.zeros_like(self.hhhs, dtype=int)
         self._compute_filter_bitmap()
 
     def _compute_filter_bitmap(self):
         # set up bitmap that indicates whether each IP gets blocked or not
         self.filter_bitmap = np.full((2 ** Loop.ADDRESS_SPACE), False)
-        for h in self.hhhs:
+
+        # set up bit-matrix that indicates whether each IP is covered by HHH
+        self.hhh_map = np.full((2 ** Loop.ADDRESS_SPACE, len(self.hhhs)), False)
+
+        for idx, h in enumerate(self.hhhs):
             start = h.id
             end = start + Label.subnet_size(h.len)
             self.filter_bitmap[start:end] = True
+            self.hhh_map[start:end, idx] = True
 
     def covers(self, ip):
         return self.filter_bitmap[ip]
+
+    def should_be_sampled(self, ip, sampling_weight):
+        # get all HHH indices that cover ip
+        ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :] == np.max(self.hhh_map[ip, :]))
+
+        # increase match counter
+        self.match_counter[ip_covering_hhhs] += 1
+
+        # ip should be sampled if at least one matching HHH reached sample counter
+        return np.max(self.match_counter[ip_covering_hhhs] % sampling_weight == 0)
 
     def __len__(self):
         return len(self.hhhs)
@@ -419,10 +435,9 @@ class Loop(object):
                     else:
                         benign_blocked_idx += 1
 
-                    rand = np.random.random()
-                    if rand < self.sampling_rate:
+                    if self.blacklist.should_be_sampled(p.ip, self.weight):
                         s.samples += 1
-                        self.hhh.update(p.ip, int(self.weight))
+                        self.hhh.update(p.ip, self.weight)
                         if self.is_rejection:
                             self.rule_perf_table.update(p.ip, p.malicious, num=self.weight)
                             self.rule_perf_table.update_cache(p.ip, p.malicious, num=self.weight)
@@ -499,6 +514,7 @@ class Loop(object):
                 benign_blocked_idx = 0
 
         logging.debug(f'final number of rules={len(self.blacklist)}')
+        logging.debug(f'samples per timestep={s.samples}')
 
         s.complete()
 
