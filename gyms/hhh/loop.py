@@ -480,11 +480,14 @@ class Loop(object):
                     s.fpr_per_idx.append((benign_blocked_idx / benign_idx) if benign_idx != 0 else 0.0)
                     s.blacksize_per_idx.append(len(self.blacklist))
 
-                    len_to_count = defaultdict(lambda: 0)
-                    for start_ip, end_ip, hhh_len in self.rule_perf_table.cache.keys():
-                        len_to_count[hhh_len] += 1
+                    if self.rule_perf_table.use_cache:
+                        len_to_count = defaultdict(lambda: 0)
+                        for start_ip, end_ip, hhh_len in self.rule_perf_table.cache.keys():
+                            len_to_count[hhh_len] += 1
 
-                    s.cache_per_idx.append(len_to_count if self.rule_perf_table.use_cache else None)
+                        s.cache_per_idx.append(len_to_count if self.rule_perf_table.use_cache else None)
+                    else:
+                        s.cache_per_idx = None
 
                 benign_idx = 0
                 malicious_idx = 0

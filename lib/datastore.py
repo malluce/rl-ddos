@@ -72,17 +72,22 @@ class Datastore(object):
                 result += f';{formatted}' if idx != 0 else formatted
             return result
 
-        def cache_to_csv_string(cache):
-            result = ''
-            for idx, len_to_count in enumerate(cache):
-                if len_to_count is None:
-                    result += f';{None}' if idx != 0 else None
-                else:
-                    if idx != 0:
-                        result += ';'
-                    for idx2, length in enumerate(len_to_count):
-                        count = len_to_count[length]
-                        result += f'-{length}:{count}' if idx2 != 0 else f'{length}:{count}'
+        def cache_to_csv_string(cache, num_time_idx):
+            if cache is None:
+                result = '0'
+                for _ in range(num_time_idx - 1):
+                    result += ';0'
+            else:
+                result = ''
+                for idx, len_to_count in enumerate(cache):
+                    if len_to_count is None:
+                        result += f';0' if idx != 0 else 0
+                    else:
+                        if idx != 0:
+                            result += ';'
+                        for idx2, length in enumerate(len_to_count):
+                            count = len_to_count[length]
+                            result += f'-{length}:{count}' if idx2 != 0 else f'{length}:{count}'
             return result
 
         return '{:5d}, {:5.1f}, {:7.3f}, {}, {}, {}, {:7.3f},{:7.3f},{:7.5f}, {:5.3f}, {:2d}, {:5.3f}, {:5.3f}, ' \
@@ -99,7 +104,7 @@ class Datastore(object):
             list_to_csv_string(state.fpr_per_idx, '{:5.3f}'),
             list_to_csv_string(state.recall_per_idx, '{:5.3f}'),
             list_to_csv_string(state.blacksize_per_idx, '{}'),
-            cache_to_csv_string(state.cache_per_idx))
+            cache_to_csv_string(state.cache_per_idx, len(state.fpr_per_idx)))
 
     class NumpyWriter(object):
         """ An asynchronous writer to avoid blocking the main env thread
