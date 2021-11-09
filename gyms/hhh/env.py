@@ -159,7 +159,7 @@ class HHHEnv(gym.Env):
                                    'combined_{}'.format(self.episode))
             self.ds.add_numpy_data(self.loop.trace.trace_sampler.attack_grid,
                                    'attack_{}'.format(self.episode))
-            self.ds.add_blacklist([b.to_serializable() for b in self.blacklists],
+            self.ds.add_blacklist(self.blacklists,
                                   'blacklist_{}'.format(self.episode))
 
             self.ds.add_episode(self.episode, 0, source_seq, rate_seq, change_id,

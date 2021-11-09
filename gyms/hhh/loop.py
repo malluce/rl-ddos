@@ -10,6 +10,7 @@ from gym.spaces import Box, Discrete, MultiDiscrete
 from math import log2, log10, sqrt, exp
 
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
+from numpy.random import default_rng
 
 from gyms.hhh.actionset import HafnerActionSet, RejectionActionSet
 from gyms.hhh.images import ImageGenerator
@@ -155,11 +156,11 @@ class RulePerformanceTable:
         for rule in list(self.cache):
             # update perf via EWMA
             n, nm, nb, old_perf = self.cache[rule]
-            if n == 0:  # no packet applied to this rule, don't change EWMA performance
-                ewma_perf = old_perf
+            if n == 0:  # no packet applied to this rule, incentivize deletion of rule to free up cache capacity
+                new_perf = 1.0
             else:
                 new_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
-                ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
+            ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
 
             if ewma_perf >= perf_thresh:
                 logging.debug(
@@ -184,23 +185,32 @@ class RulePerformanceTable:
 
 class Blacklist(object):
 
-    def __init__(self, hhhs):
-        self.hhhs = hhhs
-        self.match_counter = np.zeros_like(self.hhhs, dtype=int)
+    def __init__(self, hhhs, sampling_weight):
+        self.initial_hhhs = np.array(hhhs)
+        self.hhh_enabled = np.full((len(self.initial_hhhs)), True)  # bitmap: HHH in initial_hhhs enabled?
+
+        self.match_counter = np.zeros_like(self.initial_hhhs, dtype=int)
+        self.sample_counter = np.zeros_like(self.initial_hhhs, dtype=int)
+        self.sample_modulus = default_rng().choice(range(0, sampling_weight), size=len(self.initial_hhhs))
+
         self._compute_filter_bitmap()
+
+    def get_enabled_hhhs(self):
+        return self.initial_hhhs[self.hhh_enabled]
 
     def _compute_filter_bitmap(self):
         # set up bitmap that indicates whether each IP gets blocked or not
         self.filter_bitmap = np.full((2 ** Loop.ADDRESS_SPACE), False)
 
         # set up bit-matrix that indicates whether each IP is covered by HHH
-        self.hhh_map = np.full((2 ** Loop.ADDRESS_SPACE, len(self.hhhs)), False)
+        self.hhh_map = np.full((2 ** Loop.ADDRESS_SPACE, len(self.initial_hhhs)), False)
 
-        for idx, h in enumerate(self.hhhs):
-            start = h.id
-            end = start + Label.subnet_size(h.len)
-            self.filter_bitmap[start:end] = True
-            self.hhh_map[start:end, idx] = True
+        for idx, h in enumerate(self.initial_hhhs):
+            if self.hhh_enabled[idx]:
+                start = h.id
+                end = start + Label.subnet_size(h.len)
+                self.filter_bitmap[start:end] = True
+                self.hhh_map[start:end, idx] = True
 
     def covers(self, ip):
         return self.filter_bitmap[ip]
@@ -209,23 +219,41 @@ class Blacklist(object):
         # get all HHH indices that cover ip
         ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :] == np.max(self.hhh_map[ip, :]))
 
+        # ip should be sampled if at least one matching HHH reached sample counter
+        do_sample = np.max(
+            self.match_counter[ip_covering_hhhs] % sampling_weight == self.sample_modulus[ip_covering_hhhs])
+
+        if do_sample:
+            self.sample_counter[ip_covering_hhhs] += 1
+
         # increase match counter
         self.match_counter[ip_covering_hhhs] += 1
 
-        # ip should be sampled if at least one matching HHH reached sample counter
-        return np.max(self.match_counter[ip_covering_hhhs] % sampling_weight == 0)
+        return do_sample
+
+    # only for debugging
+    def increase_counters(self, ip, sampled):
+        # get all HHH indices that cover ip
+        ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :] == np.max(self.hhh_map[ip, :]))
+
+        # increase match counter
+        self.match_counter[ip_covering_hhhs] += 1
+
+        if sampled:
+            self.sample_counter[ip_covering_hhhs] += 1
 
     def __len__(self):
-        return len(self.hhhs)
+        return len(self.initial_hhhs[self.hhh_enabled])
 
     def to_serializable(self):
         return [{'id': h.id, 'len': h.len, 'hi': h.hi, 'lo': h.lo}
-                for h in self.hhhs]
+                for h in self.initial_hhhs[self.hhh_enabled]]
 
     def remove_rule(self, ip_start, hhh_len):
-        for idx, h in enumerate(self.hhhs):
-            if h.id == ip_start and h.len == hhh_len:
-                self.hhhs.pop(idx)
+        for idx, h in enumerate(self.initial_hhhs):  # iterate over all HHHs that are still enabled
+            if self.hhh_enabled[idx]:
+                if h.id == ip_start and h.len == hhh_len:
+                    self.hhh_enabled[idx] = False
         self._compute_filter_bitmap()  # re-compute after removing rules
 
 
@@ -319,7 +347,7 @@ class Loop(object):
         self.sampling_rate = sampling_rate
         self.weight = int(1.0 / sampling_rate)
         self.action_interval = action_interval
-        self.blacklist = Blacklist([])
+        self.blacklist = Blacklist([], self.weight)
         self.blacklist_history = []
         self.hhh = HHHAlgo(epsilon)
         self.trace_ended = False
@@ -337,7 +365,7 @@ class Loop(object):
             self.rule_perf_table = RulePerformanceTable()
 
     def reset(self):
-        self.blacklist = Blacklist([])
+        self.blacklist = Blacklist([], self.weight)
         self.hhh.clear()
         self.state = self.create_state_fn()
         self.trace_ended = False
@@ -378,12 +406,12 @@ class Loop(object):
         else:
             hhhs = remove_overlapping_rules(hhhs)
 
-        self.blacklist = Blacklist(hhhs)
+        self.blacklist = Blacklist(hhhs, self.weight)
         s.blacklist_size = len(self.blacklist)
         s.blacklist_coverage = self._calc_blacklist_coverage(hhhs)
         if self.use_hhh_distvol:
             self._calc_hhh_distance_metrics(hhhs, s)
-        logging.debug(f'initial number of rules={len(self.blacklist.hhhs)}')
+        logging.debug(f'initial number of rules={len(self.blacklist.initial_hhhs)}')
 
         if self.image_gen is not None:
             s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
@@ -403,6 +431,7 @@ class Loop(object):
         benign_passed_idx = 0
         sampled_benign_blocked_idx = 0
         benign_blocked_idx = 0
+
         while not (time_index_finished and interval == self.action_interval):
             try:
                 p, time_index_finished = self.trace.next()
@@ -435,6 +464,10 @@ class Loop(object):
                     else:
                         benign_blocked_idx += 1
 
+                    # rand = np.random.random()
+                    # self.blacklist.increase_counters(p.ip, rand < self.sampling_rate)
+                    # if rand < self.sampling_rate:
+
                     if self.blacklist.should_be_sampled(p.ip, self.weight):
                         s.samples += 1
                         self.hhh.update(p.ip, self.weight)
@@ -466,7 +499,7 @@ class Loop(object):
             if time_index_finished:
                 logging.debug(f'benign per idx={benign_idx}')
                 interval += 1
-                self.blacklist_history.append(self.blacklist)
+                self.blacklist_history.append(self.blacklist.to_serializable())
                 self.time_index += 1
                 if self.is_rejection:
                     logging.debug('end of time index; before rejection and updates')
@@ -515,7 +548,12 @@ class Loop(object):
 
         logging.debug(f'final number of rules={len(self.blacklist)}')
         logging.debug(f'samples per timestep={s.samples}')
-
+        sample_rates = np.true_divide(self.blacklist.sample_counter, self.blacklist.match_counter)
+        logging.debug(f'match count, sample rates: {np.array(list(zip(self.blacklist.match_counter, sample_rates)))}')
+        logging.debug(
+            f'sample rates mean: {np.mean(sample_rates)}, stddev: {np.std(sample_rates)}')
+        logging.debug(
+            f'sample rates 0.1q: {np.quantile(sample_rates, 0.1) if len(sample_rates) > 0 else None}, 0.2q: {np.quantile(sample_rates, 0.2) if len(sample_rates) > 0 else None}, 0.3q: {np.quantile(sample_rates, 0.3) if len(sample_rates) > 0 else None}')
         s.complete()
 
         if self.image_gen is not None:
@@ -552,7 +590,7 @@ class Loop(object):
 
             if time_index_finished:
                 interval += 1
-                self.blacklist_history.append(self.blacklist)
+                self.blacklist_history.append(self.blacklist.to_serializable())
                 self.time_index += 1
 
     def _calc_blacklist_coverage(self, hhhs):
