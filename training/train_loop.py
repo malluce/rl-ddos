@@ -31,6 +31,7 @@ from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
 from training.wrap_agents.dqn_wrap_agent import DQNWrapAgent
 from training.wrap_agents.ppo_wrap_agent import PPOWrapAgent
+from training.wrap_agents.sac_wrap_agent import SACWrapAgent
 from training.wrap_agents.td3_wrap_agent import TD3WrapAgent
 
 
@@ -301,6 +302,37 @@ class Td3TrainLoop(TrainLoop):
 
 
 @gin.configurable
+class SacTrainLoop(TrainLoop):
+
+    def __init__(self, env_name: str):
+        super(SacTrainLoop, self).__init__(env_name=env_name,
+                                           supports_action_histogram=False)  # remainder of parameters are set via gin
+
+    def _get_alg_name(self):
+        return 'sac'
+
+    def _get_agent(self, gamma):
+        return SACWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec(), gamma=gamma)
+
+    def _init_replay_buffer(self):
+        self.replay_buffer = TFUniformReplayBuffer(
+            self.agent.collect_data_spec,
+            batch_size=self.train_env.batch_size,
+            max_length=self.replay_buf_size)
+        logging.info(f'Initializing dataset with sample_batch_size={self.batch_size[0]}')
+
+        def _filter_invalid_transition(trajectories, unused_arg1):
+            return ~trajectories.is_boundary()[0]
+
+        dataset = self.replay_buffer.as_dataset(
+            num_parallel_calls=3,
+            sample_batch_size=self.batch_size[0],
+            num_steps=self.train_sequence_length + 1).unbatch().filter(_filter_invalid_transition).batch(
+            self.batch_size[0]).prefetch(3)
+        self.dataset_iterator = iter(dataset)
+
+
+@gin.configurable
 class DqnTrainLoop(TrainLoop):
 
     def __init__(self, env_name: str):
@@ -425,7 +457,8 @@ class PpoTrainLoop(TrainLoop):
 LOOPS = {
     'td3': Td3TrainLoop,
     'dqn': DqnTrainLoop,
-    'ppo': PpoTrainLoop
+    'ppo': PpoTrainLoop,
+    'sac': SacTrainLoop
 }
 
 

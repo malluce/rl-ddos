@@ -1,0 +1,82 @@
+# basic params
+get_train_loop.alg_name='sac'
+TrainLoop.root_dir='/srv/bachmann/data/sac'
+TrainLoop.eval_interval = 6000
+TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
+TrainLoop.log_interval = 600
+
+Loop.sampling_rate=0.25
+
+# debug
+TrainLoop.collect_raw = True # TODO warn
+TrainLoop.batch_size=256
+
+# state
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+
+RulePerformanceTable.metric='fpr'
+RulePerformanceTable.use_cache=True
+RulePerformanceTable.cache_capacity=100
+
+# action
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet()
+
+# reward
+#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#MultiplicativeReward.precision_weight=6
+#MultiplicativeReward.recall_weight=1.5
+#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.bl_weight=0.3
+
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=0
+AdditiveRewardCalc.recall_weight=1.75
+AdditiveRewardCalc.fpr_weight=1.5
+AdditiveRewardCalc.bl_weight=0.15
+
+# trace settings
+DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+TRandomPatternSwitch.random_toggle_time=True
+TRandomPatternSwitch.smooth_transition=True
+Loop.action_interval=10
+
+# generic params
+TrainLoop.gamma=0
+SACWrapAgent.reward_scale=5.0
+
+# learning rates
+SACWrapAgent.actor_lr=3e-4
+SACWrapAgent.actor_lr_decay_rate=None
+SACWrapAgent.actor_lr_decay_steps=None
+SACWrapAgent.critic_lr=3e-4
+SACWrapAgent.critic_lr_decay_rate=None
+SACWrapAgent.critic_lr_decay_steps=None
+SACWrapAgent.alpha_lr=3e-4
+SACWrapAgent.alpha_lr_decay_rate=None
+SACWrapAgent.alpha_lr_decay_steps=None
+
+TrainLoop.num_iterations = 100000
+
+# RNN
+#SACWrapAgent.use_actor_rnn=False
+#SACWrapAgent.rnn_act_in_fc_layers=(128,)
+#SACWrapAgent.rnn_act_lstm_size=(64,)
+#SACWrapAgent.rnn_act_out_fc_layers=(128,)
+#SACWrapAgent.use_crt_rnn=False
+#SACWrapAgent.rnn_crt_act_fc_layers=None
+#SACWrapAgent.rnn_crt_obs_fc_layers=(200,)
+#SACWrapAgent.rnn_crt_joint_fc_layers=(300,)
+#SACWrapAgent.rnn_crt_lstm_size=(50,)
+#SACWrapAgent.rnn_crt_out_fc_layers=(200,)
+
+# FFNN
+SACWrapAgent.actor_layers=(256,256)
+SACWrapAgent.critic_obs_layers=None
+SACWrapAgent.critic_act_layers=None
+SACWrapAgent.critic_joint_layers=(256, 256)
+
+# CNN parameters
+include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+SACWrapAgent.cnn_act_func=@tf.keras.activations.relu
+SACWrapAgent.cnn_spec=%cnn_256
