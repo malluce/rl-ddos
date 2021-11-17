@@ -58,6 +58,14 @@ def print_csv_stats(csv):
 def plot_train_for_pattern(env_csv, environment_file_path, pat):
     print('========== TRAIN =========')
     pat_csv = filter_by_pattern(env_csv, pat)
+
+    print(pat_csv[:1000].loc[:, 'Phi'].mean(), pat_csv[:1000].loc[:, 'Phi'].std())
+    print(pat_csv[-1000:].loc[:, 'Phi'].mean(), pat_csv[-1000:].loc[:, 'Phi'].std())
+    print(pat_csv[:1000].loc[:, 'Thresh'].mean(), pat_csv[:1000].loc[:, 'Thresh'].std())
+    print(pat_csv[-1000:].loc[:, 'Thresh'].mean(), pat_csv[-1000:].loc[:, 'Thresh'].std())
+    plt.boxplot([pat_csv[:1000].loc[:, 'Phi'], pat_csv[-1000:].loc[:, 'Phi']])
+    plt.show()
+
     # print_csv_stats(pat_csv)
     grouped_by_episode = pat_csv.groupby(['Episode'])
 
@@ -72,7 +80,7 @@ def plot_train_for_pattern(env_csv, environment_file_path, pat):
 
 
 def get_quantiles(data: pandas.DataFrame):
-    return [(q, data.quantile(q)) for q in [0.1, 0.2, 0.4, 0.6, 0.8]]
+    return [(q, data.quantile(q)) for q in [0.1, 0.2, 0.4, 0.6, 0.8, 0.9]]
 
 
 def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
@@ -81,14 +89,17 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
     x = range(data.shape[0])
     for idx, col in enumerate(cols):
         y = data.loc[:, col]
-        color = 'g' if idx == 0 else 'orange'  # lines[-1].get_color()
         for quantile in data_quantiles:
             q, quantile_value = quantile
             alpha = 0.9 - 1.5 * abs(0.5 - q)
             color = (0, 0.5, 0, alpha)  # RGBA
             y_err = quantile_value.loc[:, col]
             if labels is None:
-                ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color, label=f'{q} quant')
+                if q in [0.1, 0.2, 0.4]:
+                    ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color,
+                                    label=f'{q}/{0.5 + abs(0.5 - q)} quantile')
+                else:
+                    ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color)
             else:
                 ax.fill_between(x, y, y_err, edgecolor=color,
                                 facecolor=color)  # plot without label for discounted and undiscounted
@@ -163,7 +174,7 @@ def get_patterns(env_csv, pattern):
     return patterns
 
 
-def plot_time_index(last, metric, ax, label):
+def plot_time_index(last, metric, ax, label, y_top=None):
     new_df = last.loc[:, ['Episode', 'Step', metric]]
 
     new_df = pd.DataFrame(
@@ -171,34 +182,77 @@ def plot_time_index(last, metric, ax, label):
                      index=[last.Episode, last.Step]).stack(), columns=[metric])
     new_df.index = new_df.index.set_names(['Episode', 'Step', 'Index'])
     new_df.reset_index(inplace=True)
+    if new_df[metric][0] == ' ':
+        return False  # nothing to plot here (if rejection unused)
+
+    if label == 'rule-gran':
+        # number of rules per prefixlength
+        def get_occuring_prefix_lengths(entry):
+            return list(map(lambda x: x.split(':')[0].strip(), entry.split('-')))
+
+        rule_prefix_lengths = new_df[metric].apply(get_occuring_prefix_lengths)
+        unique_prefix_lengths = rule_prefix_lengths.explode().unique()
+        unique_prefix_lengths = np.delete(unique_prefix_lengths, np.where(unique_prefix_lengths == ''))
+        for pref_len in unique_prefix_lengths:
+            new_df[f'{pref_len}'] = 0
+
+        def fill_pref_len_column(entry):
+            len_cnt = list(
+                map(lambda x: (x.split(':')[0].strip(), int(x.split(':')[1].strip())) if len(
+                    x.split(':')) == 2 else None, entry[metric].split('-')))
+            for l in len_cnt:
+                if l is None:
+                    continue
+                length, count = l
+                entry[length] += count
+            return entry
+
+        new_df = new_df.apply(fill_pref_len_column, axis=1)
+
     if metric == 'CacheIdx':
+        # total cache rules
         new_df[metric] = new_df[metric].apply(
             lambda x: sum(
                 map(lambda z: int(z[1]) if len(z) == 2 else 0, map(lambda y: y.split(':'), x.split('-')))))
+
     new_df = new_df.astype(float)
     new_df['Index'] = new_df['Index'] + new_df['Step'] * 10
-    new_df_grouped = new_df.loc[:, ['Index', metric]].groupby(['Index'])
-    new_df_mean = new_df_grouped.mean()
-    new_df_quantiles = get_quantiles(new_df_grouped)
+    new_df['Index'] = new_df['Index'] + 20  # offset due to pre-sampling and first random action
 
-    lines = ax.plot(new_df_mean, linewidth=1.5, label=label)
-    plot_color = to_rgb(lines[0].get_color())
-    for quantile in new_df_quantiles:
-        q, quantile_value = quantile
-        alpha = 0.7 - 1.5 * abs(0.5 - q)
+    if label == 'rule-gran':
+        new_df_grouped = new_df.groupby(['Index'])
+        mean = new_df_grouped.mean().iloc[:, 3:]
+        ax.plot(mean, linewidth=1.5, label=list(map(lambda x: f'/{x}', mean.columns)))
+        ax.legend(ncol=len(mean.columns), loc='upper center', bbox_to_anchor=(0.5, 1.1))
+        ax.set_ylabel('Cache Utilization')
+    else:
+        new_df_grouped = new_df.loc[:, ['Index', metric]].groupby(['Index'])
+        new_df_mean = new_df_grouped.mean()
 
-        color = (plot_color[0], plot_color[1], plot_color[2], alpha)  # RGBA
-        y = new_df_mean.loc[:, metric]
-        y_err = quantile_value.loc[:, metric]
-        ax.fill_between(range(len(new_df_grouped.groups)), y, y_err,
-                        edgecolor=color,
-                        facecolor=color)
+        new_df_quantiles = get_quantiles(new_df_grouped)
 
-    ax.vlines(range(0, int(new_df['Index'].max()), 10), ymin=0, ymax=new_df_mean.max(), linestyles='--',
-              linewidth=1, alpha=0.6)
+        lines = ax.plot(new_df_mean, linewidth=1.5, label=label)
+        plot_color = to_rgb(lines[0].get_color())
+        x = new_df['Index'].unique()
+        for quantile in new_df_quantiles:
+            q, quantile_value = quantile
+            alpha = 0.7 - 1.5 * abs(0.5 - q)
+
+            color = (plot_color[0], plot_color[1], plot_color[2], alpha)  # RGBA
+            y = new_df_mean.loc[:, metric]
+            y_err = quantile_value.loc[:, metric]
+            ax.fill_between(x, y, y_err,
+                            edgecolor=color,
+                            facecolor=color)
+        ax.legend()
+
     ax.set_ylim(bottom=0)
-    ax.set_xlim(left=0)
-    ax.legend()
+    if y_top is not None:
+        ax.set_ylim(bottom=0, top=y_top)
+    ax.set_xlim(left=0, right=600)
+    ax.vlines(range(0, int(new_df['Index'].max()), 10), ymin=0, ymax=ax.get_ylim()[1], linestyles='--',
+              linewidth=1, alpha=0.6)
+    return True
 
 
 def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
@@ -216,27 +270,42 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     if pat is not None:
         title += f'\n (pattern={pat})'
 
+    # title = 'Learned behavior of PPO agent (SSDP -> NTP)'  # for inter
+
     # plot per time idx
     if all(map(lambda x: x in last.columns, ['PrecisionIdx', 'FPRIdx', 'RecallIdx', 'BlackSizeIdx', 'CacheIdx'])):
         fig: plt.Figure = plt.figure(figsize=(16, 9))
+        plotted_at_least_one = False
         for idx, val in enumerate(
-                zip(['CacheIdx', 'BlackSizeIdx'], ['Cache Utilization', 'Number of Filter Rules'])):
+                zip(['CacheIdx', 'CacheIdx', 'BlackSizeIdx'],
+                    ['Cache Utilization (total)', 'rule-gran', 'Number of Filter Rules'])):
             metric, label = val
-            ax: plt.Axes = fig.add_subplot(2, 1, idx + 1)
+            ax: plt.Axes = fig.add_subplot(3, 1, idx + 1)
             ax.set_xlabel('time index')
-            plot_time_index(last, metric, ax, label=label)
-        fig.suptitle(title)
-        plt.show()
+            plotted = plot_time_index(last, metric, ax, label=label)
+            plotted_at_least_one = plotted_at_least_one or plotted
+        if plotted_at_least_one:
+            fig.suptitle(title)
+            plt.tight_layout()
+            plt.show()
+        else:
+            plt.clf()
 
         fig: plt.Figure = plt.figure(figsize=(16, 9))
+        plotted_at_least_one = False
         for idx, val in enumerate(
                 zip(['PrecisionIdx', 'RecallIdx', 'FPRIdx'], ['Precision', 'Recall', 'False positive rate'])):
             metric, label = val
             ax: plt.Axes = fig.add_subplot(3, 1, idx + 1)
             ax.set_xlabel('time index')
-            plot_time_index(last, metric, ax, label=label)
-        fig.suptitle(title)
-        plt.show()
+            plotted = plot_time_index(last, metric, ax, label=label, y_top=1.1)
+            plotted_at_least_one = plotted_at_least_one or plotted
+        if plotted_at_least_one:
+            fig.suptitle(title)
+            plt.tight_layout()
+            plt.show()
+        else:
+            plt.clf()
 
     last = last.groupby(['Step'])  # return all columns grouped for each step
     last_median = last.median()
@@ -256,7 +325,8 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
     title_means = defaultdict(lambda: None)
     if means_for_title is not None:
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh']:
-            title_means[col] = means_for_title[col].mean()
+            if col in data:
+                title_means[col] = means_for_title[col].mean()
     plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['Phi'])
     plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label)
@@ -272,17 +342,17 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
          mean_for_title=title_means['Recall'])
     plot(fig, data, quantiles, ['BlackSize'], 5 + offset, x_label=x_label, data_label=data_label,
          mean_for_title=title_means['BlackSize'])
-    plot(fig, data, quantiles, ['FPR'], 6 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['FPR'])
+    handles, labels = plot(fig, data, quantiles, ['FPR'], 6 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
+                           mean_for_title=title_means['FPR'])
     reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
-    # reward_max = 400
     handles, labels = plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
                            y_max=reward_max, mean_for_title=title_means['Reward'])
 
     fig.suptitle(title)
 
     fig.tight_layout()
-    fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.01, 0.01, 1, 1), ncol=3)
+    fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.01, 0.01, 1, 1), ncol=2)
+    # fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.375), ncol=1)
     return fig
 
 
@@ -326,14 +396,15 @@ def plot_kickoff(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_l
     return ax.get_legend_handles_labels()
 
 
-def plot_training_kickoff(environment_file_path: str):
+def plot_training_kickoff(environment_file_path: str, pat):
     env_csv = read_env_csv(environment_file_path)
+    env_csv = filter_by_pattern(env_csv, pat)
     grouped_by_episode = env_csv.groupby(['Episode'])
-    mean = grouped_by_episode.median()
+    mean = grouped_by_episode.mean()
     quantiles = get_quantiles(grouped_by_episode)
 
     data = mean
-    data_label = 'median'
+    data_label = 'mean'
     x_label = 'training episode'
 
     fig: plt.Figure = plt.figure(figsize=(16, 4))
@@ -353,6 +424,8 @@ def plot_training_kickoff(environment_file_path: str):
 
 if __name__ == '__main__':
     matplotlib.rcParams.update({'font.size': 15})
+    plt.rc('axes', labelsize=18)
+    plt.rc('figure', titlesize=18)
 
 
     def plot_hl(ds_base, pattern, window):
@@ -366,36 +439,25 @@ if __name__ == '__main__':
         if not paths_exist:
             raise ValueError('Paths do not exist')
 
-        plot_training(environment_file_path=train_path, pattern=pattern)
+        # plot_training_kickoff(train_path, pattern)
+        # plot_training(environment_file_path=train_path, pattern=pattern)
         plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=window)
 
 
-    first_pattern = 'bot'
-    second_pattern = 'bot'
+    first_pattern = 'ssdp'
+    second_pattern = 'ssdp'
 
     pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
-    window = (1, 0)
-    # pattern = None
+    window = (10, 0)
+    # pattern = 'ntp;bot'
+    pattern = 'T3'
 
-    # cap=100
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211106-091108/datastore'
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20211106-091143/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-161136/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-161029/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211103-125019/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211030-130706/datastore'
+    # ds_base = '/srv/bachmann/data/td3/td3_20211109-154010/datastore'
+    # ds_base = '/home/bachmann/test-pycharm/data/dqn_20210911-132807/datastore'
+    ds_base = '/srv/bachmann/data/dqn/dqn_20211116-115031/datastore'  # rej
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20211116-114437/datastore'  # phi,l
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20211109-070809/datastore'
+
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20211112-074839/datastore'
+    # ds_base = '/srv/bachmann/data/sac/sac_20211112-072533/datastore'
     plot_hl(ds_base, pattern, window)
-
-    ## cap=10
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211031-105120/datastore'
-    ds_base = '/srv/bachmann/data/ppo/ppo_20211030-132151/datastore'
-    # plot_hl(ds_base, pattern=pattern, window=window)
-
-    ## cap=1
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211031-105245/datastore'
-    ds_base = '/srv/bachmann/data/ppo/ppo_20211102-073630/datastore'
-    # plot_hl(ds_base, pattern=pattern, window=window)
-
-    ## no cache
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211102-090601/datastore'
-    # plot_hl(ds_base, pattern=pattern, window=window)
