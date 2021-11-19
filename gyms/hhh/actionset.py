@@ -80,7 +80,7 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         return np.array([0.001, 0.75])
 
     def get_upper_bound(self):
-        return np.array([1.0, 1.0])
+        return np.array([0.5, 1.0])
 
 
 class DiscreteActionSet(ActionSet, ABC):
@@ -108,8 +108,13 @@ class DiscreteActionSet(ActionSet, ABC):
 
     def inverse_resolve(self, chosen_action):
         for idx, action in enumerate(self.actions):
-            if action == chosen_action:
-                return idx
+            if len(action) == len(chosen_action):
+                all_equal = True
+                for idx2, act in enumerate(chosen_action):
+                    if action[idx2] != act:
+                        all_equal = False
+                if all_equal:
+                    return idx
         raise ValueError('Chosen action not included in actions.')
 
 
@@ -212,6 +217,9 @@ class HugeDiscreteActionSet(DiscreteActionSet):
                         for y in [_ + 16 for _ in range(17)]]
         self.actionspace = Discrete(len(self.actions))
 
+    def get_initialization(self):
+        return self.actionspace.sample()
+
 
 def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     """
@@ -258,7 +266,7 @@ class TupleActionSet(ActionSet):
         return np.array([0.001, 16])
 
     def get_upper_bound(self):
-        return np.array([1.0, 32])
+        return np.array([0.5, 32])
 
     def get_initialization(self):
         return self.actionspace.sample()
