@@ -22,9 +22,8 @@ from gyms.hhh.obs import DistVol, DistVolStd
 @gin.configurable
 class RulePerformanceTable:
     CACHE_CAP = 100
-    EWMA_WEIGHT = 0.5
 
-    def __init__(self, use_cache, metric, cache_capacity=CACHE_CAP, ewma_weight=EWMA_WEIGHT):
+    def __init__(self, use_cache, metric, cache_capacity=CACHE_CAP):
         self.RulePerformance = namedtuple('RulePerformance',
                                           ('num_pkt', 'num_mal_pkt', 'num_ben_pkt', 'rule_perf'))
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
@@ -40,7 +39,6 @@ class RulePerformanceTable:
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
         self.cache = {}
         self.cache_capacity = cache_capacity
-        self.ewma_weight = ewma_weight
 
     def print_rules(self):
         if logging.get_verbosity() == 'debug':
@@ -151,25 +149,30 @@ class RulePerformanceTable:
                 self._update_entry_in(self.cache, start_ip, end_ip, hhh_len, is_malicious, num=num)
 
     def refresh_cache(self, perf_thresh, total_benign):
+        """
+        Refreshes the rule performance for each cached rule by using the per-rule counters from the previous time idx.
+        Afterwards recovers rules whose performance now outdoes the threshold.
+        :param perf_thresh: the performance threshold
+        :param total_benign: the number of total estimated benign packets in the time index
+        """
         if not self.use_cache:
             return
         for rule in list(self.cache):
-            # update perf via EWMA
+            # update perf
             n, nm, nb, old_perf = self.cache[rule]
-            if n == 0:  # no packet applied to this rule, incentivize deletion of rule to free up cache capacity
-                new_perf = 1.0
+            if n == 0:  # no packet applied to this rule, leave old capacity
+                new_perf = old_perf
             else:
                 new_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
-            ewma_perf = max(0, self.ewma_weight * new_perf + (1 - self.ewma_weight) * old_perf)
 
-            if ewma_perf >= perf_thresh:
+            if new_perf >= perf_thresh:
                 logging.debug(
-                    f' removing rule {str(IPv4Address(rule[0]))}/{rule[2]} from cache because it got better {n, nm, nb, ewma_perf}')
+                    f' removing rule {str(IPv4Address(rule[0]))}/{rule[2]} from cache because it got better {n, nm, nb, new_perf}')
                 self.cache.pop(rule)  # delete rules that have better performance
             else:
-                self.cache[rule] = self.RulePerformance(0, 0, 0, ewma_perf)  # otherwise reset counters
+                self.cache[rule] = self.RulePerformance(0, 0, 0, new_perf)  # otherwise reset counters
 
-    def get_rejected_rules(self, performance_threshold):
+    def reject_rules(self, performance_threshold):
         for start_ip, end_ip, hhh_len in list(self.table):
             rule_perf = self.table[(start_ip, end_ip, hhh_len)].rule_perf
             if rule_perf < performance_threshold:
@@ -513,7 +516,7 @@ class Loop(object):
                     logging.debug('Updating performances for table.')
                     self.rule_perf_table.refresh_table_perf(estimated_benign_idx)
                     logging.debug('Rejecting rules.')
-                    for rejected_rule in self.rule_perf_table.get_rejected_rules(s.thresh):
+                    for rejected_rule in self.rule_perf_table.reject_rules(s.thresh):
                         start_ip, end_ip, hhh_len = rejected_rule
                         self.blacklist.remove_rule(start_ip, hhh_len)
 
@@ -546,14 +549,16 @@ class Loop(object):
                 sampled_benign_blocked_idx = 0
                 benign_blocked_idx = 0
 
-        logging.debug(f'final number of rules={len(self.blacklist)}')
-        logging.debug(f'samples per timestep={s.samples}')
-        sample_rates = np.true_divide(self.blacklist.sample_counter, self.blacklist.match_counter)
-        logging.debug(f'match count, sample rates: {np.array(list(zip(self.blacklist.match_counter, sample_rates)))}')
-        logging.debug(
-            f'sample rates mean: {np.mean(sample_rates)}, stddev: {np.std(sample_rates)}')
-        logging.debug(
-            f'sample rates 0.1q: {np.quantile(sample_rates, 0.1) if len(sample_rates) > 0 else None}, 0.2q: {np.quantile(sample_rates, 0.2) if len(sample_rates) > 0 else None}, 0.3q: {np.quantile(sample_rates, 0.3) if len(sample_rates) > 0 else None}')
+        if logging.level_debug():
+            logging.debug(f'final number of rules={len(self.blacklist)}')
+            logging.debug(f'samples per timestep={s.samples}')
+            sample_rates = np.true_divide(self.blacklist.sample_counter, self.blacklist.match_counter)
+            logging.debug(
+                f'match count, sample rates: {np.array(list(zip(self.blacklist.match_counter, sample_rates)))}')
+            logging.debug(
+                f'sample rates mean: {np.mean(sample_rates)}, stddev: {np.std(sample_rates)}')
+            logging.debug(
+                f'sample rates 0.1q: {np.quantile(sample_rates, 0.1) if len(sample_rates) > 0 else None}, 0.2q: {np.quantile(sample_rates, 0.2) if len(sample_rates) > 0 else None}, 0.3q: {np.quantile(sample_rates, 0.3) if len(sample_rates) > 0 else None}')
         s.complete()
 
         if self.image_gen is not None:
