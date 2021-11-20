@@ -123,20 +123,21 @@ class DiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSet):
     def __init__(self):
         super().__init__()
         self.actions = [(x, y)
-                        for x in
-                        [(_ + 1) * 1e-3 for _ in range(100)] +
-                        [(_ + 1) * 1e-2 for _ in range(10, 29)] +
-                        [_ * 1e-1 for _ in range(3, 11)]
-                        for y in [_ * 1e-1 for _ in range(5, 10)]  # 0.5,...,0.9
-                        + [_ * 1e-2 for _ in range(91, 101)]  # 0.9,...,0.99,1.0
+                        for x in  # phi
+                        [(_ + 1) * 1e-3 for _ in range(100)] +  # 0.001, 0.002, ..., 0.1
+                        [_ * 1e-2 for _ in range(11, 26)] +  # 0.11, 0.12, ..., 0.25
+                        [0.3, 0.4, 0.5]
+                        for y in  # thresh
+                        [0.75, 0.8, 0.85, 0.9]
+                        + [_ * 1e-2 for _ in range(91, 101)]  # 0.91,...,0.99,1.0
                         ]
         self.actionspace = Discrete(len(self.actions))
 
     def get_lower_bound(self):
-        return np.array([0.001, 0.5])
+        return np.array([0.001, 0.75])
 
     def get_upper_bound(self):
-        return np.array([1.0, 1.0])
+        return np.array([0.5, 1.0])
 
 
 @gin.register
