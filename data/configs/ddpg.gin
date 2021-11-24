@@ -1,0 +1,67 @@
+# basic params
+get_train_loop.alg_name='ddpg'
+TrainLoop.root_dir='/srv/bachmann/data/ddpg'
+TrainLoop.eval_interval = 3000
+TrainLoop.num_eval_episodes = 9
+TrainLoop.log_interval = 600
+TrainLoop.collect_raw = True # TODO warn
+
+Loop.sampling_rate=0.25
+RulePerformanceTable.metric='fpr'
+RulePerformanceTable.use_cache=True
+RulePerformanceTable.cache_capacity=100
+
+# state
+TrainLoop.use_prev_action_as_obs=True
+TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+
+# action
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet() # #
+
+# reward
+#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#MultiplicativeReward.precision_weight=0
+#MultiplicativeReward.recall_weight=1.35
+#MultiplicativeReward.fpr_weight=1
+#MultiplicativeReward.bl_weight=0.3
+
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=0
+AdditiveRewardCalc.recall_weight=1.75
+AdditiveRewardCalc.fpr_weight=1.5
+AdditiveRewardCalc.bl_weight=0.15
+
+#HHHEnv.reward_calc=@DefaultRewardCalc()
+
+# trace settings
+DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+TRandomPatternSwitch.random_toggle_time=True
+TRandomPatternSwitch.smooth_transition=True
+TRandomPatternSwitch.benign_normal=True
+Loop.action_interval=10
+
+# generic params
+DDPGWrapAgent.critic_obs_fc_layers=(400,)
+DDPGWrapAgent.critic_action_fc_layers=None
+DDPGWrapAgent.critic_joint_fc_layers=(300,)
+DDPGWrapAgent.target_update_tau=0.001
+DDPGWrapAgent.target_update_period=1
+DDPGWrapAgent.critic_lr=1e-3
+DDPGWrapAgent.actor_lr=1e-4
+DDPGWrapAgent.actor_layers=(400, 300)
+DDPGWrapAgent.ou_std=0.2
+DDPGWrapAgent.ou_mean=0.15
+TrainLoop.gamma=0
+TrainLoop.num_iterations = 1000000
+TrainLoop.batch_size = 64
+TrainLoop.replay_buf_size = 1000000
+TrainLoop.initial_collect_steps = 1200
+TrainLoop.log_interval = 600
+
+# NN
+TrainLoop.train_sequence_length=1
+
+# CNN parameters
+include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+DDPGWrapAgent.cnn_spec=%cnn_256
+DDPGWrapAgent.cnn_act_func=@tf.keras.activations.relu

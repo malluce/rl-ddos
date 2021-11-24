@@ -29,6 +29,7 @@ from gyms.hhh.env import HHHEnv
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
+from training.wrap_agents.ddpg_wrap_agent import DDPGWrapAgent
 from training.wrap_agents.dqn_wrap_agent import DQNWrapAgent
 from training.wrap_agents.ppo_wrap_agent import PPOWrapAgent
 from training.wrap_agents.sac_wrap_agent import SACWrapAgent
@@ -331,6 +332,18 @@ class SacTrainLoop(TrainLoop):
             self.batch_size[0]).prefetch(3)
         self.dataset_iterator = iter(dataset)
 
+    def _init_drivers(self, collect_policy):
+        self.initial_collect_driver = DynamicStepDriver(
+            self.train_env,
+            RandomTFPolicy(self.train_env.time_step_spec(), self.train_env.action_spec()),
+            observers=[self.replay_buffer.add_batch],
+            num_steps=self.initial_collect_steps)
+        self.collect_driver = DynamicStepDriver(
+            self.train_env,
+            collect_policy,
+            observers=[self.replay_buffer.add_batch] + self.train_metrics,
+            num_steps=1)
+
 
 @gin.configurable
 class DqnTrainLoop(TrainLoop):
@@ -344,6 +357,20 @@ class DqnTrainLoop(TrainLoop):
 
     def _get_agent(self, gamma):
         return DQNWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec(), gamma=gamma)
+
+
+@gin.configurable
+class DdpgTrainLoop(TrainLoop):
+
+    def __init__(self, env_name: str):
+        super(DdpgTrainLoop, self).__init__(env_name=env_name,
+                                            supports_action_histogram=False)  # remainder of parameters are set via gin
+
+    def _get_alg_name(self):
+        return 'ddpg'
+
+    def _get_agent(self, gamma):
+        return DDPGWrapAgent(self.train_env.time_step_spec(), self.train_env.action_spec(), gamma=gamma)
 
 
 @gin.configurable
@@ -391,7 +418,6 @@ class PpoTrainLoop(TrainLoop):
 
         def log_dist_params(step):  # TODO fix that global step is the same for several calls due to T
             global_step = tf.compat.v1.train.get_or_create_global_step()
-
             # continuous params
             continuous_policy_info = step.policy_info['dist_params'][0] if isinstance(step.policy_info['dist_params'],
                                                                                       tuple) else step.policy_info[
@@ -400,7 +426,6 @@ class PpoTrainLoop(TrainLoop):
             if len(shape) == 2 and shape[1] == 2:  # phi AND thresh
                 median_loc = np.median(continuous_policy_info['loc'], axis=0)
                 median_scale = np.median(continuous_policy_info['scale'], axis=0)
-
                 with tf.name_scope('DistParams/'):
                     tf.compat.v2.summary.scalar(name='phi stddev', data=median_scale[0], step=global_step)
                     tf.compat.v2.summary.scalar(name='phi mean', data=median_loc[0], step=global_step)
@@ -414,7 +439,6 @@ class PpoTrainLoop(TrainLoop):
                     tf.compat.v2.summary.scalar(name='phi mean', data=np.median(mean), step=global_step)
             else:
                 raise ValueError('Unknown action space in TB Logging.')
-
             # L params
             if isinstance(step.policy_info['dist_params'], tuple):
                 discrete_policy_info = step.policy_info['dist_params'][1]
@@ -458,7 +482,8 @@ LOOPS = {
     'td3': Td3TrainLoop,
     'dqn': DqnTrainLoop,
     'ppo': PpoTrainLoop,
-    'sac': SacTrainLoop
+    'sac': SacTrainLoop,
+    'ddpg': DdpgTrainLoop
 }
 
 

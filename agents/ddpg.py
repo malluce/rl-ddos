@@ -24,7 +24,7 @@ from tf_agents.specs import BoundedTensorSpec
 from agents.util import get_dirs
 from gyms.hhh.actionset import ContinuousActionSet
 from gyms.hhh.env import register_hhh_gym
-from gyms.hhh.state import BaseObservations
+from gyms.hhh.obs import BaseObservations
 from nets import ddpg_actor_network as actor_network
 from nets import ddpg_critic_network as critic_network
 from tf_agents.agents.ddpg import ddpg_agent
