@@ -160,8 +160,8 @@ class RulePerformanceTable:
         for rule in list(self.cache):
             # update perf
             n, nm, nb, old_perf = self.cache[rule]
-            if n == 0:  # no packet applied to this rule, leave old capacity
-                new_perf = old_perf
+            if n == 0:  # no packet applied to this rule, delete it from cache
+                new_perf = 1.0
             else:
                 new_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
 
