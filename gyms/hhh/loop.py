@@ -1,11 +1,12 @@
 #!/usr/bin/env python
+import sys
 import time
 from ipaddress import IPv4Address
 
 import gin
 import numpy as np
 from absl import logging
-from collections import Counter, defaultdict, namedtuple
+from collections import Counter, OrderedDict, defaultdict, namedtuple
 from gym.spaces import Box, Discrete, MultiDiscrete
 from math import log2, log10, sqrt, exp
 
@@ -19,6 +20,15 @@ from gyms.hhh.state import State
 from gyms.hhh.obs import DistVol, DistVolStd
 
 
+def assert_hhh_asc_sorted(hhhs):
+    is_sorted = True
+    val = hhhs[0].len if len(hhhs) > 0 else None
+    for h in hhhs:
+        if h.len < val:
+            is_sorted = False
+    assert is_sorted
+
+
 @gin.configurable
 class RulePerformanceTable:
     CACHE_CAP = 100
@@ -26,8 +36,8 @@ class RulePerformanceTable:
     def __init__(self, use_cache, metric, cache_capacity=CACHE_CAP):
         self.RulePerformance = namedtuple('RulePerformance',
                                           ('num_pkt', 'num_mal_pkt', 'num_ben_pkt', 'rule_perf'))
-        # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
-        self.table = {}
+        # stores (start IP, end IP, len) -> (enabled, RulePerformance) both IPs are inclusive
+        self.table = OrderedDict()
 
         assert metric in ['fpr', 'prec']
         self.metric = metric
@@ -37,7 +47,7 @@ class RulePerformanceTable:
         logging.info(f'using cache: {self.use_cache} (capacity={cache_capacity})')
 
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
-        self.cache = {}
+        self.cache = OrderedDict()
         self.cache_capacity = cache_capacity
 
     def print_rules(self):
@@ -59,11 +69,12 @@ class RulePerformanceTable:
                 logging.debug(f' {l}:{len_to_count[l]}')
 
     def set_rules(self, hhhs):
-        self.table = {}
+        assert_hhh_asc_sorted(hhhs)
+        self.table = OrderedDict()
         for hhh in hhhs:
             start_ip = hhh.id
             end_ip = start_ip + Label.subnet_size(hhh.len) - 1
-            self.table[(start_ip, end_ip, hhh.len)] = self.RulePerformance(0, 0, 0, None)
+            self.table[(start_ip, end_ip, hhh.len)] = (True, self.RulePerformance(0, 0, 0, None))
 
     def filter_hhhs(self, hhhs):
         if not self.use_cache:
@@ -79,10 +90,50 @@ class RulePerformanceTable:
                 logging.debug(f'not applying HHH {str(IPv4Address(start_ip))}/{hhh.len}, because in cache')
         return result
 
-    def update(self, id, is_malicious, num):
+    # deprecated (updates not only LPM match, but all)
+    def update_rpt_old(self, id, is_malicious, num):
         for start_ip, end_ip, hhh_len in self.table.keys():
             if start_ip <= id <= end_ip:
-                self._update_entry_in(self.table, start_ip, end_ip, hhh_len, is_malicious, num=num)
+                # current perf
+                enable, rperf = self.table[(start_ip, end_ip, hhh_len)]
+                if not enable:
+                    return
+
+                n, nm, nb, perf = rperf
+                # update rule performance entries
+                n += num
+
+                if is_malicious:
+                    nm += num
+                else:
+                    nb += num
+
+                # update counters, keep old performance
+                self.table[(start_ip, end_ip, hhh_len)] = (enable, self.RulePerformance(n, nm, nb, perf))
+
+    def update_rpt(self, lpm_hhh, is_malicious, num):
+        """
+        Update the counters for RPT rule based on ID/Tag lpm_hhh and IDS classification is_malicious.
+        """
+        start_ip, end_ip, hhh_len = list(self.table.keys())[lpm_hhh]
+
+        # current perf
+        enabled, rule_perf = self.table[(start_ip, end_ip, hhh_len)]
+
+        if not enabled:
+            return
+
+        n, nm, nb, perf = rule_perf
+
+        # update rule performance counters
+        n += num
+
+        if is_malicious:
+            nm += num
+        else:
+            nb += num
+
+        self.table[(start_ip, end_ip, hhh_len)] = (enabled, self.RulePerformance(n, nm, nb, perf))
 
     def _compute_rule_performance(self, n, nb, nm, total_benign):
         if self.metric == 'fpr':
@@ -93,33 +144,20 @@ class RulePerformanceTable:
         else:
             raise ValueError(f'Unexpected metric for rule performance: {self.metric}')
 
-    def _update_entry_in(self, table_to_update, start_ip, end_ip, hhh_len, is_malicious, num):
-        """
-        Updates the counters of a given rule in a given table without re-computing the rule performance.
-        """
-        # current perf
-        n, nm, nb, perf = table_to_update[(start_ip, end_ip, hhh_len)]
-
-        # update rule performance entries
-        n += num
-
-        if is_malicious:
-            nm += num
-        else:
-            nb += num
-
-        # update counters, keep old performance
-        table_to_update[(start_ip, end_ip, hhh_len)] = self.RulePerformance(n, nm, nb, perf)
-
     def refresh_table_perf(self, total_benign):
         """
         Update the performance of each TABLE RULE by computing performance based on counters. Called each time idx.
         :param total_benign: number of benign packets of the time idx
         """
         for rule in self.table.keys():
-            n, nm, nb, _ = self.table[rule]
+            enabled, perf = self.table[rule]
+
+            if not enabled:
+                continue
+
+            n, nm, nb, _ = perf
             rule_perf = self._compute_rule_performance(n=n, nm=nm, nb=nb, total_benign=total_benign)
-            self.table[rule] = self.RulePerformance(n, nm, nb, rule_perf)
+            self.table[rule] = (enabled, self.RulePerformance(n, nm, nb, rule_perf))
 
     def _add_to_cache(self, start_ip, end_ip, hhh_len, rule_perf):
         assert len(self.cache) <= self.cache_capacity
@@ -146,7 +184,19 @@ class RulePerformanceTable:
             return
         for start_ip, end_ip, hhh_len in self.cache.keys():
             if start_ip <= ip <= end_ip:
-                self._update_entry_in(self.cache, start_ip, end_ip, hhh_len, is_malicious, num=num)
+                # current perf
+                n, nm, nb, perf = self.cache[(start_ip, end_ip, hhh_len)]
+
+                # update rule performance entries
+                n += num
+
+                if is_malicious:
+                    nm += num
+                else:
+                    nb += num
+
+                # update counters, keep old performance
+                self.cache[(start_ip, end_ip, hhh_len)] = self.RulePerformance(n, nm, nb, perf)
 
     def refresh_cache(self, perf_thresh, total_benign):
         """
@@ -174,21 +224,26 @@ class RulePerformanceTable:
 
     def reject_rules(self, performance_threshold):
         for start_ip, end_ip, hhh_len in list(self.table):
-            rule_perf = self.table[(start_ip, end_ip, hhh_len)].rule_perf
+            enable, rperf = self.table[(start_ip, end_ip, hhh_len)]
+            if not enable:
+                continue
+            rule_perf = rperf.rule_perf
             if rule_perf < performance_threshold:
                 if self.use_cache:
                     logging.debug(
                         f' rejecting rule {str(IPv4Address(start_ip))}/{hhh_len} (perf={rule_perf}); adding to cache')
                     self._add_to_cache(start_ip, end_ip, hhh_len, rule_perf)
 
-                # remove rule from table and return it
-                self.table.pop((start_ip, end_ip, hhh_len))
+                # disable rule from table and return it
+                self.table[(start_ip, end_ip, hhh_len)] = (False, self.table[(start_ip, end_ip, hhh_len)][1])
                 yield start_ip, end_ip, hhh_len
 
 
 class Blacklist(object):
 
     def __init__(self, hhhs, sampling_weight):
+        assert_hhh_asc_sorted(hhhs)
+
         self.initial_hhhs = np.array(hhhs)
         self.hhh_enabled = np.full((len(self.initial_hhhs)), True)  # bitmap: HHH in initial_hhhs enabled?
 
@@ -218,7 +273,8 @@ class Blacklist(object):
     def covers(self, ip):
         return self.filter_bitmap[ip]
 
-    def should_be_sampled(self, ip, sampling_weight):
+    # deprecated, samples based on n_r and m_r of ALL matching rules (not only LPM)
+    def should_be_sampled_old(self, ip, sampling_weight):
         # get all HHH indices that cover ip
         ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :] == np.max(self.hhh_map[ip, :]))
 
@@ -232,7 +288,29 @@ class Blacklist(object):
         # increase match counter
         self.match_counter[ip_covering_hhhs] += 1
 
-        return do_sample
+        lpm = None
+
+        return do_sample, lpm
+
+    def should_be_sampled(self, ip, sampling_weight):
+        # get indices of all enabled HHHs that cover ip
+        ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :])
+
+        # self.initial_hhhs[ip_covering_hhhs]
+
+        # longest prefix match
+        lpm_hhh = ip_covering_hhhs[0][-1]
+
+        # ip should be sampled if LPM rule reached sample counter
+        do_sample = (self.match_counter[lpm_hhh] % sampling_weight == self.sample_modulus[lpm_hhh])
+
+        if do_sample:
+            self.sample_counter[lpm_hhh] += 1
+
+        # increase match counter
+        self.match_counter[lpm_hhh] += 1
+
+        return do_sample, lpm_hhh  # lpm_hhh serves as rule ID
 
     # only for debugging
     def increase_counters(self, ip, sampled):
@@ -407,6 +485,7 @@ class Loop(object):
             hhhs = self.rule_perf_table.filter_hhhs(hhhs)
             self.rule_perf_table.set_rules(hhhs)
         else:
+            # overlapping rules can be safely removed because rules do not change until next time step
             hhhs = remove_overlapping_rules(hhhs)
 
         self.blacklist = Blacklist(hhhs, self.weight)
@@ -470,12 +549,14 @@ class Loop(object):
                     # rand = np.random.random()
                     # self.blacklist.increase_counters(p.ip, rand < self.sampling_rate)
                     # if rand < self.sampling_rate:
-
-                    if self.blacklist.should_be_sampled(p.ip, self.weight):
+                    sample, lpm_hhh = self.blacklist.should_be_sampled(p.ip, self.weight)
+                    # sample, lpm_hhh = self.blacklist.should_be_sampled_old(p.ip, self.weight)
+                    if sample:
                         s.samples += 1
                         self.hhh.update(p.ip, self.weight)
                         if self.is_rejection:
-                            self.rule_perf_table.update(p.ip, p.malicious, num=self.weight)
+                            self.rule_perf_table.update_rpt(lpm_hhh, p.malicious, num=self.weight)
+                            # self.rule_perf_table.update_rpt_old(p.ip, p.malicious, num=self.weight)
                             self.rule_perf_table.update_cache(p.ip, p.malicious, num=self.weight)
                         # Estimate the number of mal packets
                         # filtered by the blacklist by sampling
@@ -553,8 +634,8 @@ class Loop(object):
             logging.debug(f'final number of rules={len(self.blacklist)}')
             logging.debug(f'samples per timestep={s.samples}')
             sample_rates = np.true_divide(self.blacklist.sample_counter, self.blacklist.match_counter)
-            logging.debug(
-                f'match count, sample rates: {np.array(list(zip(self.blacklist.match_counter, sample_rates)))}')
+            # logging.debug(
+            #    f'match count, sample rates: {np.array(list(zip(self.blacklist.match_counter, sample_rates)))}')
             logging.debug(
                 f'sample rates mean: {np.mean(sample_rates)}, stddev: {np.std(sample_rates)}')
             logging.debug(
