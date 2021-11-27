@@ -9,7 +9,8 @@ Loop.sampling_rate=0.25
 
 # debug
 TrainLoop.collect_raw = True # TODO warn
-TrainLoop.batch_size=256
+SACWrapAgent.debug_summaries=False # TODO warn
+TrainLoop.batch_size=64
 
 # state
 TrainLoop.use_prev_action_as_obs=True
@@ -43,20 +44,20 @@ Loop.action_interval=10
 
 # generic params
 TrainLoop.gamma=0
-SACWrapAgent.reward_scale=5.0
+SACWrapAgent.reward_scale=5
 
 # learning rates
-SACWrapAgent.actor_lr=3e-4
+SACWrapAgent.actor_lr=1e-5
 SACWrapAgent.actor_lr_decay_rate=None
 SACWrapAgent.actor_lr_decay_steps=None
-SACWrapAgent.critic_lr=3e-4
+SACWrapAgent.critic_lr=1e-5
 SACWrapAgent.critic_lr_decay_rate=None
 SACWrapAgent.critic_lr_decay_steps=None
-SACWrapAgent.alpha_lr=3e-4
+SACWrapAgent.alpha_lr=1e-5
 SACWrapAgent.alpha_lr_decay_rate=None
 SACWrapAgent.alpha_lr_decay_steps=None
 
-TrainLoop.num_iterations = 100000
+TrainLoop.num_iterations = 300000
 
 # RNN
 #SACWrapAgent.use_actor_rnn=False

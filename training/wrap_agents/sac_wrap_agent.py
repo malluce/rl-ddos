@@ -41,7 +41,7 @@ class SACWrapAgent(SacAgent, WrapAgent):
                  use_actor_rnn=False, rnn_act_in_fc_layers=(200, 100), rnn_act_out_fc_layers=(200,),
                  rnn_act_lstm_size=(50,), use_crt_rnn=False, rnn_crt_act_fc_layers=None, rnn_crt_obs_fc_layers=(200,),
                  rnn_crt_joint_fc_layers=(300,), rnn_crt_lstm_size=(50,), rnn_crt_out_fc_layers=(200,), cnn_spec=None,
-                 cnn_act_func=tf.keras.activations.relu):
+                 cnn_act_func=tf.keras.activations.relu, debug_summaries=False):
 
         self.gamma = gamma
 
@@ -63,7 +63,7 @@ class SACWrapAgent(SacAgent, WrapAgent):
                                                  preprocessing_layers=preprocessing_layers,
                                                  preprocessing_combiner=preprocessing_combiner,
                                                  continuous_projection_net=_normal_projection_net)
-
+ 
         # set critic net
         if use_crt_rnn:
             # TODO preprocessing for RNN
@@ -96,7 +96,8 @@ class SACWrapAgent(SacAgent, WrapAgent):
             self.actor_optimizer, self.critic_optimizer, self.alpha_optimizer,
             target_update_tau=target_update_tau,
             name='sac',
-            reward_scale_factor=reward_scale
+            reward_scale_factor=reward_scale,
+            debug_summaries=debug_summaries
         )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
