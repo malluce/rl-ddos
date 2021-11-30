@@ -48,7 +48,7 @@ class RulePerformanceTable:
 
         # stores (start IP, end IP, len) -> RulePerformance, both IPs are inclusive
         self.cache = OrderedDict()
-        self.cache_capacity = cache_capacity
+        self.cache_capacity = np.inf if cache_capacity == 'inf' else cache_capacity
 
     def print_rules(self):
         if logging.get_verbosity() == 'debug':
@@ -97,7 +97,7 @@ class RulePerformanceTable:
                 # current perf
                 enable, rperf = self.table[(start_ip, end_ip, hhh_len)]
                 if not enable:
-                    return
+                    continue
 
                 n, nm, nb, perf = rperf
                 # update rule performance entries
@@ -178,6 +178,27 @@ class RulePerformanceTable:
             self.cache[(start_ip, end_ip, hhh_len)] = self.RulePerformance(0, 0, 0, rule_perf)
 
         assert len(self.cache) <= self.cache_capacity
+
+    # only for testing purposes, updates only LPM from WOC; performs poorly
+    def update_cache_lpm(self, ip, is_malicious, num):
+        if not self.use_cache:
+            return
+        for start_ip, end_ip, hhh_len in sorted(self.cache.keys(), key=lambda x: x[2], reverse=False):
+            if start_ip <= ip <= end_ip:
+                # current perf
+                n, nm, nb, perf = self.cache[(start_ip, end_ip, hhh_len)]
+
+                # update rule performance entries
+                n += num
+
+                if is_malicious:
+                    nm += num
+                else:
+                    nb += num
+
+                # update counters, keep old performance
+                self.cache[(start_ip, end_ip, hhh_len)] = self.RulePerformance(n, nm, nb, perf)
+                return
 
     def update_cache(self, ip, is_malicious, num):
         if not self.use_cache:
@@ -276,7 +297,12 @@ class Blacklist(object):
     # deprecated, samples based on n_r and m_r of ALL matching rules (not only LPM)
     def should_be_sampled_old(self, ip, sampling_weight):
         # get all HHH indices that cover ip
-        ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :] == np.max(self.hhh_map[ip, :]))
+        ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :])
+
+        if ip_covering_hhhs[0].shape[0] > 1:
+            logging.debug(f' {str(IPv4Address(ip))} matches..')
+            for h in self.initial_hhhs[ip_covering_hhhs]:
+                logging.debug(f'  - {str(IPv4Address(h.id))}/{h.len}')
 
         # ip should be sampled if at least one matching HHH reached sample counter
         do_sample = np.max(
@@ -295,8 +321,6 @@ class Blacklist(object):
     def should_be_sampled(self, ip, sampling_weight):
         # get indices of all enabled HHHs that cover ip
         ip_covering_hhhs = np.nonzero(self.hhh_map[ip, :])
-
-        # self.initial_hhhs[ip_covering_hhhs]
 
         # longest prefix match
         lpm_hhh = ip_covering_hhhs[0][-1]
@@ -549,6 +573,7 @@ class Loop(object):
                     # rand = np.random.random()
                     # self.blacklist.increase_counters(p.ip, rand < self.sampling_rate)
                     # if rand < self.sampling_rate:
+
                     sample, lpm_hhh = self.blacklist.should_be_sampled(p.ip, self.weight)
                     # sample, lpm_hhh = self.blacklist.should_be_sampled_old(p.ip, self.weight)
                     if sample:
@@ -558,6 +583,7 @@ class Loop(object):
                             self.rule_perf_table.update_rpt(lpm_hhh, p.malicious, num=self.weight)
                             # self.rule_perf_table.update_rpt_old(p.ip, p.malicious, num=self.weight)
                             self.rule_perf_table.update_cache(p.ip, p.malicious, num=self.weight)
+                            # self.rule_perf_table.update_cache_lpm(p.ip, p.malicious, num=self.weight)
                         # Estimate the number of mal packets
                         # filtered by the blacklist by sampling
                         if p.malicious:
@@ -573,6 +599,7 @@ class Loop(object):
                     self.hhh.update(p.ip)
                     if self.is_rejection:  # update cache with non-blocked traffic
                         self.rule_perf_table.update_cache(p.ip, p.malicious, num=1)
+                        # self.rule_perf_table.update_cache_lpm(p.ip, p.malicious, num=1)
 
                     if p.malicious:
                         s.malicious_passed += 1
