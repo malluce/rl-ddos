@@ -79,6 +79,75 @@ class WorstOffenderCache(ABC):
 
 
 @gin.configurable
+class TimedWorstOffenderCache(WorstOffenderCache):
+    BACKGROUND_DECREMENT = 0.5
+    ACTIVE_DECREMENT = 1
+    INITIAL_TIMER = 10
+
+    def __init__(self, background_decrement=BACKGROUND_DECREMENT, active_decrement=ACTIVE_DECREMENT,
+                 initial_timer=INITIAL_TIMER):
+        self.active_timers = {}
+        self.background_timers = {}
+        self.background_decrement = background_decrement
+        self.active_decrement = active_decrement
+        self.initial_timer = initial_timer
+
+    @property
+    def cache_entries(self):
+        return self.active_timers
+
+    def print(self):
+        logging.debug(f'active timers:')
+        for (start_ip, end_ip, hhh_len) in self.active_timers:
+            logging.debug(
+                f'  {str(IPv4Address(start_ip))}/{hhh_len}: {self.active_timers[(start_ip, end_ip, hhh_len)]}')
+
+        logging.debug(f'background timers:')
+        for (start_ip, end_ip, hhh_len) in self.background_timers:
+            logging.debug(
+                f'  {str(IPv4Address(start_ip))}/{hhh_len}: {self.background_timers[(start_ip, end_ip, hhh_len)]}')
+
+    def add(self, start_ip, end_ip, hhh_len, **kwargs):
+        assert (start_ip, end_ip, hhh_len) not in self.active_timers
+        if (start_ip, end_ip, hhh_len) in self.background_timers:
+            logging.debug(
+                f'doubling {str(IPv4Address(start_ip))}/{hhh_len}: {self.background_timers[(start_ip, end_ip, hhh_len)]}->{2 * self.background_timers[(start_ip, end_ip, hhh_len)]}')
+
+            initial_timer = max(self.initial_timer,
+                                self.initial_timer + self.background_timers[(start_ip, end_ip, hhh_len)])
+        else:
+            initial_timer = self.initial_timer
+
+        self.background_timers[(start_ip, end_ip, hhh_len)] = initial_timer
+        self.active_timers[(start_ip, end_ip, hhh_len)] = initial_timer
+
+    def rule_recovery(self, **kwargs):
+        if logging.level_debug():
+            logging.debug('===== before recovery =====')
+            self.print()
+
+        for (start_ip, end_ip, hhh_len) in list(self.active_timers.keys()):
+            self.active_timers[(start_ip, end_ip, hhh_len)] -= self.active_decrement
+            if self.active_timers[(start_ip, end_ip, hhh_len)] <= 0:
+                self.active_timers.pop((start_ip, end_ip, hhh_len))
+                logging.debug(f'**removing active timer for{str(IPv4Address(start_ip))}/{hhh_len}')
+
+        for (start_ip, end_ip, hhh_len) in list(self.background_timers.keys()):
+            self.background_timers[(start_ip, end_ip, hhh_len)] -= self.background_decrement
+            if self.background_timers[(start_ip, end_ip, hhh_len)] <= 0:
+                logging.debug(f'**removing background timer for{str(IPv4Address(start_ip))}/{hhh_len}')
+                self.background_timers.pop((start_ip, end_ip, hhh_len))
+
+        if logging.level_debug():
+            logging.debug('===== after recovery =====')
+            self.print()
+
+    def update(self, ip, is_malicious, num):
+        # no performance tracking -> no need to update anything here
+        pass
+
+
+@gin.configurable
 class TrackingWorstOffenderCache(WorstOffenderCache, PerformanceTracker):
     CACHE_CAP = 100
 

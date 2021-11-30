@@ -9,10 +9,13 @@ TrainLoop.collect_raw = True # TODO warn
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
-TrackingWorstOffenderCache.metric='fpr'
-TrackingWorstOffenderCache.capacity='inf'
-TrackingWorstOffenderCache.metric='fpr'
+RulePerformanceTable.cache_class=@TimedWorstOffenderCache
+TimedWorstOffenderCache.BACKGROUND_DECREMENT = 0.5
+TimedWorstOffenderCache.ACTIVE_DECREMENT = 1
+TimedWorstOffenderCache.INITIAL_TIMER = 10
+#TrackingWorstOffenderCache.metric='fpr'
+#TrackingWorstOffenderCache.capacity='inf'
+#TrackingWorstOffenderCache.metric='fpr'
 
 # state
 TrainLoop.use_prev_action_as_obs=True
