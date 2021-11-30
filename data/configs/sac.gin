@@ -16,9 +16,13 @@ TrainLoop.batch_size=64
 TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
+Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_capacity=100
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
+TrackingWorstOffenderCache.metric='fpr'
 
 # action
 TrainLoop.actionset_selection=@ContinuousRejectionActionSet()

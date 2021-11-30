@@ -9,7 +9,11 @@ TrainLoop.collect_raw = True # TODO warn
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_capacity=100
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
+TrackingWorstOffenderCache.metric='fpr'
+
 
 # state
 TrainLoop.use_prev_action_as_obs=True
@@ -40,21 +44,33 @@ TRandomPatternSwitch.smooth_transition=True
 TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
-# generic params
+# layers
 DDPGWrapAgent.critic_obs_fc_layers=(400,)
 DDPGWrapAgent.critic_action_fc_layers=None
-DDPGWrapAgent.critic_joint_fc_layers=(300,)
+DDPGWrapAgent.critic_joint_fc_layers=(300,200)
+DDPGWrapAgent.actor_layers=(400, 300, 200)
+
+# target update
 DDPGWrapAgent.target_update_tau=0.001
 DDPGWrapAgent.target_update_period=1
+
+# LRs
 DDPGWrapAgent.critic_lr=1e-3
+DDPGWrapAgent.critic_lr_decay_rate=None
+DDPGWrapAgent.critic_lr_decay_steps=None
 DDPGWrapAgent.actor_lr=1e-4
-DDPGWrapAgent.actor_layers=(400, 300)
+DDPGWrapAgent.actor_lr_decay_rate=None
+DDPGWrapAgent.actor_lr_decay_steps=None
+
+# noise
 DDPGWrapAgent.ou_std=0.2
 DDPGWrapAgent.ou_mean=0.15
+
+# misc
 TrainLoop.gamma=0
 TrainLoop.num_iterations = 1000000
-TrainLoop.batch_size = 64
-TrainLoop.replay_buf_size = 1000000
+TrainLoop.batch_size = 256
+TrainLoop.replay_buf_size = 250000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 

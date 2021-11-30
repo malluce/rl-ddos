@@ -6,9 +6,15 @@ TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
 TrainLoop.collect_raw = True # TODO warn
 
+Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_capacity=100
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
+TrackingWorstOffenderCache.metric='fpr'
+
+Loop.sampling_rate=0.25
 
 # state
 TrainLoop.use_prev_action_as_obs=True
@@ -20,7 +26,7 @@ TrainLoop.actionset_selection=@ContinuousRejectionActionSet() #@DiscreteRejectio
 # reward
 HHHEnv.reward_calc=@AdditiveRewardCalc()
 AdditiveRewardCalc.precision_weight=0
-AdditiveRewardCalc.recall_weight=1.5
+AdditiveRewardCalc.recall_weight=1.75
 AdditiveRewardCalc.fpr_weight=1.5
 AdditiveRewardCalc.bl_weight=0.15
 
@@ -33,14 +39,32 @@ Loop.action_interval=10
 
 ## agent params
 # actor
-TD3WrapAgent.use_act_rnn=False
+TD3WrapAgent.use_act_rnn=True
+TD3WrapAgent.rnn_act_in_fc_layers=(400,)
+TD3WrapAgent.rnn_act_out_fc_layers=(300,)
+TD3WrapAgent.rnn_act_lstm_size=(128,)
+#TD3WrapAgent.actor_layers=(400,300)
 # critic
 TD3WrapAgent.use_crt_rnn=False
+TD3WrapAgent.rnn_crt_in_fc_layers=(400,)
+TD3WrapAgent.rnn_crt_out_fc_layers=(300,)
+TD3WrapAgent.rnn_crt_obs_fc_layers=(200,)
+TD3WrapAgent.rnn_crt_joint_fc_layers=(300,)
+TD3WrapAgent.rnn_crt_lstm_size=(128,)
+TD3WrapAgent.rnn_crt_act_fc_layers=None
+
+TD3WrapAgent.critic_joint_layers=(400,300)
+TD3WrapAgent.critic_obs_layers=None
+TD3WrapAgent.critic_act_layers=None
 # lr
-TD3WrapAgent.actor_lr=1e-3
-TD3WrapAgent.critic_lr=1e-3
+TD3WrapAgent.actor_lr=5e-5
+TD3WrapAgent.actor_lr_decay_steps=1000
+TD3WrapAgent.actor_lr_decay_rate=0.96
+TD3WrapAgent.critic_lr=5e-5
+TD3WrapAgent.critic_lr_decay_steps=1000
+TD3WrapAgent.critic_lr_decay_rate=0.96
 # exploration
-TD3WrapAgent.exploration_noise_std=0.1
+TD3WrapAgent.exploration_noise_std=0.025
 # updates
 TD3WrapAgent.target_update_tau=5e-3
 TD3WrapAgent.target_update_period=2
@@ -48,6 +72,7 @@ TD3WrapAgent.actor_update_period=2
 # target policy
 TD3WrapAgent.target_policy_noise=0.2
 TD3WrapAgent.target_policy_clip=0.5
+
 
 # train params
 TrainLoop.gamma=0

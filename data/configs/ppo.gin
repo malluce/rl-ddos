@@ -5,6 +5,8 @@ TrainLoop.eval_interval = 6000
 TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
 TrainLoop.log_interval = 600
 
+Loop.sampling_rate=0.25
+
 # debug
 TrainLoop.collect_raw = True # TODO warn
 PPOWrapAgent.sum_grad_vars=False # TODO warn
@@ -13,28 +15,34 @@ PPOWrapAgent.sum_grad_vars=False # TODO warn
 TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
+Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_capacity=100
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
+TrackingWorstOffenderCache.metric='fpr'
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet()
+TrainLoop.actionset_selection=@TupleActionSet() #@ContinuousRejectionActionSet()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=6
-#MultiplicativeReward.recall_weight=1.5
-#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.precision_weight=0
+#MultiplicativeReward.recall_weight=1.25
+#MultiplicativeReward.fpr_weight=1.25
 #MultiplicativeReward.bl_weight=0.3
 
-HHHEnv.reward_calc=@AdditiveRewardCalc()
-AdditiveRewardCalc.precision_weight=1
-AdditiveRewardCalc.recall_weight=2
-AdditiveRewardCalc.fpr_weight=1.5
-AdditiveRewardCalc.bl_weight=0.15
+#HHHEnv.reward_calc=@AdditiveRewardCalc()
+#AdditiveRewardCalc.precision_weight=0
+#AdditiveRewardCalc.recall_weight=1.75
+#AdditiveRewardCalc.fpr_weight=1.5
+#AdditiveRewardCalc.bl_weight=0.15
+
+HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+DistributionTrace.traffic_trace_construct = @T3WithoutPause
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
 Loop.action_interval=10
@@ -69,8 +77,8 @@ PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
 #PPOWrapAgent.val_rnn_out_layers=(64,)
 
 # FFNN
-PPOWrapAgent.actor_layers=(64,64)
-PPOWrapAgent.value_layers=(64,64)
+PPOWrapAgent.actor_layers=(256,256)
+PPOWrapAgent.value_layers=(256,256)
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'

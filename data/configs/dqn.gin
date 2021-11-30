@@ -6,34 +6,41 @@ TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
 TrainLoop.collect_raw = True # TODO warn
 
+Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_capacity=100
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
+TrackingWorstOffenderCache.metric='fpr'
 
 # state
 TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@DiscreteRejectionActionSet() #@DiscreteRejectionActionSetWithL()
+TrainLoop.actionset_selection=@DiscreteRejectionActionSet() # #
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=6
-#MultiplicativeReward.recall_weight=1.5
-#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.precision_weight=0
+#MultiplicativeReward.recall_weight=1.35
+#MultiplicativeReward.fpr_weight=1
 #MultiplicativeReward.bl_weight=0.3
 
 HHHEnv.reward_calc=@AdditiveRewardCalc()
 AdditiveRewardCalc.precision_weight=0
-AdditiveRewardCalc.recall_weight=2
-AdditiveRewardCalc.fpr_weight=1
+AdditiveRewardCalc.recall_weight=1.75
+AdditiveRewardCalc.fpr_weight=1.5
 AdditiveRewardCalc.bl_weight=0.15
+
+#HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
 DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
+TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
