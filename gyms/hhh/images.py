@@ -127,8 +127,8 @@ class ImageGenerator:
         if np.max(image) / second_smallest_value >= self.hhh_squash_threshold:
             image = np.log(image, where=image > 1, out=np.zeros_like(image))
 
-        # normalize values to be in  [0,1]
-        image = image / np.max(image) * self.max_pixel_value
+        # normalize values to have zero mean, unit variance
+        image = (image - np.mean(image)) / (np.std(image) + 1e-8)
 
         # output (height, width, channels=1)
         image = np.expand_dims(image, 2)
