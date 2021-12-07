@@ -48,7 +48,7 @@ class ImageGenerator:
         return self._shape_to_gym_spec(shape)
 
     def _shape_to_gym_spec(self, shape):
-        return spaces.Box(0.0, self.max_pixel_value, shape=shape, dtype=np.float32)
+        return spaces.Box(-3.0, 3.0, shape=shape, dtype=np.float32)
 
     def get_img_spec(self):
         filter_img_spec = self.get_filter_img_spec()
