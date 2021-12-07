@@ -111,11 +111,12 @@ class TimedWorstOffenderCache(WorstOffenderCache):
         assert (start_ip, end_ip, hhh_len) not in self.active_timers
         if (start_ip, end_ip, hhh_len) in self.background_timers:
             logging.debug(
-                f'doubling {str(IPv4Address(start_ip))}/{hhh_len}: {self.background_timers[(start_ip, end_ip, hhh_len)]}->{2 * self.background_timers[(start_ip, end_ip, hhh_len)]}')
+                f' remembered rule, increasing bg timer {str(IPv4Address(start_ip))}/{hhh_len}: {self.background_timers[(start_ip, end_ip, hhh_len)]}->{max(self.initial_timer, self.initial_timer + self.background_timers[(start_ip, end_ip, hhh_len)])}')
 
             initial_timer = max(self.initial_timer,
                                 self.initial_timer + self.background_timers[(start_ip, end_ip, hhh_len)])
         else:
+            logging.debug(f' not remembering rule, starting with {self.initial_timer}')
             initial_timer = self.initial_timer
 
         self.background_timers[(start_ip, end_ip, hhh_len)] = initial_timer
@@ -126,17 +127,24 @@ class TimedWorstOffenderCache(WorstOffenderCache):
             logging.debug('===== before recovery =====')
             self.print()
 
-        for (start_ip, end_ip, hhh_len) in list(self.active_timers.keys()):
-            self.active_timers[(start_ip, end_ip, hhh_len)] -= self.active_decrement
-            if self.active_timers[(start_ip, end_ip, hhh_len)] <= 0:
-                self.active_timers.pop((start_ip, end_ip, hhh_len))
-                logging.debug(f'**removing active timer for{str(IPv4Address(start_ip))}/{hhh_len}')
-
         for (start_ip, end_ip, hhh_len) in list(self.background_timers.keys()):
-            self.background_timers[(start_ip, end_ip, hhh_len)] -= self.background_decrement
-            if self.background_timers[(start_ip, end_ip, hhh_len)] <= 0:
-                logging.debug(f'**removing background timer for{str(IPv4Address(start_ip))}/{hhh_len}')
-                self.background_timers.pop((start_ip, end_ip, hhh_len))
+            # decrement if rule just removed or not active already
+            decrement_background_timer = False
+            if (start_ip, end_ip, hhh_len) in self.active_timers.keys():
+                self.active_timers[(start_ip, end_ip, hhh_len)] -= self.active_decrement
+                if self.active_timers[(start_ip, end_ip, hhh_len)] <= 0:
+                    self.active_timers.pop((start_ip, end_ip, hhh_len))
+                    logging.debug(f'**removing active timer for{str(IPv4Address(start_ip))}/{hhh_len}')
+                    # decrement_background_timer = True
+            else:
+                decrement_background_timer = True
+
+            if decrement_background_timer:
+                # self.background_timers[(start_ip, end_ip, hhh_len)] /= 2
+                self.background_timers[(start_ip, end_ip, hhh_len)] -= self.background_decrement
+                if self.background_timers[(start_ip, end_ip, hhh_len)] <= 0:
+                    logging.debug(f'**removing background timer for{str(IPv4Address(start_ip))}/{hhh_len}')
+                    self.background_timers.pop((start_ip, end_ip, hhh_len))
 
         if logging.level_debug():
             logging.debug('===== after recovery =====')
