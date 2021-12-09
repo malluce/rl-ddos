@@ -17,7 +17,7 @@ class ImageGenerator:
                  # then values will be squashed together with log (smallest value will (likely) be 0, so take 2nd
                  # smallest)
                  hhh_squash_threshold=1,
-                 max_pixel_value=255  # pixel values are normalized to [0,1] and then multiplied with this value
+                 max_pixel_value=255  # max value for filter image
                  ):
         self.img_width_px = img_width_px
         self.address_space = address_space
@@ -121,11 +121,12 @@ class ImageGenerator:
                     for bin_to_increment in range(first_bin, last_bin + 1):
                         image[level, bin_to_increment] += count
 
-        # if needed squash distant values together to increase visibility of smaller IP sources
-        second_smallest_value = np.partition(np.unique(image.flatten()), 1)[1]
-        # print(f'ratio={np.max(image) / second_smallest_value}')
-        if np.max(image) / second_smallest_value >= self.hhh_squash_threshold:
-            image = np.log(image, where=image > 1, out=np.zeros_like(image))
+        if self.hhh_squash_threshold != -1:
+            # if needed squash distant values together to increase visibility of smaller IP sources
+            second_smallest_value = np.partition(np.unique(image.flatten()), 1)[1]
+            # print(f'ratio={np.max(image) / second_smallest_value}')
+            if np.max(image) / second_smallest_value >= self.hhh_squash_threshold:
+                image = np.log(image, where=image > 1, out=np.zeros_like(image))
 
         # normalize values to have zero mean, unit variance
         image = (image - np.mean(image)) / (np.std(image) + 1e-8)
