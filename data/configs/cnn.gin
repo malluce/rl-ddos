@@ -3,7 +3,7 @@ TrainLoop.image_gen=@ImageGenerator()
 
 ImageGenerator.img_width_px=256
 ImageGenerator.address_space=16
-ImageGenerator.hhh_squash_threshold=1
+ImageGenerator.hhh_squash_threshold=-1
 ImageGenerator.max_pixel_value=1
 
 cnn_256=(
@@ -16,7 +16,22 @@ cnn_256=(
          [(1, 2), (1, 2), 3], # pool sizes
          [(1, 2), (1, 2), 2]  # pool strides
     ),
-    64 # fc units after flatten
+    [64], # fc units after flatten
+    1 # start pooling layers at idx 1
+)
+
+# 24824 trainable parameters
+cnn_256_cropped=((
+                       [8, 16, 32],  # conv filters
+                       [(2, 4), (2, 4), (1, 2)],  # conv kernel sizes
+                       [(1, 2), (1, 2), (1, 2)]  # conv strides
+                   ),
+                   (
+                       [(1, 2), (1, 2), (2, 2)],  # pool sizes
+                       [(1, 2), (1, 2), 2]  # pool strides
+                   ),
+                   [64, 64],  # fc units after flatten
+                   1
 )
 
 cnn_512=(
@@ -29,7 +44,8 @@ cnn_512=(
          [(1, 2), (1, 2), 3], # pool sizes
          [(1, 2), (1, 2), 2]  # pool strides
     ),
-    64 # fc units after flatten
+    [64], # fc units after flatten
+    1 # start pooling layers at idx 1
 )
 
 # CNN256 Config
@@ -51,24 +67,4 @@ cnn_512=(
 #    # 1,256
 #    tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
 #    # 1,64
-#]
-
-# CNN512 Config
-#[
-#        # B,17,512,2
-#        @tf.keras.layers.Conv2D(8, (2, 4), activation=@tf.keras.activations.relu, strides=(1, 2)),
-#        # B,16,255,8
-#        @tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-#        # B,16,127,8
-#        @tf.keras.layers.Conv2D(16, (2, 4), activation=@tf.keras.activations.relu, strides=(1, 2)),
-#        # B,15,62,16
-#        @tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-#        # B,15,31,16
-#        @tf.keras.layers.Conv2D(32, (3, 3), activation=@tf.keras.activations.relu, strides=3),
-#        # B,5,10,32
-#        @tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
-#        # B,2,4,32
-#        @tf.keras.layers.Flatten(),
-#        # B,256
-#        @tf.keras.layers.Dense(64, activation=@tf.keras.activations.relu)
 #]

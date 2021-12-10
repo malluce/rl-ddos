@@ -659,6 +659,7 @@ class Loop(object):
         # the HHH instance in this step. Reset the HHH algorithm to
         # get rid of stale monitoring information.
         self.hhh.clear()
+
         s.samples = 0
         time_index_finished = False
         interval = 0

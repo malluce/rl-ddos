@@ -1,3 +1,4 @@
+import math
 import time
 
 import gin
@@ -19,6 +20,8 @@ class ImageGenerator:
                  hhh_squash_threshold=1,
                  max_pixel_value=255  # max value for filter image
                  ):
+        is_power_of_two = (img_width_px & (img_width_px - 1) == 0) and img_width_px != 0
+        assert is_power_of_two
         self.img_width_px = img_width_px
         self.address_space = address_space
         self.hhh_squash_threshold = hhh_squash_threshold
@@ -33,7 +36,7 @@ class ImageGenerator:
             def query_all(self):
                 return np.array([[x, 0, x] for x in range(self.addr_space, 33)])
 
-        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space)).shape
+        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=True).shape
         return self._shape_to_gym_spec(shape)
 
     def get_filter_img_spec(self):
@@ -53,19 +56,19 @@ class ImageGenerator:
     def get_img_spec(self):
         filter_img_spec = self.get_filter_img_spec()
         hhh_img_spec = self.get_hhh_img_spec()
-        assert filter_img_spec == hhh_img_spec
+        # assert filter_img_spec == hhh_img_spec
         concatenated_img_shape = hhh_img_spec.shape[:-1] + (2,)  # two-channel instead of one channel
         return self._shape_to_gym_spec(concatenated_img_shape)
 
     def generate_image(self, hhh_algo, hhh_query_result):
-        hhh_image = self.generate_hhh_image(hhh_algo)
         if hhh_query_result is not None:  # return two-channel image (HHH and Filter)
+            hhh_image = self.generate_hhh_image(hhh_algo, crop=False)
             filter_image = self.generate_filter_image(hhh_query_result)
             return np.concatenate((hhh_image, filter_image), axis=-1)
         else:  # return one-channel image (HHH only)
-            return hhh_image
+            return self.generate_hhh_image(hhh_algo, crop=True)
 
-    def generate_hhh_image(self, hhh_algo):
+    def generate_hhh_image(self, hhh_algo, crop):
         # start = time.time()
 
         max_addr = 2 ** self.address_space - 1
@@ -127,6 +130,10 @@ class ImageGenerator:
             # print(f'ratio={np.max(image) / second_smallest_value}')
             if np.max(image) / second_smallest_value >= self.hhh_squash_threshold:
                 image = np.log(image, where=image > 1, out=np.zeros_like(image))
+
+        if crop:
+            max_level = int(math.log2(self.img_width_px)) + 1
+            image = image[:max_level, :]
 
         # normalize values to have zero mean, unit variance
         image = (image - np.mean(image)) / (np.std(image) + 1e-8)
