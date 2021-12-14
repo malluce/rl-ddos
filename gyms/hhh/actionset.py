@@ -150,6 +150,45 @@ class ContinuousRejectionActionSet3(RejectionActionSet):  # adapted bounds, sigm
         return np.array([0.3, 1.0])
 
 
+def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
+    bin_size = 2 / 17  # range[-1,1], 17 L values (16,17,...,32)
+    return int(min((agent_action + 1) / bin_size + lower_bound, upper_bound))
+
+
+@gin.register
+class DDPGPhiLActionSet(ActionSet):
+
+    def __init__(self):
+        super().__init__()
+        self.actionspace = Box(
+            low=-1.0,
+            high=1.0,
+            shape=(2,),
+            dtype=np.float32
+        )
+        self.shape = self.actionspace.shape
+
+    def resolve(self, action):
+        resolved_l = agent_action_to_resolved_l(action[1], lower_bound=self.get_lower_bound()[1],
+                                                upper_bound=self.get_upper_bound()[1])
+        resolved_phi = agent_action_to_resolved_phi(action[0], lower_bound=self.get_lower_bound()[0],
+                                                    upper_bound=self.get_upper_bound()[0])
+        return resolved_phi, resolved_l
+
+    def inverse_resolve(self, chosen_action):
+        raise NotImplementedError('need to implement invers_resolve for new phi scaling')
+        # return inverse_resolve(chosen_action, self.get_lower_bound(), self.get_upper_bound())
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 17])
+
+    def get_upper_bound(self):
+        return np.array([0.3, 32])
+
+
 class DiscreteActionSet(ActionSet, ABC):
     def __init__(self):
         super().__init__()
@@ -341,7 +380,7 @@ class NotSoHugeDiscreteActionSet(DiscreteActionSet):
                         for x in  # phi
                         [(_ + 1) * 1e-3 for _ in range(10)] +  # 0.001, 0.002, ..., 0.01
                         [_ * 1e-2 for _ in range(2, 11)] +  # 0.02, 0.03, ..., 0.1
-                        [0.2, 0.3, 0.4, 0.5]
+                        [0.2, 0.3]
                         for y in [_ + 16 for _ in range(17)]]  # l
         self.actionspace = Discrete(len(self.actions))
 
