@@ -21,6 +21,7 @@ import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 from tf_agents.networks import encoding_network, network
 
 import agents.nets.ddpg_utils as utils
+from agents.nets.dqn_encoding_network import EncodingNetwork
 
 
 @gin.configurable
@@ -40,6 +41,7 @@ class CriticNetwork(network.Network):
                  output_activation_fn=None,
                  preprocessing_layers=None,
                  preprocessing_combiner=None,
+                 batch_norm=False,
                  name='CriticNetwork'):
         """Creates an instance of `CriticNetwork`.
 
@@ -103,9 +105,10 @@ class CriticNetwork(network.Network):
 
         self._action_spec = tf.nest.flatten(action_spec)
 
-        self._encoder = encoding_network.EncodingNetwork(
+        self._encoder = EncodingNetwork(
             observation_spec,
             preprocessing_layers=preprocessing_layers,
+            batch_normalization=batch_norm,
             preprocessing_combiner=preprocessing_combiner,
             conv_layer_params=observation_conv_layer_params,
             fc_layer_params=observation_fc_layer_params,
@@ -119,6 +122,7 @@ class CriticNetwork(network.Network):
             None,
             action_fc_layer_params,
             action_dropout_layer_params,
+            batch_normalization=batch_norm,
             activation_fn=activation_fn,
             kernel_initializer=tf.compat.v1.keras.initializers.glorot_uniform(),
             name='action_encoding')
@@ -127,6 +131,7 @@ class CriticNetwork(network.Network):
             None,
             joint_fc_layer_params,
             joint_dropout_layer_params,
+            batch_normalization=batch_norm,
             activation_fn=activation_fn,
             kernel_initializer=tf.compat.v1.keras.initializers.glorot_uniform(),
             name='joint_mlp')

@@ -25,7 +25,8 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
         self.gamma = gamma
         self.eps_greedy = eps_greedy
 
-        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func,
+                                                                             batch_norm=False)
 
         # set q net
         if not use_rnn:

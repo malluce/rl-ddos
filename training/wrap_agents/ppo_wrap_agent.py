@@ -16,6 +16,7 @@ from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
 
+@gin.configurable
 def _normal_projection_net(action_spec,
                            init_action_stddev=0.1,  # 0.1 instead of 0.35 -> less exploration?
                            init_means_output_factor=0.1):
@@ -48,7 +49,8 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
                                        linear_decay_steps=linear_decay_steps, exp_min_lr=exp_min_lr)
 
-        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func,
+                                                                             batch_norm=False)
 
         # set actor net
         if use_actor_rnn:

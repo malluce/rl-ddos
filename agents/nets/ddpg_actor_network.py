@@ -26,6 +26,7 @@ import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 from tf_agents.networks import encoding_network, network
 from tf_agents.utils import common
 import agents.nets.ddpg_utils as utils
+from agents.nets.dqn_encoding_network import EncodingNetwork
 
 
 @gin.configurable
@@ -41,6 +42,7 @@ class ActorNetwork(network.Network):
                  activation_fn=tf.keras.activations.relu,
                  preprocessing_layers=None,
                  preprocessing_combiner=None,
+                 batch_norm=False,
                  name='ActorNetwork'):
         """Creates an instance of `ActorNetwork`.
 
@@ -77,7 +79,7 @@ class ActorNetwork(network.Network):
 
         self._action_spec = tf.nest.flatten(output_tensor_spec)
 
-        self._encoder = encoding_network.EncodingNetwork(
+        self._encoder = EncodingNetwork(
             input_tensor_spec,
             preprocessing_layers=preprocessing_layers,
             preprocessing_combiner=preprocessing_combiner,
@@ -85,6 +87,7 @@ class ActorNetwork(network.Network):
             fc_layer_params=fc_layer_params,
             dropout_layer_params=dropout_layer_params,
             activation_fn=activation_fn,
+            batch_normalization=batch_norm,
             kernel_initializer=tf.compat.v1.keras.initializers.glorot_uniform(),
             batch_squash=True,
             dtype=tf.float32)

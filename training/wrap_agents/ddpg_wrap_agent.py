@@ -1,12 +1,14 @@
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import gin
 import numpy as np
 from tf_agents.agents import DdpgAgent
+from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.networks import normal_projection_network
 from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
 import tensorflow as tf
+from tf_agents.typing import types
 
 from agents.nets.ddpg_actor_network import ActorNetwork
 from agents.nets.ddpg_critic_network import CriticNetwork
@@ -31,10 +33,14 @@ class DDPGWrapAgent(DdpgAgent, WrapAgent):
 
     def __init__(self, time_step_spec, action_spec, actor_layers=(400, 300), critic_obs_fc_layers=(400,),
                  critic_action_fc_layers=None, critic_joint_fc_layers=(300,),
-                 target_update_tau=0.001, target_update_period=1, gamma=0, critic_lr=1e-3, actor_lr=1e-4,
+                 target_update_tau=0.001, target_update_period=1, gamma=0,
+                 critic_lr=1e-3, critic_lr_decay_rate=None, critic_lr_decay_steps=None, critic_exp_min_lr=None,
+                 actor_lr=1e-4, actor_lr_decay_rate=None, actor_lr_decay_steps=None, actor_exp_min_lr=None,
                  ou_std=0.2, ou_mean=0.15,
-                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu
-
+                 cnn_spec=None, cnn_act_func=tf.keras.activations.relu,
+                 gradient_clip=None, dqda_clip=None,
+                 batch_norm=False,
+                 debug=False
                  ):
         self.gamma = gamma
 
@@ -42,23 +48,27 @@ class DDPGWrapAgent(DdpgAgent, WrapAgent):
 
         actor_net = ActorNetwork(time_step_spec.observation, action_spec, actor_layers,
                                  preprocessing_layers=preprocessing_layers,
-                                 preprocessing_combiner=preprocessing_combiner)
+                                 preprocessing_combiner=preprocessing_combiner,
+                                 batch_norm=batch_norm)
 
         critic_net = CriticNetwork((time_step_spec.observation, action_spec),
                                    observation_fc_layer_params=critic_obs_fc_layers,
                                    action_fc_layer_params=critic_action_fc_layers,
                                    joint_fc_layer_params=critic_joint_fc_layers,
                                    preprocessing_layers=preprocessing_layers,
-                                   preprocessing_combiner=preprocessing_combiner
+                                   preprocessing_combiner=preprocessing_combiner,
+                                   batch_norm=batch_norm
                                    )
 
         # set lr (decay)
-        self.crit_opt = get_optimizer(critic_lr, None, None)
-        self.act_opt = get_optimizer(actor_lr, None, None)
+        self.crit_opt = get_optimizer(critic_lr, critic_lr_decay_rate, critic_lr_decay_steps,
+                                      exp_min_lr=critic_exp_min_lr)
+        self.act_opt = get_optimizer(actor_lr, actor_lr_decay_rate, actor_lr_decay_steps, exp_min_lr=actor_exp_min_lr)
 
         super().__init__(time_step_spec, action_spec, actor_net, critic_net, self.act_opt, self.crit_opt, ou_std,
                          ou_mean,
                          gamma=gamma, target_update_period=target_update_period, target_update_tau=target_update_tau,
+                         gradient_clipping=gradient_clip, dqda_clipping=dqda_clip, debug_summaries=debug,
                          name='ddpg')
 
     def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
@@ -67,3 +77,6 @@ class DDPGWrapAgent(DdpgAgent, WrapAgent):
 
     def get_gamma(self):
         return self.gamma
+
+    def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
+        pass

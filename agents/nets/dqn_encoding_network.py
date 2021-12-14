@@ -286,8 +286,8 @@ class EncodingNetwork(network.Network):
                 if dropout_params is not None:
                     layers.append(utils.maybe_permanent_dropout(**dropout_params))
 
-                if batch_normalization:
-                    layers.append(tf.keras.layers.BatchNormalization())
+                if batch_normalization:  # added by hauke
+                    layers.append(tf.keras.layers.BatchNormalization())  # added by hauke
 
         super(EncodingNetwork, self).__init__(
             input_tensor_spec=input_tensor_spec, state_spec=(), name=name)
