@@ -30,6 +30,34 @@ class RewardCalc(ABC):
 
 
 @gin.configurable
+class AdditiveRewardExponentialWeights(RewardCalc):
+
+    def __init__(self, precision_weight, fpr_weight, recall_weight, bl_weight):
+        self.precision_weight = precision_weight
+        self.fpr_weight = fpr_weight
+        self.recall_weight = recall_weight
+        self.bl_weight = bl_weight
+
+    def calc_reward(self, state: State):
+        return self.weighted_precision(state.precision) \
+               + self.weighted_bl_size(state.blacklist_size) \
+               + self.weighted_recall(state.recall) \
+               + self.weighted_fpr(state.fpr)
+
+    def weighted_precision(self, precision: float):
+        return precision ** self.precision_weight
+
+    def weighted_recall(self, recall: float):
+        return recall ** self.recall_weight
+
+    def weighted_fpr(self, fpr: float):
+        return (1 - fpr) ** self.fpr_weight
+ 
+    def weighted_bl_size(self, bl_size: int):
+        return 1 - self.bl_weight * np.log2(np.maximum(1, bl_size))
+
+
+@gin.configurable
 class AdditiveRewardCalc(RewardCalc):
 
     def __init__(self, precision_weight, fpr_weight, recall_weight, bl_weight):
@@ -98,6 +126,8 @@ class DefaultRewardCalc(RewardCalc):
         return 1 - np.sqrt(fpr)
 
     def weighted_bl_size(self, bl_size):
+        if bl_size < 1:
+            return 1
         return 1.0 - 0.2 * np.sqrt(np.log2(bl_size))
 
     def calc_reward(self, state: State):
