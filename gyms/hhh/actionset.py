@@ -83,6 +83,73 @@ class ContinuousRejectionActionSet(RejectionActionSet):
         return np.array([0.5, 1.0])
 
 
+@gin.register
+class ContinuousRejectionActionSet2(RejectionActionSet):  # adapted bounds
+
+    def __init__(self):
+        super().__init__()
+        self.actionspace = Box(
+            low=-1.0,
+            high=1.0,
+            shape=(2,),
+            dtype=np.float32
+        )
+        self.shape = self.actionspace.shape
+
+    def resolve(self, action):
+        resolved = agent_action_to_resolved(action, lower_bound=self.get_lower_bound(),
+                                            upper_bound=self.get_upper_bound())
+        phi = resolved[0]
+        thresh = resolved[1]
+        return phi, thresh
+
+    def inverse_resolve(self, chosen_action):
+        return inverse_resolve(chosen_action, self.get_lower_bound(), self.get_upper_bound())
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.85])
+
+    def get_upper_bound(self):
+        return np.array([0.3, 1.0])
+
+
+@gin.register
+class ContinuousRejectionActionSet3(RejectionActionSet):  # adapted bounds, sigmoid phi scaling
+
+    def __init__(self):
+        super().__init__()
+        self.actionspace = Box(
+            low=-1.0,
+            high=1.0,
+            shape=(2,),
+            dtype=np.float32
+        )
+        self.shape = self.actionspace.shape
+
+    def resolve(self, action):
+        resolved_pthresh = agent_action_to_resolved(action[1], lower_bound=self.get_lower_bound()[1],
+                                                    upper_bound=self.get_upper_bound()[1])
+        resolved_phi = agent_action_to_resolved_phi(action[0], lower_bound=self.get_lower_bound()[0],
+                                                    upper_bound=self.get_upper_bound()[0])
+        return resolved_phi, resolved_pthresh
+
+    def inverse_resolve(self, chosen_action):
+        raise NotImplementedError('need to implement invers_resolve for new phi scaling')
+        # return inverse_resolve(chosen_action, self.get_lower_bound(), self.get_upper_bound())
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.85])
+
+    def get_upper_bound(self):
+        return np.array([0.3, 1.0])
+
+
 class DiscreteActionSet(ActionSet, ABC):
     def __init__(self):
         super().__init__()
@@ -183,6 +250,27 @@ class EvenSmallerDiscreteRejectionActionSet(DiscreteActionSet, RejectionActionSe
         return np.array([0.5, 1.0])
 
 
+@gin.register
+class EvenSmallerDiscreteRejectionActionSet2(DiscreteActionSet, RejectionActionSet):
+    def __init__(self):
+        super().__init__()
+        self.actions = [(x, y)
+                        for x in  # phi
+                        [(_ + 1) * 1e-3 for _ in range(10)] +  # 0.001, 0.002, ..., 0.01
+                        [_ * 1e-2 for _ in range(2, 11)] +  # 0.02, 0.03, ..., 0.1
+                        [0.2, 0.3]
+                        for y in  # thresh
+                        [0.85, 0.9, 0.925, 0.95, 0.975, 1.0]
+                        ]
+        self.actionspace = Discrete(len(self.actions))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 0.85])
+
+    def get_upper_bound(self):
+        return np.array([0.3, 1.0])
+
+
 @gin.configurable
 class SmallDiscreteActionSet(DiscreteActionSet):
 
@@ -271,6 +359,16 @@ def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     middle = (upper_bound + lower_bound) / 2
     middle_to_bound = upper_bound - middle
     return np.clip(middle + middle_to_bound * agent_action, lower_bound, upper_bound)
+
+
+def agent_action_to_resolved_phi(agent_action, lower_bound, upper_bound):
+    """
+    Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [lower_bound, upper_bound] by applying sigmoid scaling.
+    :param upper_bound: upper bound on the output
+    :param lower_bound: lower bound on the output
+    :param agent_action: action in [-1.0, 1.0]
+    """
+    return np.maximum((1 / (1 + np.exp(-3.25 * (agent_action - 1)))) * 2 * upper_bound, lower_bound)
 
 
 def inverse_resolve(chosen_action, lower_bound, upper_bound):
