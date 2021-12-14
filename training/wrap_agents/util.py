@@ -47,11 +47,12 @@ class MinExpSchedule(LearningRateSchedule):
         pass
 
 
-def build_cnn_from_spec(cnn_spec, act_func):
+def build_cnn_from_spec(cnn_spec, act_func, batch_norm=False):
     """
     Creates a CNN from a given specification.
     Conv2D and pooling layers alternate (first pool layer at start_pool_idx), with one fully connected layer at the end.
 
+    :param batch_norm: if to include batch norm layers after each layer
     :param cnn_spec: the specification of CNN are 3-tuples of the following contents.
     (
       ([conv_filters], [conv_kernel_sizes], [conv_strides]),
@@ -77,11 +78,15 @@ def build_cnn_from_spec(cnn_spec, act_func):
             tf.keras.layers.Conv2D(conv_filters[conv_idx], conv_kernel_sizes[conv_idx], activation=act_func,
                                    strides=conv_strides[conv_idx])
         )
+        if batch_norm:
+            keras_layers.append(tf.keras.layers.BatchNormalization())
         conv_idx += 1
         total_layers += 1
         if total_layers >= start_pool_idx:
             keras_layers.append(
                 tf.keras.layers.MaxPool2D(pool_size=pool_sizes[pool_idx], strides=pool_strides[pool_idx]))
+            if batch_norm:
+                keras_layers.append(tf.keras.layers.BatchNormalization())
             pool_idx += 1
             total_layers += 1
 
@@ -89,12 +94,15 @@ def build_cnn_from_spec(cnn_spec, act_func):
     keras_layers.append(tf.keras.layers.Flatten())
     for fc in fc_units:
         keras_layers.append(tf.keras.layers.Dense(fc, activation=act_func))
+        if batch_norm:
+            keras_layers.append(tf.keras.layers.BatchNormalization())
     return tf.keras.models.Sequential(keras_layers)
 
 
-def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func):
+def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func, batch_norm):
     """
     Returns a preprocessing CNN (layers and combiner), if time_step_spec contains images as observations.
+    :param batch_norm: whether to use batch norm layers in between
     :param cnn_spec: the spec of CNN to build, see doc of build_cnn_from_spec()
     :param time_step_spec: the time step spec
     :param act_func: the activation function to use in the preprocessing layers
@@ -104,8 +112,8 @@ def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func):
     if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec:  # 'image' in obs_spec TODO
         logging.info('setting up CNN!')
 
-        cnn = build_cnn_from_spec(cnn_spec, act_func)
-        hhh_cnn = build_cnn_from_spec(cnn_spec, act_func)
+        cnn = build_cnn_from_spec(cnn_spec, act_func, batch_norm)
+        hhh_cnn = build_cnn_from_spec(cnn_spec, act_func, batch_norm)
 
         preprocessing_layers = {
             'vector': Lambda(lambda x: x),  # pass-through layer
