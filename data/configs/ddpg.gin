@@ -4,7 +4,9 @@ TrainLoop.root_dir='/srv/bachmann/data/ddpg'
 TrainLoop.eval_interval = 3000
 TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
+
 TrainLoop.collect_raw = True # TODO warn
+DDPGWrapAgent.debug=False # TODO warn
 
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
@@ -12,22 +14,21 @@ RulePerformanceTable.use_cache=True
 RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
 TrackingWorstOffenderCache.metric='fpr'
 TrackingWorstOffenderCache.capacity='inf'
-TrackingWorstOffenderCache.metric='fpr'
 
 
 # state
-TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+TrainLoop.use_prev_action_as_obs=False
+TrainLoop.state_obs_selection=(@DummyState(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet() # #
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet3() # #
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
 #MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=1.35
-#MultiplicativeReward.fpr_weight=1
-#MultiplicativeReward.bl_weight=0.3
+#MultiplicativeReward.recall_weight=2.03
+#MultiplicativeReward.fpr_weight=3.4
+#MultiplicativeReward.bl_weight=0.344
 
 HHHEnv.reward_calc=@AdditiveRewardCalc()
 AdditiveRewardCalc.precision_weight=0
@@ -45,32 +46,36 @@ TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # layers
-DDPGWrapAgent.critic_obs_fc_layers=(400,)
+DDPGWrapAgent.critic_obs_fc_layers=None
 DDPGWrapAgent.critic_action_fc_layers=None
-DDPGWrapAgent.critic_joint_fc_layers=(300,200)
-DDPGWrapAgent.actor_layers=(400, 300, 200)
+DDPGWrapAgent.critic_joint_fc_layers=(400,300)
+DDPGWrapAgent.actor_layers=(400, 300)
 
 # target update
 DDPGWrapAgent.target_update_tau=0.001
 DDPGWrapAgent.target_update_period=1
 
 # LRs
-DDPGWrapAgent.critic_lr=1e-3
+DDPGWrapAgent.gradient_clip=0.75
+DDPGWrapAgent.dqda_clip=0.5
+DDPGWrapAgent.critic_lr=1e-5
 DDPGWrapAgent.critic_lr_decay_rate=None
 DDPGWrapAgent.critic_lr_decay_steps=None
-DDPGWrapAgent.actor_lr=1e-4
+DDPGWrapAgent.critic_exp_min_lr=None
+DDPGWrapAgent.actor_lr=1e-5
 DDPGWrapAgent.actor_lr_decay_rate=None
 DDPGWrapAgent.actor_lr_decay_steps=None
+DDPGWrapAgent.actor_exp_min_lr=None
 
 # noise
-DDPGWrapAgent.ou_std=0.2
+DDPGWrapAgent.ou_std=0.1
 DDPGWrapAgent.ou_mean=0.15
 
 # misc
 TrainLoop.gamma=0
 TrainLoop.num_iterations = 1000000
-TrainLoop.batch_size = 256
-TrainLoop.replay_buf_size = 250000
+TrainLoop.batch_size = 128
+TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 
@@ -79,5 +84,5 @@ TrainLoop.train_sequence_length=1
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
-DDPGWrapAgent.cnn_spec=%cnn_256
+DDPGWrapAgent.cnn_spec=%cnn_256_cropped
 DDPGWrapAgent.cnn_act_func=@tf.keras.activations.relu

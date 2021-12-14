@@ -5,15 +5,13 @@ TrainLoop.eval_interval = 6000
 TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
 TrainLoop.log_interval = 600
 
-Loop.sampling_rate=0.25
-
 # debug
 TrainLoop.collect_raw = True # TODO warn
 PPOWrapAgent.sum_grad_vars=False # TODO warn
 
 # state
-TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+TrainLoop.use_prev_action_as_obs=False
+TrainLoop.state_obs_selection=(@DummyState(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
@@ -21,10 +19,9 @@ RulePerformanceTable.use_cache=True
 RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
 TrackingWorstOffenderCache.metric='fpr'
 TrackingWorstOffenderCache.capacity='inf'
-TrackingWorstOffenderCache.metric='fpr'
 
 # action
-TrainLoop.actionset_selection=@TupleActionSet() #@ContinuousRejectionActionSet()
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet3()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
@@ -33,18 +30,19 @@ TrainLoop.actionset_selection=@TupleActionSet() #@ContinuousRejectionActionSet()
 #MultiplicativeReward.fpr_weight=1.25
 #MultiplicativeReward.bl_weight=0.3
 
-#HHHEnv.reward_calc=@AdditiveRewardCalc()
-#AdditiveRewardCalc.precision_weight=0
-#AdditiveRewardCalc.recall_weight=1.75
-#AdditiveRewardCalc.fpr_weight=1.5
-#AdditiveRewardCalc.bl_weight=0.15
+HHHEnv.reward_calc=@AdditiveRewardCalc()
+AdditiveRewardCalc.precision_weight=0
+AdditiveRewardCalc.recall_weight=1.75
+AdditiveRewardCalc.fpr_weight=1.5
+AdditiveRewardCalc.bl_weight=0.15
 
-HHHEnv.reward_calc=@DefaultRewardCalc()
+#HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace_construct = @T3WithoutPause
+DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
+TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
@@ -52,10 +50,11 @@ PPOWrapAgent.lr=1e-5
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
-TrainLoop.num_iterations = 100000
+TrainLoop.num_iterations = 200000
 PPOWrapAgent.gradient_clip=None
 
 # PPO-specific params
+_normal_projection_net.init_action_stddev=0.35
 PPOWrapAgent.entropy_regularization=0
 PPOWrapAgent.num_epochs=10
 PPOWrapAgent.importance_ratio_clipping=0.15
@@ -83,4 +82,4 @@ PPOWrapAgent.value_layers=(256,256)
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
 PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
-PPOWrapAgent.cnn_spec=%cnn_256
+PPOWrapAgent.cnn_spec=%cnn_256_cropped

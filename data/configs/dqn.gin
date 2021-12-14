@@ -9,27 +9,23 @@ TrainLoop.collect_raw = True # TODO warn
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_class=@TimedWorstOffenderCache
-TimedWorstOffenderCache.BACKGROUND_DECREMENT = 0.5
-TimedWorstOffenderCache.ACTIVE_DECREMENT = 1
-TimedWorstOffenderCache.INITIAL_TIMER = 10
-#TrackingWorstOffenderCache.metric='fpr'
-#TrackingWorstOffenderCache.capacity='inf'
-#TrackingWorstOffenderCache.metric='fpr'
+RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
+TrackingWorstOffenderCache.metric='fpr'
+TrackingWorstOffenderCache.capacity='inf'
 
 # state
-TrainLoop.use_prev_action_as_obs=True
-TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+TrainLoop.use_prev_action_as_obs=False
+TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@DiscreteRejectionActionSet() # #
+TrainLoop.actionset_selection=@EvenSmallerDiscreteRejectionActionSet2() # #
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
 #MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=1.35
-#MultiplicativeReward.fpr_weight=1
-#MultiplicativeReward.bl_weight=0.3
+#MultiplicativeReward.recall_weight=2.03
+#MultiplicativeReward.fpr_weight=3.4
+#MultiplicativeReward.bl_weight=0.344
 
 HHHEnv.reward_calc=@AdditiveRewardCalc()
 AdditiveRewardCalc.precision_weight=0
@@ -70,5 +66,5 @@ DQNWrapAgent.rnn_output_layers=(200,)
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
-DQNWrapAgent.cnn_spec=%cnn_256
+DQNWrapAgent.cnn_spec=%cnn_256_cropped
 DQNWrapAgent.cnn_act_func=@tf.keras.activations.relu

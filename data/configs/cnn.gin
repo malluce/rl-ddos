@@ -3,8 +3,9 @@ TrainLoop.image_gen=@ImageGenerator()
 
 ImageGenerator.img_width_px=256
 ImageGenerator.address_space=16
-ImageGenerator.hhh_squash_threshold=-1
+ImageGenerator.hhh_squash_threshold=1
 ImageGenerator.max_pixel_value=1
+ImageGenerator.crop_standalone_hhh_image=True
 
 cnn_256=(
      (
