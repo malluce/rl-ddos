@@ -18,7 +18,8 @@ class ImageGenerator:
                  # then values will be squashed together with log (smallest value will (likely) be 0, so take 2nd
                  # smallest)
                  hhh_squash_threshold=1,
-                 max_pixel_value=255  # max value for filter image
+                 max_pixel_value=255,  # max value for filter image
+                 crop_standalone_hhh_image=True
                  ):
         is_power_of_two = (img_width_px & (img_width_px - 1) == 0) and img_width_px != 0
         assert is_power_of_two
@@ -26,6 +27,7 @@ class ImageGenerator:
         self.address_space = address_space
         self.hhh_squash_threshold = hhh_squash_threshold
         self.max_pixel_value = max_pixel_value
+        self.crop_standalone_hhh_image = crop_standalone_hhh_image
 
     def get_hhh_img_spec(self):
         # create dummy input for image gen, feed it through img gen and return img spec
@@ -36,7 +38,7 @@ class ImageGenerator:
             def query_all(self):
                 return np.array([[x, 0, x] for x in range(self.addr_space, 33)])
 
-        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=True).shape
+        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=self.crop_standalone_hhh_image).shape
         return self._shape_to_gym_spec(shape)
 
     def get_filter_img_spec(self):
@@ -66,7 +68,7 @@ class ImageGenerator:
             filter_image = self.generate_filter_image(hhh_query_result)
             return np.concatenate((hhh_image, filter_image), axis=-1)
         else:  # return one-channel image (HHH only)
-            return self.generate_hhh_image(hhh_algo, crop=True)
+            return self.generate_hhh_image(hhh_algo, crop=self.crop_standalone_hhh_image)
 
     def generate_hhh_image(self, hhh_algo, crop):
         # start = time.time()
