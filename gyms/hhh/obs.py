@@ -93,6 +93,21 @@ class BaseObservations(Observation):
 
 
 @gin.register
+class DummyState(Observation):
+
+    def get_observation(self, state):
+        return np.array([
+            0.0
+        ])
+
+    def get_lower_bound(self):
+        return np.array([0.0])
+
+    def get_upper_bound(self):
+        return np.array([0.0])
+
+
+@gin.register
 class TrafficSituation(Observation):
 
     def get_observation(self, state):
