@@ -29,6 +29,12 @@ class ActionSet(Observation, ABC):
     def inverse_resolve(self, chosen_action):
         pass
 
+    def get_initialization(self):
+        """
+        Randomly samples action for use in env.reset(), to build first observation on some action.
+        """
+        return self.actionspace.sample()
+
 
 class RejectionActionSet(Observation, ABC):
     def __init__(self):
@@ -183,7 +189,7 @@ class DDPGPhiLActionSet(ActionSet):
         return np.array(self.resolve(action))
 
     def get_lower_bound(self):
-        return np.array([0.001, 17])
+        return np.array([0.001, 16])
 
     def get_upper_bound(self):
         return np.array([0.3, 32])
