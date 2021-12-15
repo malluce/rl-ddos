@@ -19,7 +19,8 @@ class ImageGenerator:
                  # smallest)
                  hhh_squash_threshold=1,
                  max_pixel_value=255,  # max value for filter image
-                 crop_standalone_hhh_image=True
+                 crop_standalone_hhh_image=True,
+                 normalize=True
                  ):
         is_power_of_two = (img_width_px & (img_width_px - 1) == 0) and img_width_px != 0
         assert is_power_of_two
@@ -28,6 +29,7 @@ class ImageGenerator:
         self.hhh_squash_threshold = hhh_squash_threshold
         self.max_pixel_value = max_pixel_value
         self.crop_standalone_hhh_image = crop_standalone_hhh_image
+        self.normalize = normalize
 
     def get_hhh_img_spec(self):
         # create dummy input for image gen, feed it through img gen and return img spec
@@ -38,7 +40,8 @@ class ImageGenerator:
             def query_all(self):
                 return np.array([[x, 0, x] for x in range(self.addr_space, 33)])
 
-        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=self.crop_standalone_hhh_image).shape
+        shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=self.crop_standalone_hhh_image,
+                                        normalize=self.normalize).shape
         return self._shape_to_gym_spec(shape)
 
     def get_filter_img_spec(self):
@@ -64,13 +67,13 @@ class ImageGenerator:
 
     def generate_image(self, hhh_algo, hhh_query_result):
         if hhh_query_result is not None:  # return two-channel image (HHH and Filter)
-            hhh_image = self.generate_hhh_image(hhh_algo, crop=False)
+            hhh_image = self.generate_hhh_image(hhh_algo, crop=False, normalize=self.normalize)
             filter_image = self.generate_filter_image(hhh_query_result)
             return np.concatenate((hhh_image, filter_image), axis=-1)
         else:  # return one-channel image (HHH only)
-            return self.generate_hhh_image(hhh_algo, crop=self.crop_standalone_hhh_image)
+            return self.generate_hhh_image(hhh_algo, crop=self.crop_standalone_hhh_image, normalize=self.normalize)
 
-    def generate_hhh_image(self, hhh_algo, crop):
+    def generate_hhh_image(self, hhh_algo, crop, normalize):
         # start = time.time()
 
         max_addr = 2 ** self.address_space - 1
@@ -137,8 +140,9 @@ class ImageGenerator:
             max_level = int(math.log2(self.img_width_px)) + 1
             image = image[:max_level, :]
 
-        # normalize values to have zero mean, unit variance
-        image = (image - np.mean(image)) / (np.std(image) + 1e-8)
+        if normalize:
+            # normalize values to have zero mean, unit variance
+            image = (image - np.mean(image)) / (np.std(image) + 1e-8)
 
         # output (height, width, channels=1)
         image = np.expand_dims(image, 2)
