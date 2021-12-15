@@ -73,6 +73,10 @@ def build_cnn_from_spec(cnn_spec, act_func, batch_norm=False):
     total_layers = 0
     pool_idx = 0
     conv_idx = 0
+
+    if batch_norm:
+        keras_layers.append(tf.keras.layers.BatchNormalization())
+
     for i in range(len(conv_filters)):
         keras_layers.append(
             tf.keras.layers.Conv2D(conv_filters[conv_idx], conv_kernel_sizes[conv_idx], activation=act_func,
@@ -92,9 +96,10 @@ def build_cnn_from_spec(cnn_spec, act_func, batch_norm=False):
 
     # flatten and dense at the end
     keras_layers.append(tf.keras.layers.Flatten())
-    for fc in fc_units:
-        keras_layers.append(tf.keras.layers.Dense(fc, activation=act_func))
-        if batch_norm:
+    for fc in range(len(fc_units)):
+        keras_layers.append(tf.keras.layers.Dense(fc_units[fc], activation=act_func))
+        # not include batchNorm after last layer, since first layer of agent network would also be batchnorm layer
+        if batch_norm and fc != len(fc_units) - 1:
             keras_layers.append(tf.keras.layers.BatchNormalization())
     return tf.keras.models.Sequential(keras_layers)
 
