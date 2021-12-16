@@ -18,10 +18,10 @@ TrackingWorstOffenderCache.capacity='inf'
 
 # state
 TrainLoop.use_prev_action_as_obs=False
-TrainLoop.state_obs_selection=(@DummyState(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet3() # #
+TrainLoop.actionset_selection=@DDPGPhiLActionSet() #@ContinuousRejectionActionSet3()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
@@ -50,6 +50,7 @@ DDPGWrapAgent.critic_obs_fc_layers=None
 DDPGWrapAgent.critic_action_fc_layers=None
 DDPGWrapAgent.critic_joint_fc_layers=(400,300)
 DDPGWrapAgent.actor_layers=(400, 300)
+DDPGWrapAgent.batch_norm=True
 
 # target update
 DDPGWrapAgent.target_update_tau=0.001
@@ -74,7 +75,7 @@ DDPGWrapAgent.ou_mean=0.15
 # misc
 TrainLoop.gamma=0
 TrainLoop.num_iterations = 1000000
-TrainLoop.batch_size = 128
+TrainLoop.batch_size = 64
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600

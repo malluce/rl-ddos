@@ -5,28 +5,15 @@ import numpy as np
 from tf_agents.agents.ppo.ppo_clip_agent import PPOClipAgent
 from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.networks import normal_projection_network
-from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork
-from tf_agents.networks.value_network import ValueNetwork
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork
 from tf_agents.typing import types
 import tensorflow as tf
 
+from agents.nets.ppo_actor_net import ActorDistributionNetwork
+from agents.nets.ppo_value_net import ValueNetwork
 from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
-
-
-@gin.configurable
-def _normal_projection_net(action_spec,
-                           init_action_stddev=0.1,  # 0.1 instead of 0.35 -> less exploration?
-                           init_means_output_factor=0.1):
-    std_bias_initializer_value = np.log(np.exp(init_action_stddev) - 1)
-
-    return normal_projection_network.NormalProjectionNetwork(
-        action_spec,
-        init_means_output_factor=init_means_output_factor,
-        std_bias_initializer_value=std_bias_initializer_value,
-        scale_distribution=False)
 
 
 @gin.configurable
@@ -43,7 +30,8 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                  use_value_rnn=False, val_rnn_in_layers=(128, 64), val_rnn_lstm=(64,), val_rnn_out_layers=(128, 64),
                  entropy_regularization=0.0, use_gae=False, gae_lambda=0.95, sum_grad_vars=False, gradient_clip=None,
                  cnn_act_func=tf.keras.activations.relu,
-                 cnn_spec=None
+                 cnn_spec=None,
+                 batch_norm=False
                  ):
         self.gamma = gamma
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps, linear_decay_end_lr=linear_decay_end_lr,
@@ -59,14 +47,13 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
                                                     output_fc_layer_params=act_rnn_out_layers,
                                                     activation_fn=actor_act_func,
                                                     preprocessing_layers=preprocessing_layers,
-                                                    preprocessing_combiner=preprocessing_combiner,
-                                                    continuous_projection_net=_normal_projection_net)
+                                                    preprocessing_combiner=preprocessing_combiner)
         else:
             actor_net = ActorDistributionNetwork(time_step_spec().observation, action_spec(),
                                                  fc_layer_params=actor_layers, activation_fn=actor_act_func,
                                                  preprocessing_layers=preprocessing_layers,
                                                  preprocessing_combiner=preprocessing_combiner,
-                                                 continuous_projection_net=_normal_projection_net)
+                                                 batch_norm=batch_norm)
 
         # set value net
         if use_value_rnn:
@@ -79,14 +66,18 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
             value_net = ValueNetwork(time_step_spec().observation, fc_layer_params=value_layers,
                                      activation_fn=value_act_func,
                                      preprocessing_layers=preprocessing_layers,
-                                     preprocessing_combiner=preprocessing_combiner)
+                                     preprocessing_combiner=preprocessing_combiner,
+                                     batch_norm=batch_norm)
+
+        normalize_obs = not batch_norm
 
         super().__init__(time_step_spec(), action_spec(), optimizer=self.optimizer,
                          actor_net=actor_net, value_net=value_net,
                          importance_ratio_clipping=importance_ratio_clipping, discount_factor=gamma,
                          num_epochs=num_epochs, name='ppo', entropy_regularization=entropy_regularization,
                          use_gae=use_gae, lambda_value=gae_lambda, summarize_grads_and_vars=sum_grad_vars,
-                         debug_summaries=sum_grad_vars, gradient_clipping=gradient_clip
+                         debug_summaries=sum_grad_vars, gradient_clipping=gradient_clip,
+                         normalize_observations=normalize_obs
                          )
 
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:

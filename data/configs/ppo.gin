@@ -11,7 +11,7 @@ PPOWrapAgent.sum_grad_vars=False # TODO warn
 
 # state
 TrainLoop.use_prev_action_as_obs=False
-TrainLoop.state_obs_selection=(@DummyState(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@TrafficSituation(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
 
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
@@ -24,17 +24,17 @@ TrackingWorstOffenderCache.capacity='inf'
 TrainLoop.actionset_selection=@ContinuousRejectionActionSet3()
 
 # reward
-#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=1.25
-#MultiplicativeReward.fpr_weight=1.25
-#MultiplicativeReward.bl_weight=0.3
+HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+MultiplicativeReward.precision_weight=0
+MultiplicativeReward.recall_weight=1.4
+MultiplicativeReward.fpr_weight=3
+MultiplicativeReward.bl_weight=0.29
 
-HHHEnv.reward_calc=@AdditiveRewardCalc()
-AdditiveRewardCalc.precision_weight=0
-AdditiveRewardCalc.recall_weight=1.75
-AdditiveRewardCalc.fpr_weight=1.5
-AdditiveRewardCalc.bl_weight=0.15
+#HHHEnv.reward_calc=@AdditiveRewardCalc()
+#AdditiveRewardCalc.precision_weight=0
+#AdditiveRewardCalc.recall_weight=1.75
+#AdditiveRewardCalc.fpr_weight=1.5
+#AdditiveRewardCalc.bl_weight=0.15
 
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 
@@ -46,7 +46,7 @@ TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
-PPOWrapAgent.lr=1e-5
+PPOWrapAgent.lr=1e-4
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
@@ -54,12 +54,12 @@ TrainLoop.num_iterations = 200000
 PPOWrapAgent.gradient_clip=None
 
 # PPO-specific params
-_normal_projection_net.init_action_stddev=0.35
+_normal_projection_net.init_action_stddev=0.2
 PPOWrapAgent.entropy_regularization=0
-PPOWrapAgent.num_epochs=10
-PPOWrapAgent.importance_ratio_clipping=0.15
+PPOWrapAgent.num_epochs=3
+PPOWrapAgent.importance_ratio_clipping=0.1
 PpoTrainLoop.num_parallel_envs = 1 # N
-PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
+PpoTrainLoop.collect_steps_per_iteration_per_env = 32 # T
 
 # act func for RNN/FFNN
 PPOWrapAgent.actor_act_func=@tf.keras.activations.tanh
@@ -76,6 +76,7 @@ PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
 #PPOWrapAgent.val_rnn_out_layers=(64,)
 
 # FFNN
+PPOWrapAgent.batch_norm=False
 PPOWrapAgent.actor_layers=(256,256)
 PPOWrapAgent.value_layers=(256,256)
 

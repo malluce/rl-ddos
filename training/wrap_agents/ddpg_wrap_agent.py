@@ -44,7 +44,8 @@ class DDPGWrapAgent(DdpgAgent, WrapAgent):
                  ):
         self.gamma = gamma
 
-        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func)
+        preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func,
+                                                                             batch_norm=batch_norm)
 
         actor_net = ActorNetwork(time_step_spec.observation, action_spec, actor_layers,
                                  preprocessing_layers=preprocessing_layers,
