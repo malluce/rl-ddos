@@ -52,7 +52,7 @@ class AdditiveRewardExponentialWeights(RewardCalc):
 
     def weighted_fpr(self, fpr: float):
         return (1 - fpr) ** self.fpr_weight
- 
+
     def weighted_bl_size(self, bl_size: int):
         return 1 - self.bl_weight * np.log2(np.maximum(1, bl_size))
 
@@ -168,3 +168,20 @@ class MultiplicativeReward(DefaultRewardCalc):
 class MultiplicativeRewardSpecificity(MultiplicativeReward):
     def weighted_fpr(self, fpr):
         return (1 - fpr) ** self.fpr_weight
+
+
+@gin.configurable
+class MultiplicativeRewardNew(MultiplicativeReward):
+    def weighted_precision(self, precision):
+        return precision ** 0
+
+    def weighted_fpr(self, fpr):
+        return (1 - fpr) ** self.fpr_weight
+
+    def weighted_recall(self, recall):
+        return recall ** self.recall_weight
+
+    def weighted_bl_size(self, bl_size):
+        # max to avoid nan, avg bl_size can be < 1
+        # return np.min(1, np.exp(-self.bl_weight * np.log2(bl_size)))
+        return np.minimum(1, np.exp(-self.bl_weight * np.log2(np.maximum(1, bl_size))))
