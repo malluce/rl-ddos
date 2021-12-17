@@ -49,24 +49,3 @@ cnn_512=(
     [64], # fc units after flatten
     1 # start pooling layers at idx 1
 )
-
-# CNN256 Config
-#[
-#    # 17,256,2
-#    tf.keras.layers.Conv2D(8, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
-#    # 16,127,8
-#    tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-#    # 16,63,8
-#    tf.keras.layers.Conv2D(16, (2, 4), activation=tf.keras.activations.relu, strides=(1, 1)),
-#    # 15,60,16
-#    tf.keras.layers.MaxPool2D(pool_size=(1, 2), strides=(1, 2)),
-#    # 15,30,16
-#    tf.keras.layers.Conv2D(32, (3, 3), activation=tf.keras.activations.relu, strides=3),
-#    # 5,10,32
-#    tf.keras.layers.MaxPool2D(pool_size=3, strides=2),
-#    # 2,4,32
-#    tf.keras.layers.Flatten(),
-#    # 1,256
-#    tf.keras.layers.Dense(64, activation=tf.keras.activations.relu)
-#    # 1,64
-#]

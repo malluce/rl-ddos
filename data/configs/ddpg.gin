@@ -21,7 +21,7 @@ TrainLoop.use_prev_action_as_obs=False
 TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@DDPGPhiLActionSet() #@ContinuousRejectionActionSet3()
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet3() #@ContinuousRejectionActionSet3()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
@@ -30,11 +30,17 @@ TrainLoop.actionset_selection=@DDPGPhiLActionSet() #@ContinuousRejectionActionSe
 #MultiplicativeReward.fpr_weight=3.4
 #MultiplicativeReward.bl_weight=0.344
 
-HHHEnv.reward_calc=@AdditiveRewardCalc()
-AdditiveRewardCalc.precision_weight=0
-AdditiveRewardCalc.recall_weight=1.75
-AdditiveRewardCalc.fpr_weight=1.5
-AdditiveRewardCalc.bl_weight=0.15
+#HHHEnv.reward_calc=@AdditiveRewardCalc()
+#AdditiveRewardCalc.precision_weight=0
+#AdditiveRewardCalc.recall_weight=1.75
+#AdditiveRewardCalc.fpr_weight=1.5
+#AdditiveRewardCalc.bl_weight=0.15
+
+HHHEnv.reward_calc=@MultiplicativeRewardNew()
+MultiplicativeReward.precision_weight=0
+MultiplicativeReward.recall_weight=1.784
+MultiplicativeReward.fpr_weight=1.432
+MultiplicativeReward.bl_weight=0.263
 
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 

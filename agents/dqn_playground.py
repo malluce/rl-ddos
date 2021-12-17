@@ -39,7 +39,7 @@ from tf_agents.utils import common
 from agents.util import get_dirs
 from gyms.hhh.actionset import LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
-from gyms.hhh.state import BaseObservations
+from gyms.hhh.obs import BaseObservations
 from lib.datastore import Datastore
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),

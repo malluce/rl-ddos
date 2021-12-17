@@ -12,11 +12,13 @@ import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler, WeibullSampler
 from gyms.hhh.flowgen.traffic_traces import BotTrace, HafnerT1, HafnerT2, MixedNTPBot, MixedSSDPBot, SSDPTrace, T1, T2, \
-    T3, T3WithoutPause, T4, \
+    T3, T4, \
     THauke5, TRandomPatternSwitch, THauke
 from gyms.hhh.label import Label
 from gyms.hhh.loop import apply_hafner_heuristic
 
+
+# TODO tmp file for inter slides, delete afterwards
 
 class ProgressBar(object):
 
@@ -119,26 +121,16 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
 
 
 def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=False):
-    fig = plt.figure(figsize=(16, 8))
-    gs = mgrid.GridSpec(3, 5)
+    fig = plt.figure(figsize=(6, 6))
+    gs = mgrid.GridSpec(1, 3)
 
-    ax0 = fig.add_subplot(gs[:, 0])
-    ax1 = fig.add_subplot(gs[:, 1])
-    ax2 = fig.add_subplot(gs[:, 2])
-    ax3 = fig.add_subplot(gs[:, 3])
-    ax5 = fig.add_subplot(gs[0, 4])
-    ax6 = fig.add_subplot(gs[1, 4])
-    ax7 = fig.add_subplot(gs[2, 4])
+    ax0 = fig.add_subplot(gs[0, 0])
+    ax1 = fig.add_subplot(gs[0, 1])
+    ax2 = fig.add_subplot(gs[0, 2])
 
-    titlesize = 9
-    labelsize = 9
+    titlesize = 13
+    labelsize = 12
     ticksize = 8
-    benign_color = 'dodgerblue'
-    attack_color = 'crimson'
-    combined_color = 'darkgrey'
-
-    benign_flows = flows[flows[:, 5] == 0]
-    attack_flows = flows[flows[:, 5] != 0]
     benign_grid = rate_grid - attack_grid
 
     def scale(grid, num_bins, axis, transpose=False):
@@ -163,71 +155,34 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
         axis.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
         axis.set_yticks(np.arange(0, ybins.max() + 1, 20))
         axis.tick_params(labelsize=ticksize)
-        cb = fig.colorbar(mesh, ax=axis, aspect=100)
-        cb.ax.tick_params(labelsize=ticksize)
+        # cb = fig.colorbar(mesh, ax=axis, aspect=100)
+        # cb.ax.tick_params(labelsize=ticksize)
 
         return vmin, vmax
 
-    ax2.set_title('Combined data rate', fontsize=titlesize)
-    ax2.set_xlabel('Address space', fontsize=labelsize)
-    ax2.set_ylabel('Time Index', fontsize=labelsize)
-    vmin, vmax = plot_heatmap(ax2, rate_grid)
+    scaled_grid, ybins = scale(rate_grid, steps + 1, 0)
+    scaled_grid, _ = scale(scaled_grid, 200, 1, True)
+    if squash:
+        # squash values together for clearer visuals (e.g. for reflector-botnet switch)
+        scaled_grid = np.sqrt(scaled_grid, out=np.zeros_like(scaled_grid, dtype=np.float))
+    vmin = scaled_grid.min()
+    vmax = scaled_grid.max()
 
     ax0.set_title('Benign data rate', fontsize=titlesize)
     ax0.set_xlabel('Address space', fontsize=labelsize)
-    ax0.set_ylabel('Time Index', fontsize=labelsize)
+    ax0.set_ylabel('Time index', fontsize=labelsize)
     plot_heatmap(ax0, benign_grid, vmin, vmax)
 
     ax1.set_title('Attack data rate', fontsize=titlesize)
     ax1.set_xlabel('Address space', fontsize=labelsize)
-    ax1.set_ylabel('Time Index', fontsize=labelsize)
+    # ax1.set_ylabel('Time index', fontsize=labelsize)
     plot_heatmap(ax1, attack_grid, vmin, vmax)
 
     if hhh_grid is not None:
-        if phi is None and l is None:
-            ax3.set_title(f'HHH frequency \n (rawdata)', fontsize=titlesize)
-        else:
-            ax3.set_title(f'HHH frequency \n (phi={phi}, L={l})', fontsize=titlesize)
-        ax3.set_xlabel('Address space', fontsize=labelsize)
-        ax3.set_ylabel('Time Index', fontsize=labelsize)
-        plot_heatmap(ax3, hhh_grid)
-
-    def plot_frequencies(axis, x, y, color):
-        axis.fill_between(x, y, 0, facecolor=color, alpha=.6)
-        axis.tick_params(labelsize=ticksize)
-
-    ax5.set_title('Flow length distribution', fontsize=titlesize)
-    ax5.set_xlabel('Flow length', fontsize=labelsize)
-    ax5.set_ylabel('Frequency', fontsize=labelsize)
-    benign_flow_durations = benign_flows[:, 2]
-    attack_flow_durations = attack_flows[:, 2]
-    maxd = max(benign_flow_durations.max(), attack_flow_durations.max())
-    hist, bins = np.histogram(attack_flow_durations, bins=30, range=(0.0, maxd))
-    plot_frequencies(ax5, bins[1:], hist, attack_color)
-    hist, bins = np.histogram(benign_flow_durations, bins=30, range=(0.0, maxd))
-    plot_frequencies(ax5, bins[1:], hist, benign_color)
-
-    ax6.set_title('Data rate distribution over IP space', fontsize=titlesize)
-    ax6.set_xlabel('Address space', fontsize=labelsize)
-    ax6.set_ylabel('Data rate', fontsize=labelsize)
-    scaled, bins = scale(rate_grid.sum(axis=0), 100, 0)
-    plot_frequencies(ax6, 100 * bins / bins[-1], scaled, combined_color)
-    scaled, _ = scale(attack_grid.sum(axis=0), 100, 0)
-    plot_frequencies(ax6, 100 * bins / bins[-1], scaled, attack_color)
-    scaled, _ = scale(benign_grid.sum(axis=0), 100, 0)
-    plot_frequencies(ax6, 100 * bins / bins[-1], scaled, benign_color)
-    ax6.set_xticks(np.arange(0, 101, 50))
-    ax6.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
-
-    ax7.set_title('Data rate over time', fontsize=titlesize)
-    ax7.set_xlabel('Episode (percent)', fontsize=labelsize)
-    ax7.set_ylabel('Data rate', fontsize=labelsize)
-    scaled, bins = scale(rate_grid.sum(axis=1), 100, 0)
-    plot_frequencies(ax7, 100 * bins / bins[-1], scaled, combined_color)
-    scaled, _ = scale(attack_grid.sum(axis=1), 100, 0)
-    plot_frequencies(ax7, 100 * bins / bins[-1], scaled, attack_color)
-    scaled, _ = scale(benign_grid.sum(axis=1), 100, 0)
-    plot_frequencies(ax7, 100 * bins / bins[-1], scaled, benign_color)
+        ax2.set_title(f'Rule coverage', fontsize=titlesize)
+        ax2.set_xlabel('Address space', fontsize=labelsize)
+        # ax2.set_ylabel('Time index', fontsize=labelsize)
+        plot_heatmap(ax2, hhh_grid)
 
     plt.subplots_adjust(wspace=.5, hspace=.5)
     plt.tight_layout()
@@ -300,10 +255,10 @@ def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh
               l=None):
     trace = TRandomPatternSwitch(is_eval=True)
     # trace = SSDPTrace()
-    trace = TRandomPatternSwitch(is_eval=False, random_toggle_time=True, smooth_transition=True, benign_normal=True,
+    trace = TRandomPatternSwitch(is_eval=True, random_toggle_time=True, smooth_transition=True, benign_normal=True,
                                  benign_flows=200)
-    # trace = THauke5()
-    trace = T3WithoutPause()
+    trace = THauke5()
+    trace = T3()
     # trace = MixedNTPBot()
     # for i in range(0, 9):
     if flow_file is None:

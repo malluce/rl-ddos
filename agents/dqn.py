@@ -17,15 +17,12 @@ from absl import logging
 import gin
 import gym
 from six.moves import range
-import numpy as np
 import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.drivers import dynamic_step_driver
 from tf_agents.environments import suite_gym
-from tf_agents.environments import parallel_py_environment
 from tf_agents.environments import tf_py_environment
-from tf_agents.environments.examples import masked_cartpole  # pylint: disable=unused-import
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
 from tf_agents.networks import q_network
@@ -38,6 +35,7 @@ from tf_agents.utils import common
 from agents.util import get_dirs
 from gyms.hhh.actionset import LargeDiscreteActionSet
 from gyms.hhh.env import register_hhh_gym
+from gyms.hhh.obs import BaseObservations, DistVol, DistVolStd, FalsePositiveRate, MinMaxBlockedAddress
 from lib.datastore import Datastore
 from gyms.hhh.state import *
 

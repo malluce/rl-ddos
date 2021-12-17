@@ -14,22 +14,18 @@ import tensorflow as tf
 from matplotlib.figure import Figure
 
 from gyms.hhh.flowgen.disttrace import DistributionTrace
-from gyms.hhh.flowgen.traffic_traces import BotnetSourcePattern, NTPTrace, SSDPTrace, T2, T3, T4, THauke, \
+from gyms.hhh.flowgen.traffic_traces import BotTrace, BotnetSourcePattern, NTPTrace, SSDPTrace, T2, T3, T4, THauke, \
     TRandomPatternSwitch, \
     UniformRandomSourcePattern
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
 from plotting.plot_traces import plot_botnet_pattern
 from training.wrap_agents.util import build_cnn_from_spec
+from tensorflow.python.keras.utils.vis_utils import plot_model
 
 hhh = HHHAlgo(0.0001)
 PHI = 0.01
 L = 17
-NTPTrace()
-t = DistributionTrace(
-    traffic_trace_construct=lambda is_eval: NTPTrace(
-        is_eval=is_eval),
-    is_eval=True)
 t = DistributionTrace(traffic_trace_construct=lambda is_eval: NTPTrace(is_eval=is_eval), is_eval=True)
 
 
@@ -74,9 +70,9 @@ def gen_and_show_images(hhh, image_gen):
     filter_img = run_filter_image(hhh, image_gen)
     # show_image(filter_img, cmap='binary', show_border=False)
 
-    hhh_img = image_gen.generate_hhh_image(hhh)
+    hhh_img = image_gen.generate_hhh_image(hhh, crop=image_gen.crop_standalone_hhh_image)
     print(sorted(np.unique(hhh_img.flatten()), reverse=True))
-    show_image(hhh_img, cmap='inferno', show_border=False)
+    show_image(hhh_img, cmap='gray', show_border=False)
 
     # print(f'hhh shape={image_gen.get_hhh_img_spec()}')
     # print(f'filter shape={image_gen.get_filter_img_spec()}')
@@ -98,10 +94,16 @@ for _ in range(1):
             hhh.update(packet.ip, 100)
     # img_gen = ImageGenerator(hhh_squash_threshold=1, img_width_px=64)
     # img_gen2 = ImageGenerator(hhh_squash_threshold=1, img_width_px=128)
-    img_gen3 = ImageGenerator(hhh_squash_threshold=1, img_width_px=256, max_pixel_value=1.0)
+    # img_gen3 = ImageGenerator(hhh_squash_threshold=1, img_width_px=256, max_pixel_value=1.0)
     # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
-    gen_and_show_images(hhh, img_gen3)
-    img_gen3 = ImageGenerator(hhh_squash_threshold=-1, img_width_px=256, max_pixel_value=1.0)
+    # gen_and_show_images(hhh, img_gen3)
+    img_gen3 = ImageGenerator(hhh_squash_threshold=1, img_width_px=256, max_pixel_value=1.0,
+                              crop_standalone_hhh_image=True)
+    # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
+    _, img = gen_and_show_images(hhh, img_gen3)
+
+    img_gen3 = ImageGenerator(hhh_squash_threshold=-1, img_width_px=256, max_pixel_value=1.0,
+                              crop_standalone_hhh_image=True)
     # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
     _, img = gen_and_show_images(hhh, img_gen3)
     t.rewind()
@@ -162,10 +164,13 @@ cnn_256_cropped = ((
                    1
 )
 
+import visualkeras
+
 cnn = build_cnn_from_spec(cnn_256_cropped, tf.keras.activations.relu)
 cnn.build(input_shape=np.expand_dims(img, 0).shape)
 cnn.summary()
-
+visualkeras.layered_view(cnn, to_file='model_vis.png', legend=True, spacing=10)
+# plot_model(cnn, show_shapes=False, show_layer_names=False, rankdir='LR', dpi=200)
 # for c in range(0, 8):
 #    cnn_processed = np.squeeze(cnn(np.expand_dims(hhh_img, 0)), 0)
 #    print(f'processed={cnn_processed.shape}')

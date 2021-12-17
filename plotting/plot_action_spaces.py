@@ -21,16 +21,25 @@ def agent_action_to_resolved_pthresh(agent_action, lower_bound, upper_bound):
     return middle + middle_to_bound * agent_action
 
 
-print(agent_action_to_resolved_phi(1, 0.001, 0.3))
+def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
+    bin_size = 2 / 17  # range[-1,1], 17 L values (16,17,...,32)
+    return np.minimum((agent_action + 1) / bin_size + lower_bound, upper_bound).astype('int')
+
+
+a = NotSoHugeDiscreteActionSet()
+print(len(a.actions))
 
 agent_action = np.linspace(-1.0, 1.0, 1000)
+resolved = agent_action_to_resolved_l(agent_action=agent_action, lower_bound=16, upper_bound=32)
+print(min(resolved), max(resolved))
+plt.plot(agent_action, resolved, label='$L$')
 resolved = agent_action_to_resolved_pthresh(agent_action=agent_action, lower_bound=0.85, upper_bound=1.0)
 print(min(resolved), max(resolved))
-plt.plot(agent_action, resolved, label='pthresh')
+# plt.plot(agent_action, resolved, label='pthresh')
 resolved = agent_action_to_resolved_pthresh(agent_action=agent_action, lower_bound=0.001, upper_bound=0.3)
 print(min(resolved), max(resolved))
 # print(resolved)
-plt.plot(agent_action, resolved, label='$\phi$')
+# plt.plot(agent_action, resolved, label='$\phi$')
 plt.xlabel('Action chosen by agent')
 plt.ylabel('Resolved mitigation parameter')
 # plt.ylim(bottom=0.85, top=1.0)
@@ -38,7 +47,7 @@ plt.ylabel('Resolved mitigation parameter')
 plt.legend()
 plt.tight_layout()
 plt.show()
-# sys.exit(0)
+sys.exit(0)
 
 plt.fill_between([0, 1], [0], [1])
 plt.xlim(left=0.0, right=1.0)
@@ -58,8 +67,6 @@ plt.ylabel('pthresh')
 plt.tight_layout()
 plt.show()
 
-a = NotSoHugeDiscreteActionSet()
-print(len(a.actions))
 a = EvenSmallerDiscreteRejectionActionSet2()
 x = list(map(lambda act: act[0], a.actions))
 y = list(map(lambda act: act[1], a.actions))
