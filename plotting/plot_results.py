@@ -452,11 +452,11 @@ if __name__ == '__main__':
         plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=window)
 
 
-    first_pattern = 'ntp'
-    second_pattern = 'ntp'
+    first_pattern = 'bot'
+    second_pattern = 'bot'
 
     pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
-    window = (10, 0)
+    window = (1, 0)
     # pattern = 'ntp;bot'
     # pattern = 'T3WithoutPause'
 
@@ -469,8 +469,8 @@ if __name__ == '__main__':
     # ds_base = '/srv/bachmann/data/dqn/dqn_20211210-105444/datastore'
 
     ds_base = '/srv/bachmann/data/dqn/dqn_20211216-161630/datastore'
-    # ds_base = '/srv/bachmann/data/ddpg/ddpg_20211215-080711/datastore'
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211216-091645/datastore'
+    ds_base = '/srv/bachmann/data/ddpg/ddpg_20211217-072350/datastore'
+    ds_base = '/srv/bachmann/data/ppo/ppo_20211216-091645/datastore'
     plot_hl(ds_base, pattern, window)
 
     # ds_base = '/srv/bachmann/data/ppo/ppo_20211122-095112/datastore'

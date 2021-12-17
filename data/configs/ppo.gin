@@ -24,11 +24,18 @@ TrackingWorstOffenderCache.capacity='inf'
 TrainLoop.actionset_selection=@ContinuousRejectionActionSet3()
 
 # reward
-HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
+#MultiplicativeReward.precision_weight=0
+#MultiplicativeReward.recall_weight=1.4
+#MultiplicativeReward.fpr_weight=3
+#MultiplicativeReward.bl_weight=0.29
+
+
+HHHEnv.reward_calc=@MultiplicativeRewardNew()
 MultiplicativeReward.precision_weight=0
-MultiplicativeReward.recall_weight=1.4
-MultiplicativeReward.fpr_weight=3
-MultiplicativeReward.bl_weight=0.29
+MultiplicativeReward.recall_weight=1.784
+MultiplicativeReward.fpr_weight=1.432
+MultiplicativeReward.bl_weight=0.263
 
 #HHHEnv.reward_calc=@AdditiveRewardCalc()
 #AdditiveRewardCalc.precision_weight=0
@@ -46,7 +53,7 @@ TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
-PPOWrapAgent.lr=1e-4
+PPOWrapAgent.lr=5e-5
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
@@ -56,10 +63,10 @@ PPOWrapAgent.gradient_clip=None
 # PPO-specific params
 _normal_projection_net.init_action_stddev=0.2
 PPOWrapAgent.entropy_regularization=0
-PPOWrapAgent.num_epochs=3
+PPOWrapAgent.num_epochs=5
 PPOWrapAgent.importance_ratio_clipping=0.1
 PpoTrainLoop.num_parallel_envs = 1 # N
-PpoTrainLoop.collect_steps_per_iteration_per_env = 32 # T
+PpoTrainLoop.collect_steps_per_iteration_per_env = 10 # T
 
 # act func for RNN/FFNN
 PPOWrapAgent.actor_act_func=@tf.keras.activations.tanh
