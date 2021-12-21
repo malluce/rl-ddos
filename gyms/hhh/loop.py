@@ -652,9 +652,6 @@ class Loop(object):
             self._calc_hhh_distance_metrics(hhhs, s)
         logging.debug(f'initial number of rules={len(self.blacklist.initial_hhhs)}')
 
-        if self.image_gen is not None:
-            s.image = self.image_gen.generate_image(hhh_algo=self.hhh, hhh_query_result=hhhs)
-
         # All necessary monitoring information has been extracted from
         # the HHH instance in this step. Reset the HHH algorithm to
         # get rid of stale monitoring information.

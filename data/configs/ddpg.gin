@@ -21,7 +21,7 @@ TrainLoop.use_prev_action_as_obs=False
 TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet3() #@ContinuousRejectionActionSet3()
+TrainLoop.actionset_selection=@ContinuousRejectionActionSet2() #@ContinuousRejectionActionSet3()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()

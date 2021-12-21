@@ -26,7 +26,7 @@ from tensorflow.python.keras.utils.vis_utils import plot_model
 hhh = HHHAlgo(0.0001)
 PHI = 0.01
 L = 17
-t = DistributionTrace(traffic_trace_construct=lambda is_eval: NTPTrace(is_eval=is_eval), is_eval=True)
+t = DistributionTrace(traffic_trace_construct=lambda is_eval: SSDPTrace(is_eval=is_eval,benign_flows=10000), is_eval=True)
 
 
 # atk_addr, benign_addr = plot_botnet_pattern()
@@ -51,33 +51,43 @@ def run_filter_image(hhh, img_gen):
 
 
 def show_image(image, cmap, show_border=False, show_hist=False):
-    if not show_border:
-        fig = plt.figure()
-        fig.set_size_inches(image.shape[1] / image.shape[0], 1, forward=False)
-        ax = plt.Axes(fig, [0., 0., 1., 1.])
-        ax.set_axis_off()
-        fig.add_axes(ax)
-    else:
-        fig, ax = plt.subplots()
-    ax.imshow(image, cmap=cmap, interpolation='nearest')
-    plt.show()
-    if show_hist:
-        plt.hist(image.ravel(), bins=128, range=(0.0, 1.0))  # , fc='country', ec='country')
+    print(image.shape)
+    if image.shape[-1] != 1:
+        vmin = np.min(image[:,:,[0,1,3,4]])
+        vmax = np.max(image[:,:,[0,1,3,4]])
+    for c in range(image.shape[-1]): # all channels
+        print(c)
+        if not show_border:
+            fig = plt.figure()
+            fig.set_size_inches(image.shape[1] / image.shape[0], 1, forward=False)
+            ax = plt.Axes(fig, [0., 0., 1., 1.])
+            ax.set_axis_off()
+            fig.add_axes(ax)
+        else:
+            fig, ax = plt.subplots()
+        if image.shape[-1] != 1:
+            if c in [0,1,3,4]:
+                ax.imshow(image[:, :, c], cmap=cmap, interpolation='nearest',vmin=vmin,vmax=vmax)
+            else:
+                ax.imshow(image[:,:,c], cmap=cmap, interpolation='nearest')
+        else:
+            ax.imshow(image[:, :, c], cmap=cmap, interpolation='nearest')
         plt.show()
+        if show_hist:
+            plt.hist(image.ravel(), bins=128, range=(0.0, 1.0))  # , fc='country', ec='country')
+            plt.show()
 
 
 def gen_and_show_images(hhh, image_gen):
-    filter_img = run_filter_image(hhh, image_gen)
-    # show_image(filter_img, cmap='binary', show_border=False)
-
-    hhh_img = image_gen.generate_hhh_image(hhh, crop=image_gen.crop_standalone_hhh_image)
-    print(sorted(np.unique(hhh_img.flatten()), reverse=True))
+    hhh_img = image_gen.generate_image(hhh,None)
+    for c in range(hhh_img.shape[-1]):
+        print(np.mean(hhh_img[:,:,c]), np.std(hhh_img[:,:,c]))
     show_image(hhh_img, cmap='gray', show_border=False)
 
     # print(f'hhh shape={image_gen.get_hhh_img_spec()}')
     # print(f'filter shape={image_gen.get_filter_img_spec()}')
 
-    return filter_img, hhh_img
+    return hhh_img
 
 
 mpl.rcParams['figure.dpi'] = 300
@@ -92,29 +102,11 @@ for _ in range(1):
             break
         if fin_cnt >= 90:
             hhh.update(packet.ip, 100)
-    # img_gen = ImageGenerator(hhh_squash_threshold=1, img_width_px=64)
-    # img_gen2 = ImageGenerator(hhh_squash_threshold=1, img_width_px=128)
-    # img_gen3 = ImageGenerator(hhh_squash_threshold=1, img_width_px=256, max_pixel_value=1.0)
-    # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
-    # gen_and_show_images(hhh, img_gen3)
-    img_gen3 = ImageGenerator(hhh_squash_threshold=1, img_width_px=256, max_pixel_value=1.0,
-                              crop_standalone_hhh_image=True)
-    # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
-    _, img = gen_and_show_images(hhh, img_gen3)
-
-    img_gen3 = ImageGenerator(hhh_squash_threshold=-1, img_width_px=256, max_pixel_value=1.0,
-                              crop_standalone_hhh_image=True)
-    # img_gen4 = ImageGenerator(hhh_squash_threshold=1, img_width_px=512)
-    _, img = gen_and_show_images(hhh, img_gen3)
+    img_gen3 = ImageGenerator(hhh_squash_threshold=-1, img_width_px=128, max_pixel_value=1.0,
+                              crop_standalone_hhh_image=True,mode='multi')
+    img = gen_and_show_images(hhh, img_gen3)
     t.rewind()
     hhh.clear()
-# gen_and_show_images(hhh, img_gen)
-# gen_and_show_images(hhh, img_gen2)
-# gen_and_show_images(hhh, img_gen3)
-# filter_img, hhh_img = gen_and_show_images(hhh, img_gen4)
-# combined_img = img_gen4.generate_image(hhh, hhh.query(PHI, L))
-# combined_img = img_gen3.generate_image(hhh, hhh.query(PHI, L))
-# print(combined_img.shape)
 # cnn = tf.keras.models.Sequential([
 #    # 17,256,2
 #    tf.keras.layers.Conv2D(8, (2, 4), activation=tf.keras.activations.relu, strides=(1, 2)),
@@ -164,20 +156,22 @@ cnn_256_cropped = ((
                    1
 )
 
-import visualkeras
+cnn_128_multi = ((
+                       [8, 16, 32],  # conv filters
+                       [(2, 3), (2, 3), (2, 2)],  # conv kernel sizes
+                       [(1, 2), (1, 2), 1]  # conv strides
+                   ),
+                   (
+                       [(1, 2), (2, 2), (2, 2)],  # pool sizes
+                       [(1, 2), 2, 2]  # pool strides
+                   ),
+                   [64, 64],  # fc units after flatten
+                   1
+)
 
-cnn = build_cnn_from_spec(cnn_256_cropped, tf.keras.activations.relu)
+print(img.shape)
+cnn = build_cnn_from_spec(cnn_128_multi, tf.keras.activations.relu)
+print(np.expand_dims(img, 0).shape)
 cnn.build(input_shape=np.expand_dims(img, 0).shape)
 cnn.summary()
-visualkeras.layered_view(cnn, to_file='model_vis.png', legend=True, spacing=10)
-# plot_model(cnn, show_shapes=False, show_layer_names=False, rankdir='LR', dpi=200)
-# for c in range(0, 8):
-#    cnn_processed = np.squeeze(cnn(np.expand_dims(hhh_img, 0)), 0)
-#    print(f'processed={cnn_processed.shape}')
-#    show_image(cnn_processed[:, :, c], cmap='inferno')
-
-# print('=== BLOCKLIST ===')
-# for r in res:
-#    padded_ip = str(IPv4Address(r.id)).rjust(15, ' ')
-#    print(f'{padded_ip}/{r.len} {r.lo, r.hi}')
 sys.exit(0)

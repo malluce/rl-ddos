@@ -184,7 +184,6 @@ class HHHEnv(gym.Env):
         if use_images:
             return {
                 'vector': vector_obs,
-                # 'image': self.loop.state.image, # TODO
                 'hhh_image': self.loop.state.hhh_image
             }
         else:
@@ -204,10 +203,8 @@ class HHHEnv(gym.Env):
         vector_spec = spaces.Box(lb, ub, dtype=np.float32)
 
         if self.image_gen is not None:
-            complete_img_spec = self.image_gen.get_img_spec()
             hhh_img_spec = self.image_gen.get_hhh_img_spec()
             return spaces.Dict({'vector': vector_spec,
-                                # 'image': complete_img_spec, # TODO
                                 'hhh_image': hhh_img_spec
                                 })
         else:

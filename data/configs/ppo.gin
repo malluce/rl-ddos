@@ -53,17 +53,17 @@ TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
-PPOWrapAgent.lr=5e-5
+PPOWrapAgent.lr=1e-4
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
-TrainLoop.num_iterations = 200000
+TrainLoop.num_iterations = 100000
 PPOWrapAgent.gradient_clip=None
 
 # PPO-specific params
-_normal_projection_net.init_action_stddev=0.2
+_normal_projection_net.init_action_stddev=0.35
 PPOWrapAgent.entropy_regularization=0
-PPOWrapAgent.num_epochs=5
+PPOWrapAgent.num_epochs=3
 PPOWrapAgent.importance_ratio_clipping=0.1
 PpoTrainLoop.num_parallel_envs = 1 # N
 PpoTrainLoop.collect_steps_per_iteration_per_env = 10 # T
@@ -84,8 +84,8 @@ PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
 
 # FFNN
 PPOWrapAgent.batch_norm=False
-PPOWrapAgent.actor_layers=(256,256)
-PPOWrapAgent.value_layers=(256,256)
+PPOWrapAgent.actor_layers=(400,300)
+PPOWrapAgent.value_layers=(400,300)
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'

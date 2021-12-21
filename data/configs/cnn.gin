@@ -1,12 +1,26 @@
 # uncomment to use image state, all following parameters are only relevant if enabled
 TrainLoop.image_gen=@ImageGenerator()
 
-ImageGenerator.img_width_px=256
+ImageGenerator.img_width_px=128 #256
 ImageGenerator.address_space=16
 ImageGenerator.hhh_squash_threshold=1
 ImageGenerator.max_pixel_value=1
 ImageGenerator.crop_standalone_hhh_image=True
+ImageGenerator.mode='multi'
 ImageGenerator.normalize=True # don't normalize when using BN-layers
+
+cnn_128_multi=((
+                       [8, 16, 32],  # conv filters
+                       [(2, 3), (2, 3), (2, 2)],  # conv kernel sizes
+                       [(1, 2), (1, 2), 1]  # conv strides
+                   ),
+                   (
+                       [(1, 2), (2, 2), (2, 2)],  # pool sizes
+                       [(1, 2), 2, 2]  # pool strides
+                   ),
+                   [64, 64],  # fc units after flatten
+                   1
+)
 
 cnn_256=(
      (
