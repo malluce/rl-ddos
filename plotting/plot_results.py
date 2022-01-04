@@ -447,16 +447,16 @@ if __name__ == '__main__':
             raise ValueError('Paths do not exist')
 
         # plot_training_kickoff(train_path, pattern)
-        # plot_training(environment_file_path=train_path, pattern=pattern)
-        # plot_training(environment_file_path=eval_path, pattern=pattern)
+        #plot_training(environment_file_path=train_path, pattern=pattern)
+        #plot_training(environment_file_path=eval_path, pattern=pattern)
         plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=window)
 
 
-    first_pattern = 'bot'
-    second_pattern = 'bot'
+    first_pattern = 'ssdp'
+    second_pattern = 'ssdp'
 
     pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
-    window = (1, 0)
+    window = (10,0)
     # pattern = 'ntp;bot'
     # pattern = 'T3WithoutPause'
 
@@ -468,9 +468,10 @@ if __name__ == '__main__':
 
     # ds_base = '/srv/bachmann/data/dqn/dqn_20211210-105444/datastore'
 
-    ds_base = '/srv/bachmann/data/dqn/dqn_20211216-161630/datastore'
-    ds_base = '/srv/bachmann/data/ddpg/ddpg_20211217-072350/datastore'
-    ds_base = '/srv/bachmann/data/ppo/ppo_20211216-091645/datastore'
+    #ds_base = '/srv/bachmann/data/dqn/dqn_20211222-090904/datastore'
+    #ds_base = '/srv/bachmann/data/ddpg/ddpg_20211219-145625/datastore'
+    ds_base='/srv/bachmann/data/ddpg/ddpg_20211222-093154/datastore'
+    #ds_base = '/srv/bachmann/data/ppo/ppo_20211222-095836/datastore'
     plot_hl(ds_base, pattern, window)
 
     # ds_base = '/srv/bachmann/data/ppo/ppo_20211122-095112/datastore'

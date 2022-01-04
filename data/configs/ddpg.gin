@@ -45,7 +45,7 @@ MultiplicativeReward.bl_weight=0.263
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
 TRandomPatternSwitch.benign_normal=True
@@ -80,7 +80,7 @@ DDPGWrapAgent.ou_mean=0.15
 
 # misc
 TrainLoop.gamma=0
-TrainLoop.num_iterations = 1000000
+TrainLoop.num_iterations = 500000
 TrainLoop.batch_size = 64
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
@@ -91,5 +91,5 @@ TrainLoop.train_sequence_length=1
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
-DDPGWrapAgent.cnn_spec=%cnn_256_cropped
+DDPGWrapAgent.cnn_spec=%cnn_128_multi
 DDPGWrapAgent.cnn_act_func=@tf.keras.activations.relu

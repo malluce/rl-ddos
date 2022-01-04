@@ -42,7 +42,7 @@ MultiplicativeReward.bl_weight=0.263
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
 TRandomPatternSwitch.benign_normal=True

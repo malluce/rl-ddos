@@ -7,7 +7,7 @@ ImageGenerator.hhh_squash_threshold=1
 ImageGenerator.max_pixel_value=1
 ImageGenerator.crop_standalone_hhh_image=True
 ImageGenerator.mode='multi'
-ImageGenerator.normalize=True # don't normalize when using BN-layers
+ImageGenerator.normalize=True
 
 cnn_128_multi=((
                        [8, 16, 32],  # conv filters

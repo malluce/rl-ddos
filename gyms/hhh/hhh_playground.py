@@ -26,7 +26,7 @@ from tensorflow.python.keras.utils.vis_utils import plot_model
 hhh = HHHAlgo(0.0001)
 PHI = 0.01
 L = 17
-t = DistributionTrace(traffic_trace_construct=lambda is_eval: SSDPTrace(is_eval=is_eval,benign_flows=10000), is_eval=True)
+t = DistributionTrace(traffic_trace_construct=lambda is_eval: T4(), is_eval=True)
 
 
 # atk_addr, benign_addr = plot_botnet_pattern()
@@ -98,9 +98,9 @@ for _ in range(1):
     for packet, step_finished in t:
         if step_finished:
             fin_cnt += 1
-        if fin_cnt == 100:
+        if fin_cnt == 510:
             break
-        if fin_cnt >= 90:
+        if fin_cnt >= 500:
             hhh.update(packet.ip, 100)
     img_gen3 = ImageGenerator(hhh_squash_threshold=-1, img_width_px=128, max_pixel_value=1.0,
                               crop_standalone_hhh_image=True,mode='multi')

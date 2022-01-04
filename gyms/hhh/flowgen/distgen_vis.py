@@ -12,8 +12,8 @@ import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler, WeibullSampler
 from gyms.hhh.flowgen.traffic_traces import BotTrace, HafnerT1, HafnerT2, MixedNTPBot, MixedSSDPBot, SSDPTrace, T1, T2, \
-    T3, T3WithoutPause, T4, \
-    THauke5, TRandomPatternSwitch, THauke
+    T3, T3WithoutPause, \
+    THauke5, TRandomPatternSwitch, THauke, T4
 from gyms.hhh.label import Label
 from gyms.hhh.loop import apply_hafner_heuristic
 
@@ -302,9 +302,8 @@ def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh
     # trace = SSDPTrace()
     trace = TRandomPatternSwitch(is_eval=False, random_toggle_time=True, smooth_transition=True, benign_normal=True,
                                  benign_flows=200)
-    # trace = THauke5()
-    trace = T3WithoutPause()
-    # trace = MixedNTPBot()
+
+    trace=T4()
     # for i in range(0, 9):
     if flow_file is None:
         fgs = trace.get_flow_group_samplers()

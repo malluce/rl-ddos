@@ -46,14 +46,14 @@ MultiplicativeReward.bl_weight=0.263
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
-DistributionTrace.traffic_trace_construct = @TRandomPatternSwitch
+DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
 TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
-PPOWrapAgent.lr=1e-4
+PPOWrapAgent.lr=5e-5
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
@@ -63,10 +63,10 @@ PPOWrapAgent.gradient_clip=None
 # PPO-specific params
 _normal_projection_net.init_action_stddev=0.35
 PPOWrapAgent.entropy_regularization=0
-PPOWrapAgent.num_epochs=3
-PPOWrapAgent.importance_ratio_clipping=0.1
+PPOWrapAgent.num_epochs=5
+PPOWrapAgent.importance_ratio_clipping=0.15
 PpoTrainLoop.num_parallel_envs = 1 # N
-PpoTrainLoop.collect_steps_per_iteration_per_env = 10 # T
+PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
 
 # act func for RNN/FFNN
 PPOWrapAgent.actor_act_func=@tf.keras.activations.tanh
@@ -84,10 +84,10 @@ PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
 
 # FFNN
 PPOWrapAgent.batch_norm=False
-PPOWrapAgent.actor_layers=(400,300)
-PPOWrapAgent.value_layers=(400,300)
+PPOWrapAgent.actor_layers=(128,128)
+PPOWrapAgent.value_layers=(128,128)
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
 PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
-PPOWrapAgent.cnn_spec=%cnn_256_cropped
+PPOWrapAgent.cnn_spec=%cnn_128_multi
