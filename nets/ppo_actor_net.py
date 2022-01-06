@@ -24,13 +24,12 @@ import numpy as np
 import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
 from tf_agents.networks import categorical_projection_network
-from tf_agents.networks import encoding_network
 from tf_agents.networks import network
 from tf_agents.networks import normal_projection_network
 from tf_agents.specs import tensor_spec
 from tf_agents.utils import nest_utils
 
-from agents.nets.dqn_encoding_network import EncodingNetwork
+from nets.dqn_encoding_network import EncodingNetwork
 
 
 def _categorical_projection_net(action_spec, logits_init_output_factor=0.1):

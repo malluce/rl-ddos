@@ -18,10 +18,10 @@
 import gin
 import tensorflow as tf  # pylint: disable=g-explicit-tensorflow-version-import
 
-from tf_agents.networks import encoding_network, network
+from tf_agents.networks import network
 
-import agents.nets.ddpg_utils as utils
-from agents.nets.dqn_encoding_network import EncodingNetwork
+import nets.ddpg_utils as utils
+from nets.dqn_encoding_network import EncodingNetwork
 
 
 @gin.configurable
