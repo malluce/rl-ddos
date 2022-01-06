@@ -1,14 +1,11 @@
-import logging
 from typing import Any, List, Tuple
 
 import gin
-from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tf_agents.agents import DqnAgent
 from tf_agents.networks.q_rnn_network import QRnnNetwork
-from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
-from agents.nets.dqn_q_network import QNetwork
+from nets.dqn_q_network import QNetwork
 from training.wrap_agents.util import MinExpSchedule, get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 

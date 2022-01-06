@@ -1,19 +1,15 @@
 import time
 
 import gym
-from eval_agents import FixedEvalAgent, RandomEvalAgent
-from gyms.hhh.actionset import ContinuousRejectionActionSet, DiscreteRejectionActionSet, HugeDiscreteActionSet, \
-    LargeDiscreteActionSet, \
-    TupleActionSet
+from eval_agents import FixedEvalAgent
+from gyms.hhh.actionset import ContinuousRejectionActionSet
 from gyms.hhh.env import register_hhh_gym
-from gyms.hhh.flowgen.traffic_traces import BotSSDPTrace, BotTrace, MixedSSDPBot, NTPTrace, SSDPTrace, T3, T4, THauke, \
-    THauke5, TRandomPatternSwitch
-from gyms.hhh.images import ImageGenerator
-from gyms.hhh.loop import TimedWorstOffenderCache, TrackingWorstOffenderCache
-from gyms.hhh.reward import AdditiveRewardCalc, MultiplicativeReward, MultiplicativeRewardSpecificity
-from gyms.hhh.obs import BaseObservations, DistVol, DistVolStd, FalsePositiveRate, MinMaxBlockedAddress
+from gyms.hhh.flowgen.traffic_traces import SSDPTrace
+from gyms.hhh.loop import TrackingWorstOffenderCache
+from gyms.hhh.reward import MultiplicativeRewardSpecificity
+from gyms.hhh.obs import BaseObservations
 from lib.datastore import Datastore
-from agents.util import get_dirs
+from training.util import get_dirs
 from plotting.plot_results import plot_episode_behavior
 import gin
 from absl import logging

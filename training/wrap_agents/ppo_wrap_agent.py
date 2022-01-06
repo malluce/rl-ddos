@@ -1,17 +1,15 @@
 from typing import Any, List, Optional, Tuple
 
 import gin
-import numpy as np
 from tf_agents.agents.ppo.ppo_clip_agent import PPOClipAgent
 from tf_agents.agents.tf_agent import LossInfo
-from tf_agents.networks import normal_projection_network
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork
 from tf_agents.typing import types
 import tensorflow as tf
 
-from agents.nets.ppo_actor_net import ActorDistributionNetwork
-from agents.nets.ppo_value_net import ValueNetwork
+from nets.ppo_actor_net import ActorDistributionNetwork
+from nets.ppo_value_net import ValueNetwork
 from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 

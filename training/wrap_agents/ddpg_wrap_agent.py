@@ -1,4 +1,3 @@
-import logging
 from typing import Any, List, Optional, Tuple
 
 import gin
@@ -6,12 +5,11 @@ import numpy as np
 from tf_agents.agents import DdpgAgent
 from tf_agents.agents.tf_agent import LossInfo
 from tf_agents.networks import normal_projection_network
-from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork
 import tensorflow as tf
 from tf_agents.typing import types
 
-from agents.nets.ddpg_actor_network import ActorNetwork
-from agents.nets.ddpg_critic_network import CriticNetwork
+from nets.ddpg_actor_network import ActorNetwork
+from nets.ddpg_critic_network import CriticNetwork
 from training.wrap_agents.util import get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
