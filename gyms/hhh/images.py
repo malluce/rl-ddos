@@ -21,7 +21,7 @@ class ImageGenerator:
                  max_pixel_value=255,  # max value for filter image
                  crop_standalone_hhh_image=True,
                  normalize=True,
-                 mode='single' # single=sum, multi=(sum,mean,std,min,max)
+                 mode='single'  # single=sum, multi=(sum,mean,std,min,max)
                  ):
         is_power_of_two = (img_width_px & (img_width_px - 1) == 0) and img_width_px != 0
         assert is_power_of_two
@@ -45,10 +45,10 @@ class ImageGenerator:
 
         if self.mode == 'single':
             shape = self.generate_hhh_image(DummyHHHAlg(self.address_space), crop=self.crop_standalone_hhh_image,
-                                        normalize=self.normalize).shape
+                                            normalize=self.normalize).shape
         else:
             shape = self.generate_multi_channel_hhh_image(DummyHHHAlg(self.address_space),
-                                        normalize=self.normalize).shape
+                                                          normalize=self.normalize).shape
         return self._shape_to_gym_spec(shape)
 
     def _shape_to_gym_spec(self, shape):
@@ -142,7 +142,6 @@ class ImageGenerator:
     def generate_multi_channel_hhh_image(self, hhh_algo, normalize):
         start = time.time()
 
-
         max_addr = 2 ** self.address_space - 1
         # the bounds of the bins to separate the address space (x-axis)
         bounds = self._get_x_axis_bounds(max_addr)
@@ -151,12 +150,12 @@ class ImageGenerator:
         res = hhh_algo.query_all()
         res = np.asarray(res)
 
-        channels = 5 # counter sum, mean, std, min, max
+        channels = 5  # counter sum, mean, std, min, max
 
         # init output image (x-axis=address bins, y-axis=hierarchy levels, 3 channels (sum, mean, std)
         image = np.zeros((self.address_space + 1, self.img_width_px, channels), dtype=np.float32)
 
-        counters = np.empty((self.address_space+1,self.img_width_px,1),dtype=np.object)
+        counters = np.empty((self.address_space + 1, self.img_width_px, 1), dtype=np.object)
         for i in np.ndindex(counters.shape):
             counters[i] = []
 
@@ -196,10 +195,10 @@ class ImageGenerator:
                 first_bin = l_binned[bin_index]
                 last_bin = l_end_binned[bin_index]
                 if first_bin == last_bin:  # only adapt current bin
-                    counters[level, first_bin,0].append(count)
+                    counters[level, first_bin, 0].append(count)
                 else:  # adapt all bins covered by the current item
                     for bin_to_increment in range(first_bin, last_bin + 1):
-                        counters[level, bin_to_increment,0].append(count)
+                        counters[level, bin_to_increment, 0].append(count)
 
         def mean(arr):
             if len(arr) == 0:
@@ -225,33 +224,31 @@ class ImageGenerator:
             else:
                 return np.max(arr)
 
-        image[:, :, 0] = np.vectorize(sum)(counters[:,:,0])
-        image[:, :, 1] = np.vectorize(mean)(counters[:,:,0])
+        image[:, :, 0] = np.vectorize(sum)(counters[:, :, 0])
+        image[:, :, 1] = np.vectorize(mean)(counters[:, :, 0])
         image[:, :, 2] = np.vectorize(std)(counters[:, :, 0])
-        image[:, :, 3] = np.vectorize(my_min)(counters[:,:,0])
-        image[:, :, 4] = np.vectorize(my_max)(counters[:,:,0])
+        image[:, :, 3] = np.vectorize(my_min)(counters[:, :, 0])
+        image[:, :, 4] = np.vectorize(my_max)(counters[:, :, 0])
 
         if self.hhh_squash_threshold != -1:
             # if needed squash distant values together to increase visibility of smaller IP sources
             # not for channel 2 (std)
-            for c in [0,1,3,4]:
-                second_smallest_value = np.partition(np.unique(image[:,:,c].flatten()), 1)[1]
+            for c in [0, 1, 3, 4]:
+                second_smallest_value = np.partition(np.unique(image[:, :, c].flatten()), 1)[1]
                 # print(f'ratio={np.max(image) / second_smallest_value}')
-                if np.max(image[:,:,c]) / second_smallest_value >= self.hhh_squash_threshold:
-                    image[:,:,c] = np.log(image[:,:,c], where=image[:,:,c] > 1, out=np.zeros_like(image[:,:,c]))
+                if np.max(image[:, :, c]) / second_smallest_value >= self.hhh_squash_threshold:
+                    image[:, :, c] = np.log(image[:, :, c], where=image[:, :, c] > 1, out=np.zeros_like(image[:, :, c]))
 
         if normalize:
             # for channels that visualize counter values, use same std and mean
             # such that normalized values are comparable
-            mean = np.mean(image[:,:,[0,1,3,4]])
-            std = np.std(image[:,:,[0,1,3,4]])
-            for c in [0,1,3,4]:
-                image[:,:,c] = (image[:,:,c] - mean) / (std + 1e-8)
+            mean = np.mean(image[:, :, [0, 1, 3, 4]])
+            std = np.std(image[:, :, [0, 1, 3, 4]])
+            for c in [0, 1, 3, 4]:
+                image[:, :, c] = (image[:, :, c] - mean) / (std + 1e-8)
 
             # normalize std with itself (no absolute counters)
-            image[:,:,2] = (image[:,:,2]-np.mean(image[:,:,2])) / (np.std(image[:,:,2]) + 1e-8)
-
-        print(f'finished image compute in {time.time()-start}')
+            image[:, :, 2] = (image[:, :, 2] - np.mean(image[:, :, 2])) / (np.std(image[:, :, 2]) + 1e-8)
 
         return image
 
