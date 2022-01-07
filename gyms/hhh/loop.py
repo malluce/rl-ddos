@@ -156,7 +156,7 @@ class TimedWorstOffenderCache(WorstOffenderCache):
 
 
 @gin.configurable
-class TrackingWorstOffenderCache(WorstOffenderCache, PerformanceTracker):
+class PerformanceTrackingWorstOffenderCache(WorstOffenderCache, PerformanceTracker):
     CACHE_CAP = 100
 
     def __init__(self, metric, capacity=CACHE_CAP):
@@ -368,7 +368,7 @@ class RulePerformanceTable(PerformanceTracker):
         """
         if not self.use_cache:
             return
-        if isinstance(self.cache, TrackingWorstOffenderCache):
+        if isinstance(self.cache, PerformanceTrackingWorstOffenderCache):
             kwargs = {
                 'perf_thresh': perf_thresh,
                 'total_benign': total_benign
