@@ -15,7 +15,7 @@ from math import log2, log10, sqrt, exp
 from gyms.hhh.cpp.hhhmodule import SketchHHH as HHHAlgo
 from numpy.random import default_rng
 
-from gyms.hhh.actionset import HafnerActionSet, RejectionActionSet
+from gyms.hhh.action import HafnerActionSpace, RejectionActionSpace
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.label import Label
 from gyms.hhh.state import State
@@ -575,13 +575,13 @@ class Loop(object):
                 s.hhh_min = crop(H[0].id)
                 s.hhh_max = crop(max([_.id + 2 ** (32 - _.len) for _ in H]))
 
-    def __init__(self, trace, create_state_fn, actionset, image_gen: ImageGenerator = None, epsilon=HHH_EPSILON,
+    def __init__(self, trace, create_state_fn, action_space, image_gen: ImageGenerator = None, epsilon=HHH_EPSILON,
                  sampling_rate=SAMPLING_RATE,
                  action_interval=ACTION_INTERVAL):
         self.create_state_fn = create_state_fn
         self.state = create_state_fn()
         self.trace = trace
-        self.actionset = actionset
+        self.action_space = action_space
         self.epsilon = epsilon
         self.sampling_rate = sampling_rate
         self.weight = int(1.0 / sampling_rate)
@@ -596,8 +596,8 @@ class Loop(object):
         self.use_hhh_distvol = max(
             [isinstance(feature, DistVol) or isinstance(feature, DistVolStd) for feature in self.state.selection]) > 0
 
-        self.is_hafner = isinstance(self.actionset, HafnerActionSet)
-        self.is_rejection = isinstance(self.actionset, RejectionActionSet)
+        self.is_hafner = isinstance(self.action_space, HafnerActionSpace)
+        self.is_rejection = isinstance(self.action_space, RejectionActionSpace)
         logging.info(f'is rejection: {self.is_rejection}')
         logging.info(f'is hafner: {self.is_hafner}')
         if self.is_rejection:
@@ -611,11 +611,11 @@ class Loop(object):
         self.time_index = 0
 
         if self.is_hafner:
-            self.actionset.re_roll_phi()
+            self.action_space.re_roll_phi()
             self.step(0)  # execute one step with randomly chosen phi
             return 0, self.blacklist_history
         else:
-            first_action = self.actionset.get_initialization()
+            first_action = self.action_space.get_initialization()
             self.step(first_action)
             return first_action, self.blacklist_history
 
@@ -806,7 +806,7 @@ class Loop(object):
 
     def resolve_action(self, action, s):
         if self.is_rejection:
-            resolved_action = self.actionset.resolve(action)
+            resolved_action = self.action_space.resolve(action)
             if len(resolved_action) == 2:  # only use phi and threshold
                 s.phi, s.thresh = resolved_action
                 s.min_prefix = 17
@@ -815,7 +815,7 @@ class Loop(object):
             else:
                 raise ValueError('Unexpected resolved actions')
         else:
-            s.phi, s.min_prefix = self.actionset.resolve(action)
+            s.phi, s.min_prefix = self.action_space.resolve(action)
 
     def pre_sample(self):  # Initialize the HHH instance with pre-sampled items
         self.state.trace_start = 0.0

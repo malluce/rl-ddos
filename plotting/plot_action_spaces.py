@@ -4,9 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from gyms.hhh.actionset import EvenSmallerDiscreteRejectionActionSet, EvenSmallerDiscreteRejectionActionSet2, \
-    NotSoHugeDiscreteActionSet, \
-    SmallDiscreteRejectionActionSet
+from gyms.hhh.action import DqnMpllActionSpace, DqnRejectionActionSpace
 
 matplotlib.rcParams.update({'font.size': 15})
 
@@ -26,7 +24,7 @@ def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
     return np.minimum((agent_action + 1) / bin_size + lower_bound, upper_bound).astype('int')
 
 
-a = NotSoHugeDiscreteActionSet()
+a = DqnMpllActionSpace()
 print(len(a.actions))
 
 agent_action = np.linspace(-1.0, 1.0, 1000)
@@ -67,7 +65,7 @@ plt.ylabel('pthresh')
 plt.tight_layout()
 plt.show()
 
-a = EvenSmallerDiscreteRejectionActionSet2()
+a = DqnRejectionActionSpace()
 x = list(map(lambda act: act[0], a.actions))
 y = list(map(lambda act: act[1], a.actions))
 plt.scatter(x, y, linewidths=1, marker='x')

@@ -11,9 +11,9 @@ DDPGWrapAgent.debug=False # TODO warn
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
-TrackingWorstOffenderCache.metric='fpr'
-TrackingWorstOffenderCache.capacity='inf'
+RulePerformanceTable.cache_class=@PerformanceTrackingWorstOffenderCache
+PerformanceTrackingWorstOffenderCache.metric='fpr'
+PerformanceTrackingWorstOffenderCache.capacity='inf'
 
 
 # state
@@ -21,7 +21,7 @@ TrainLoop.use_prev_action_as_obs=False
 TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet2() #@ContinuousRejectionActionSet3()
+TrainLoop.action_space_selection=@ExponentialContinuousRejectionActionSpace()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
@@ -38,14 +38,16 @@ TrainLoop.actionset_selection=@ContinuousRejectionActionSet2() #@ContinuousRejec
 
 HHHEnv.reward_calc=@MultiplicativeRewardNew()
 MultiplicativeReward.precision_weight=0
-MultiplicativeReward.recall_weight=1.784
-MultiplicativeReward.fpr_weight=1.432
-MultiplicativeReward.bl_weight=0.263
+MultiplicativeReward.recall_weight=1.78
+MultiplicativeReward.fpr_weight=1.43
+MultiplicativeReward.bl_weight=0.26
 
 #HHHEnv.reward_calc=@DefaultRewardCalc()
 
 # trace settings
 DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
+T4.num_benign=500
+T4.num_attack=300
 TRandomPatternSwitch.random_toggle_time=True
 TRandomPatternSwitch.smooth_transition=True
 TRandomPatternSwitch.benign_normal=True

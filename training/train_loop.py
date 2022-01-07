@@ -19,7 +19,7 @@ from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuf
 from tf_agents.utils import common
 
 from training.util import get_dirs
-from gyms.hhh.actionset import ActionSet, TupleActionSet
+from gyms.hhh.action import ActionSpace, TupleActionSpace
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
@@ -35,7 +35,7 @@ class TrainLoop(ABC):
     def __init__(self,
                  root_dir: str,
                  # env params
-                 env_name: str, actionset_selection: ActionSet,
+                 env_name: str, action_space_selection: ActionSpace,
                  state_obs_selection: Tuple[Observation],
                  use_prev_action_as_obs: bool,
                  # training params
@@ -68,7 +68,7 @@ class TrainLoop(ABC):
 
         (self.train_env, self.eval_env) = (None, None)  # set in _init_envs
         self.dirs = get_dirs(root_dir, Datastore.get_timestamp(), self._get_alg_name())
-        self._init_envs(actionset_selection, self.dirs, env_name, state_obs_selection,
+        self._init_envs(action_space_selection, self.dirs, env_name, state_obs_selection,
                         use_prev_action_as_obs, collect_raw, image_gen)
 
         (self.train_summary_writer, self.eval_summary_writer) = (None, None)  # set in _init_summary_writers
@@ -91,13 +91,13 @@ class TrainLoop(ABC):
     def _get_alg_name(self):
         pass
 
-    def _init_envs(self, actionset_selection, dirs, env_name, state_obs_selection,
+    def _init_envs(self, action_space_selection, dirs, env_name, state_obs_selection,
                    use_prev_action_as_obs, collect_raw, image_gen):
         self.ds_eval = Datastore(dirs['root'], 'eval', collect_raw)
         gym_kwargs = {
             'state_obs_selection': state_obs_selection,
             'use_prev_action_as_obs': use_prev_action_as_obs,
-            'actionset': actionset_selection,
+            'action_space': action_space_selection,
             'gamma': self.gamma,
             'image_gen': image_gen
         }
@@ -440,7 +440,7 @@ class PpoTrainLoop(TrainLoop):
                 categorical_distr = tfp.distributions.Categorical(logits=logits)
                 probs = categorical_distr.probs_parameter()
                 mean_probs = np.mean(probs, axis=0)
-                most_likely_min_prefix = TupleActionSet().resolve((0, np.argmax(mean_probs)))[1]
+                most_likely_min_prefix = TupleActionSpace().resolve((0, np.argmax(mean_probs)))[1]
                 with tf.name_scope('DistParams/'):
                     tf.compat.v2.summary.scalar(name='most likely L', data=most_likely_min_prefix,
                                                 step=global_step)

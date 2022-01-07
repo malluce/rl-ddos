@@ -19,13 +19,13 @@ TrainLoop.state_obs_selection=(@BaseObservations(),) #@MinMaxBlockedAddress(), @
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
-TrackingWorstOffenderCache.metric='fpr'
-TrackingWorstOffenderCache.capacity='inf'
-TrackingWorstOffenderCache.metric='fpr'
+RulePerformanceTable.cache_class=@PerformanceTrackingWorstOffenderCache
+PerformanceTrackingWorstOffenderCache.metric='fpr'
+PerformanceTrackingWorstOffenderCache.capacity='inf'
+PerformanceTrackingWorstOffenderCache.metric='fpr'
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet()
+TrainLoop.action_space_selection=@ExponentialContinuousRejectionActionSpace()
 
 # reward
 #HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()

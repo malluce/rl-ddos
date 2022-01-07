@@ -9,7 +9,7 @@ from math import log2, sqrt
 
 from gym.envs.registration import register
 
-from .actionset import ActionSet, HafnerActionSet
+from .action import ActionSpace, HafnerActionSpace
 from .flowgen.traffic_traces import SamplerTrafficTrace
 from .images import ImageGenerator
 from .loop import Loop
@@ -52,17 +52,18 @@ def pattern_ids_to_pattern_sequence(pattern_ids):
 class HHHEnv(gym.Env):
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
-                 actionset: ActionSet, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator, is_eval: bool):
+                 action_space: ActionSpace, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator,
+                 is_eval: bool):
 
         self.use_prev_action_as_obs = use_prev_action_as_obs
         self.ds = data_store
         self.trace = DistributionTrace(is_eval=is_eval)
-        self.loop = Loop(self.trace, lambda: State(state_obs_selection), actionset, image_gen=image_gen)
+        self.loop = Loop(self.trace, lambda: State(state_obs_selection), action_space, image_gen=image_gen)
         self.episode = 0
         self.current_step = 0
         self.image_gen = image_gen
 
-        self.action_space = self.loop.actionset.actionspace
+        self.action_space = self.loop.action_space.actionspace
         self.observation_space = self._observation_spec()
 
         self.gamma = gamma
@@ -176,7 +177,7 @@ class HHHEnv(gym.Env):
         use_images = self.image_gen is not None
         state_observation = self.loop.state.get_features()
         if self.use_prev_action_as_obs:
-            action_observation = maybe_cast_to_arr(self.loop.actionset.get_observation(previous_action))
+            action_observation = maybe_cast_to_arr(self.loop.action_space.get_observation(previous_action))
             vector_obs = np.concatenate((state_observation, action_observation))
         else:
             vector_obs = state_observation
@@ -192,9 +193,9 @@ class HHHEnv(gym.Env):
     def _observation_spec(self):
         if self.use_prev_action_as_obs:
             lb = np.concatenate(
-                (self.loop.state.get_lower_bounds(), maybe_cast_to_arr(self.loop.actionset.get_lower_bound())))
+                (self.loop.state.get_lower_bounds(), maybe_cast_to_arr(self.loop.action_space.get_lower_bound())))
             ub = np.concatenate(
-                (self.loop.state.get_upper_bounds(), maybe_cast_to_arr(self.loop.actionset.get_upper_bound())))
+                (self.loop.state.get_upper_bounds(), maybe_cast_to_arr(self.loop.action_space.get_upper_bound())))
         else:
             lb = self.loop.state.get_lower_bounds()
             ub = self.loop.state.get_upper_bounds()

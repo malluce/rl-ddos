@@ -9,10 +9,10 @@ TrainLoop.collect_raw = True # TODO warn
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
-RulePerformanceTable.cache_class=@TrackingWorstOffenderCache
-TrackingWorstOffenderCache.metric='fpr'
-TrackingWorstOffenderCache.capacity='inf'
-TrackingWorstOffenderCache.metric='fpr'
+RulePerformanceTable.cache_class=@PerformanceTrackingWorstOffenderCache
+PerformanceTrackingWorstOffenderCache.metric='fpr'
+PerformanceTrackingWorstOffenderCache.capacity='inf'
+PerformanceTrackingWorstOffenderCache.metric='fpr'
 
 Loop.sampling_rate=0.25
 
@@ -21,7 +21,7 @@ TrainLoop.use_prev_action_as_obs=True
 TrainLoop.state_obs_selection=(@BaseObservations(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
 
 # action
-TrainLoop.actionset_selection=@ContinuousRejectionActionSet() #@DiscreteRejectionActionSetWithL()
+TrainLoop.action_space_selection=@ExponentialContinuousRejectionActionSpace()
 
 # reward
 HHHEnv.reward_calc=@AdditiveRewardCalc()
