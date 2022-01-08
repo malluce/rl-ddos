@@ -809,7 +809,7 @@ class Loop(object):
             resolved_action = self.action_space.resolve(action)
             if len(resolved_action) == 2:  # only use phi and threshold
                 s.phi, s.thresh = resolved_action
-                s.min_prefix = 17
+                s.min_prefix = 16
             elif len(resolved_action) == 3:  # use phi, threshold and min prefix
                 s.phi, s.thresh, s.min_prefix = resolved_action
             else:
