@@ -129,7 +129,7 @@ def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
 
 
 @gin.register
-class DdpgMpllActionSpace(ActionSpace):
+class DdpgMinPrefLenActionSpace(ActionSpace):
 
     def __init__(self):
         super().__init__()
@@ -219,7 +219,7 @@ class DqnRejectionActionSpace(DiscreteActionSpace, RejectionActionSpace):
 
 
 @gin.configurable
-class DqnMpllActionSpace(DiscreteActionSpace):
+class DqnMinPrefLenActionSpace(DiscreteActionSpace):
 
     def __init__(self):
         super().__init__()
