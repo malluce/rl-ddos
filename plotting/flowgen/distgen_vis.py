@@ -11,7 +11,9 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as mgrid
 
 from gyms.hhh.flowgen.distgen import FlowGroupSampler, TraceSampler, UniformSampler, WeibullSampler
-from gyms.hhh.flowgen.traffic_traces import BotTrace, HafnerT1, HafnerT2, MixedNTPBot, MixedSSDPBot, SSDPTrace, T1, T2, \
+from gyms.hhh.flowgen.disttrace import DistributionTrace
+from gyms.hhh.flowgen.traffic_traces import BotTrace, HafnerT1, HafnerT2, MixedNTPBot, MixedSSDPBot, NTPTrace, \
+    SSDPTrace, T1, T2, \
     T3, T3WithoutPause, \
     THauke5, TRandomPatternSwitch, THauke, T4
 from gyms.hhh.label import Label
@@ -303,7 +305,7 @@ def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh
     trace = TRandomPatternSwitch(is_eval=False, random_toggle_time=True, smooth_transition=True, benign_normal=True,
                                  benign_flows=200)
 
-    trace=T4()
+    trace = T4(num_benign=500, num_attack=300)
     # for i in range(0, 9):
     if flow_file is None:
         fgs = trace.get_flow_group_samplers()
@@ -311,6 +313,8 @@ def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh
         #    continue
         trace_sampler = TraceSampler(fgs, steps)
         trace_sampler.init_flows()
+        print(trace_sampler.num_samples)
+        DistributionTrace(T4, False).rewind()
     else:
         trace_sampler = load_tracesampler(flow_file, rate_grid_file,
                                           attack_grid_file)

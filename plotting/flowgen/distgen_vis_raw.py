@@ -4,15 +4,15 @@ import matplotlib
 
 from distgen_vis2 import visualize
 
-# rawdata_base = "/srv/bachmann/data/dqn/dqn_20211122-071838/datastore/eval/rawdata"
-rawdata_base = "/srv/bachmann/data/ddpg/ddpg_20211206-081343/datastore/eval/rawdata"
-# rawdata_base = "/srv/bachmann/data/ppo/ppo_20211122-095112/datastore/eval/rawdata"
+rawdata_base = "/srv/bachmann/data/dqn/dqn_20220105-093454/datastore/eval/rawdata"
+# rawdata_base = "/srv/bachmann/data/ddpg/ddpg_20220103-094440/datastore/eval/rawdata"
+# rawdata_base = "/srv/bachmann/data/ppo/ppo_20220103-094116/datastore/eval/rawdata"
 
 # rawdata_base = '/home/bachmann/test-pycharm/data/eval-baseline_20211129-083730/datastore/train/rawdata'
 # episode = 2015
 # episode = 3337
 episode = 188
-for e in range(3339, 3340):
+for e in range(509, 510):
     flows = os.path.join(rawdata_base, f'trace_flows_{e}.npy.gz')
     combi = os.path.join(rawdata_base, f'trace_combined_{e}.npy.gz')
     attack = os.path.join(rawdata_base, f'trace_attack_{e}.npy.gz')

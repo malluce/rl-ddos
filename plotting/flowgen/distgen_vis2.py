@@ -18,7 +18,7 @@ from gyms.hhh.label import Label
 from gyms.hhh.loop import apply_hafner_heuristic
 
 
-# TODO tmp file for inter slides, delete afterwards
+# TODO adapted distgen_vis for "showable" plots (inter slides, thesis,...), delete afterwards
 
 class ProgressBar(object):
 
@@ -127,10 +127,14 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     ax0 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1])
     ax2 = fig.add_subplot(gs[0, 2])
+    # ax3 = fig.add_subplot(gs[3, :])
 
-    titlesize = 13
-    labelsize = 12
+    titlesize = 11
+    labelsize = 11
     ticksize = 8
+    benign_color = 'dodgerblue'
+    attack_color = 'crimson'
+    combined_color = 'darkgrey'
     benign_grid = rate_grid - attack_grid
 
     def scale(grid, num_bins, axis, transpose=False):
@@ -140,7 +144,7 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
         if transpose: scaled2 = scaled2.T
         return scaled2, bins2
 
-    def plot_heatmap(axis, grid, vmin=None, vmax=None):
+    def plot_heatmap(axis, grid, vmin=None, vmax=None, colorbar=False):
         scaled_grid, ybins = scale(grid, steps + 1, 0)
         scaled_grid, _ = scale(scaled_grid, 200, 1, True)
         if squash:
@@ -153,10 +157,11 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
 
         axis.set_xticks(np.arange(0, 101, 50))
         axis.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
-        axis.set_yticks(np.arange(0, ybins.max() + 1, 20))
-        axis.tick_params(labelsize=ticksize)
-        # cb = fig.colorbar(mesh, ax=axis, aspect=100)
-        # cb.ax.tick_params(labelsize=ticksize)
+        axis.set_yticks(np.arange(0, ybins.max() + 1, 100))
+        axis.tick_params(labelsize=labelsize)
+        if colorbar:
+            cb = fig.colorbar(mesh, ax=axis, aspect=100)
+            cb.ax.tick_params(labelsize=labelsize)
 
         return vmin, vmax
 
@@ -168,6 +173,11 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     vmin = scaled_grid.min()
     vmax = scaled_grid.max()
 
+    ax2.set_title('Combined data rate', fontsize=titlesize)
+    ax2.set_xlabel('Address space', fontsize=labelsize)
+    # ax2.set_ylabel('Time Index', fontsize=labelsize)
+    vmin, vmax = plot_heatmap(ax2, rate_grid)
+
     ax0.set_title('Benign data rate', fontsize=titlesize)
     ax0.set_xlabel('Address space', fontsize=labelsize)
     ax0.set_ylabel('Time index', fontsize=labelsize)
@@ -178,12 +188,52 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     # ax1.set_ylabel('Time index', fontsize=labelsize)
     plot_heatmap(ax1, attack_grid, vmin, vmax)
 
-    if hhh_grid is not None:
-        ax2.set_title(f'Rule coverage', fontsize=titlesize)
-        ax2.set_xlabel('Address space', fontsize=labelsize)
-        # ax2.set_ylabel('Time index', fontsize=labelsize)
-        plot_heatmap(ax2, hhh_grid)
+    # if hhh_grid is not None:
+    #    ax2.set_title(f'Rule coverage', fontsize=titlesize)
+    #    ax2.set_xlabel('Address space', fontsize=labelsize)
+    #    # ax2.set_ylabel('Time index', fontsize=labelsize)
+    #    plot_heatmap(ax2, hhh_grid)
 
+    plt.subplots_adjust(wspace=.5, hspace=.5)
+    plt.tight_layout()
+    plt.show()
+
+    fig = plt.figure()
+    gs = mgrid.GridSpec(1, 1)
+
+    ax0 = fig.add_subplot(gs[0, :])
+
+    # ax1 = fig.add_subplot(gs[1, :])
+
+    def plot_frequencies(axis, x, y, color):
+        axis.fill_between(x, y, 0, facecolor=color, alpha=.6)
+        axis.tick_params(labelsize=ticksize)
+
+    ax0.set_xlabel('Time index', fontsize=labelsize)
+    ax0.set_ylabel('Data rate', fontsize=labelsize)
+    x = range(benign_grid.shape[0])
+    benign_y = benign_grid.sum(axis=1)
+    attack_y = benign_y + attack_grid.sum(axis=1)
+    ax0.fill_between(x, 0, benign_y, facecolor=benign_color, label='Benign traffic')
+    ax0.fill_between(x, benign_y, attack_y, facecolor=attack_color, label='Attack traffic')
+    ax0.tick_params(labelsize=labelsize)
+    ax0.set_ylim(bottom=0)
+    ax0.set_xlim(left=0, right=x[-1] + 1)
+
+    # ax1.set_title('Data rate distribution', fontsize=titlesize)
+    # ax1.set_xlabel('Address space', fontsize=labelsize)
+    # ax1.set_ylabel('Data rate', fontsize=labelsize)
+    # num_bin = 100
+    # benign_y, bins = scale(benign_grid.sum(axis=0), num_bin, 0)
+    # x = num_bin * bins / bins[-1]
+    # attack_y, _ = scale(attack_grid.sum(axis=0), num_bin, 0)
+    # attack_y += benign_y
+    # ax1.fill_between(x, 0, benign_y, facecolor=benign_color)
+    # ax1.fill_between(x, benign_y, attack_y, facecolor=attack_color)
+    # ax1.tick_params(labelsize=ticksize)
+    # ax1.set_xticks(np.arange(0, 101, 50))
+    # ax1.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
+    plt.legend(loc='upper left')
     plt.subplots_adjust(wspace=.5, hspace=.5)
     plt.tight_layout()
     plt.show()
@@ -258,7 +308,7 @@ def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh
     trace = TRandomPatternSwitch(is_eval=True, random_toggle_time=True, smooth_transition=True, benign_normal=True,
                                  benign_flows=200)
     trace = THauke5()
-    trace = T3()
+    trace = T4(num_benign=500, num_attack=300)
     # trace = MixedNTPBot()
     # for i in range(0, 9):
     if flow_file is None:
