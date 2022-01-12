@@ -122,11 +122,11 @@ def playthrough(trace_sampler, epsilon, phi, minprefix, interval):
 
 def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=False):
     fig = plt.figure(figsize=(6, 6))
-    gs = mgrid.GridSpec(1, 3)
+    gs = mgrid.GridSpec(3, 1)
 
-    ax0 = fig.add_subplot(gs[0, 0])
-    ax1 = fig.add_subplot(gs[0, 1])
-    ax2 = fig.add_subplot(gs[0, 2])
+    ax0 = fig.add_subplot(gs[0, :])
+    ax1 = fig.add_subplot(gs[1, :])
+    ax2 = fig.add_subplot(gs[2, :])
     # ax3 = fig.add_subplot(gs[3, :])
 
     titlesize = 11
@@ -146,18 +146,18 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
 
     def plot_heatmap(axis, grid, vmin=None, vmax=None, colorbar=False):
         scaled_grid, ybins = scale(grid, steps + 1, 0)
-        scaled_grid, _ = scale(scaled_grid, 200, 1, True)
+        scaled_grid, _ = scale(scaled_grid, 200, 1)
         if squash:
             # squash values together for clearer visuals (e.g. for reflector-botnet switch)
             scaled_grid = np.sqrt(scaled_grid, out=np.zeros_like(scaled_grid, dtype=np.float))
         vmin = vmin if vmin is not None else scaled_grid.min()
         vmax = vmax if vmax is not None else scaled_grid.max()
-        mesh = axis.pcolormesh(np.arange(200) / 2, ybins, scaled_grid, cmap='gist_heat_r', shading='nearest', vmin=vmin,
+        mesh = axis.pcolormesh(ybins, np.arange(200) / 2, scaled_grid, cmap='gist_heat_r', shading='nearest', vmin=vmin,
                                vmax=vmax)
 
-        axis.set_xticks(np.arange(0, 101, 50))
-        axis.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
-        axis.set_yticks(np.arange(0, ybins.max() + 1, 100))
+        axis.set_yticks(np.arange(0, 101, 50))
+        axis.set_yticklabels(['0', '$2^{15}$', '$2^{16}$'])
+        axis.set_xticks(np.arange(0, ybins.max() + 1, 100))
         axis.tick_params(labelsize=labelsize)
         if colorbar:
             cb = fig.colorbar(mesh, ax=axis, aspect=100)
@@ -174,17 +174,19 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     vmax = scaled_grid.max()
 
     ax2.set_title('Combined data rate', fontsize=titlesize)
-    ax2.set_xlabel('Address space', fontsize=labelsize)
+    ax2.set_ylabel('Address space', fontsize=labelsize)
+    ax2.set_xlabel('Time index', fontsize=labelsize)
     # ax2.set_ylabel('Time Index', fontsize=labelsize)
     vmin, vmax = plot_heatmap(ax2, rate_grid)
 
     ax0.set_title('Benign data rate', fontsize=titlesize)
-    ax0.set_xlabel('Address space', fontsize=labelsize)
-    ax0.set_ylabel('Time index', fontsize=labelsize)
+    ax0.set_ylabel('Address space', fontsize=labelsize)
+    ax0.set_xlabel('Time index', fontsize=labelsize)
     plot_heatmap(ax0, benign_grid, vmin, vmax)
 
     ax1.set_title('Attack data rate', fontsize=titlesize)
-    ax1.set_xlabel('Address space', fontsize=labelsize)
+    ax1.set_ylabel('Address space', fontsize=labelsize)
+    ax1.set_xlabel('Time index', fontsize=labelsize)
     # ax1.set_ylabel('Time index', fontsize=labelsize)
     plot_heatmap(ax1, attack_grid, vmin, vmax)
 
