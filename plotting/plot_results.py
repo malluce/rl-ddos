@@ -1,16 +1,25 @@
+import datetime
 import os
 import struct
+import sys
 from collections import defaultdict
-from typing import Tuple
+from typing import List, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas
 import numpy as np
 import pandas as pd
+from matplotlib import ticker
 from matplotlib.colors import to_rgb
 
 from gyms.hhh.env import pattern_ids_to_pattern_sequence
+from plotting.plot_tb_csv import smooth
+
+TITLESIZE = 18
+LABELSIZE = 18
+LEGENDSIZE = 11
+TICKSIZE = 8
 
 
 def read_env_csv(env_file_path):
@@ -63,8 +72,6 @@ def plot_train_for_pattern(env_csv, environment_file_path, pat):
     print(pat_csv[-1000:].loc[:, 'Phi'].mean(), pat_csv[-1000:].loc[:, 'Phi'].std())
     print(pat_csv[:1000].loc[:, 'Thresh'].mean(), pat_csv[:1000].loc[:, 'Thresh'].std())
     print(pat_csv[-1000:].loc[:, 'Thresh'].mean(), pat_csv[-1000:].loc[:, 'Thresh'].std())
-    plt.boxplot([pat_csv[:1000].loc[:, 'Phi'], pat_csv[-1000:].loc[:, 'Phi']])
-    plt.show()
 
     # print_csv_stats(pat_csv)
     grouped_by_episode = pat_csv.groupby(['Episode'])
@@ -83,9 +90,9 @@ def get_quantiles(data: pandas.DataFrame):
     return [(q, data.quantile(q)) for q in [0.1, 0.2, 0.4, 0.6, 0.8, 0.9]]
 
 
-def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
-         labels=None, mean_for_title=None):
-    ax: plt.Axes = fig.add_subplot(2, 4, x)
+def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_min=None, y_max=None, title=None,
+         labels=None, mean_for_title=None, nrow=None, ncol=None):
+    ax: plt.Axes = fig.add_subplot(nrow, ncol, x)
     x = range(data.shape[0])
     for idx, col in enumerate(cols):
         y = data.loc[:, col]
@@ -97,19 +104,19 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
             if labels is None:
                 if q in [0.1, 0.2, 0.4]:
                     ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color,
-                                    label=f'{q}/{0.5 + abs(0.5 - q)} quantile')
+                                    label=f'{q}/{0.5 + abs(0.5 - q)} Quantile')
                 else:
                     ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color)
             else:
                 ax.fill_between(x, y, y_err, edgecolor=color,
                                 facecolor=color)  # plot without label for discounted and undiscounted
 
-        ax.set_xlabel(x_label)
+        ax.set_xlabel(x_label, fontsize=LABELSIZE)
 
         base_title = title if title is not None else col
 
         title = '{} (avg={:3.3f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
-        ax.set_title(title)
+        ax.set_title(title, fontsize=TITLESIZE)
 
         median_color = 'navy' if idx == 0 else 'red'
         if labels is None:
@@ -117,10 +124,11 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
         else:
             ax.plot(x, y, median_color, label=labels[idx], linewidth=1)
     if y_max is not None:
-        ax.set_ylim(bottom=0, top=y_max if type(y_max) == int else y_max + 0.1)
+        ax.set_ylim(bottom=y_min if y_min is not None else 0, top=y_max if type(y_max) == int else y_max + 0.1)
     else:
-        ax.set_ylim(bottom=0)
-
+        ax.set_ylim(bottom=y_min if y_min is not None else 0)
+    ax.tick_params(labelsize=LABELSIZE)
+    ax.grid()
     return ax.get_legend_handles_labels()
 
 
@@ -152,18 +160,19 @@ def get_rows_with_episode_in(environment_csv, episodes):
     return environment_csv.loc[environment_csv['Episode'].isin(episodes), :]  # get rows where episode in episodes
 
 
-def plot_episode_behavior(environment_file_path, pattern, window: Tuple[int, int]):
+def plot_episode_behavior(environment_file_path, pattern, window: Tuple[int, int], fancy):
     """
     Plots the metrics of an environment.csv file.
     :param environment_file_path: the environment.csv file path
     :param window: the episodes to plot (relative to the last episode)
+    :param fancy: whether to plot it fancy (for thesis/presentation) or with more info and ugly
     """
     env_csv = read_env_csv(environment_file_path)
 
     patterns = get_patterns(env_csv, pattern)
 
     for pat in patterns:
-        plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window)
+        plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy)
 
 
 def get_patterns(env_csv, pattern):
@@ -263,7 +272,7 @@ def plot_time_index(last, metric, ax, label, y_top=None):
     return True
 
 
-def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
+def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy):
     print('========== EVAL =========')
     pat_csv = filter_by_pattern(env_csv, pat)
     print_csv_stats(pat_csv)
@@ -273,10 +282,13 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     last = get_rows_with_episode_in(pat_csv, eps_to_show)
 
     # title
-    run_id = environment_file_path.split('/')[-4]
-    title = f'{window[0] - window[1]} eval episodes (first:{unique_eps[len(unique_eps) - window[0]]}, last:{unique_eps[len(unique_eps) - window[1] - 1]}) \n {run_id}'
-    if pat is not None:
-        title += f'\n (pattern={pat})'
+    if not fancy:
+        run_id = environment_file_path.split('/')[-4]
+        title = f'{window[0] - window[1]} eval episodes (first:{unique_eps[len(unique_eps) - window[0]]}, last:{unique_eps[len(unique_eps) - window[1] - 1]}) \n {run_id}'
+        if pat is not None:
+            title += f'\n (pattern={pat})'
+    else:
+        title = None
 
     # plot per time idx
     if all(map(lambda x: x in last.columns, ['PrecisionIdx', 'FPRIdx', 'RecallIdx', 'BlackSizeIdx', 'CacheIdx'])):
@@ -321,46 +333,74 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window):
     # plot per time step
     create_plots(last_median, last_quantiles,
                  title=title,
-                 x_label='step',
-                 data_label='median', means_for_title=last_means)
-    plt.show()
+                 x_label='Adaptation step',
+                 data_label='Median', means_for_title=last_means, fancy=fancy)
 
 
-def create_plots(data, quantiles, title, x_label, data_label, means_for_title=None):
-    fig: plt.Figure = plt.figure(figsize=(16, 8))
+def create_plots(data, quantiles, title, x_label, data_label, means_for_title=None, fancy=False):
+    def finalize():
+        if title is not None:
+            fig.suptitle(title)
+
+        fig.tight_layout()
+        fig.gca().legend(handles, labels, fontsize=LEGENDSIZE, ncol=1)
+        # fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.375), ncol=1)
+        plt.show()
+
+    print(data.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
+    print('=====direct attack:\n' + str(
+        data.loc[0:22, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====no attack:\n' + str(
+        data.loc[28:34, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====reflector attack:\n' + str(
+        data.loc[37:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====total:\n' + str(
+        data.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+
+    if fancy:
+        nrow = 1
+        ncol = 3
+    else:
+        nrow = 2
+        ncol = 4
+
+    fig: plt.Figure = plt.figure(figsize=(15, 5) if fancy else (16, 9))
     title_means = defaultdict(lambda: None)
     if means_for_title is not None:
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']:
             if col in data:
-                title_means[col] = means_for_title[col].mean()
-    plot(fig, data, quantiles, ['Phi'], 1, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Phi'])
-    plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['MinPrefix'])
+                title_means[col] = means_for_title[col].mean() if not fancy else None
+    plot(fig, data, quantiles, ['Phi'], 1, y_max=0.25, x_label=x_label, data_label=data_label,
+         mean_for_title=title_means['Phi'], title='Frequency threshold $\phi$', nrow=nrow, ncol=ncol)
+    handles, labels = plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label,
+                           mean_for_title=title_means['MinPrefix'], title='Minimum prefix length $L$', nrow=nrow,
+                           ncol=ncol)
     if 'Thresh' in data and data['Thresh'].max() > -1:
-        plot(fig, data, quantiles, ['Thresh'], 3, y_max=1.0, x_label=x_label, data_label=data_label,
-             mean_for_title=title_means['Thresh'], title='Performance Threshold')
+        plot(fig, data, quantiles, ['Thresh'], 3, y_min=0.84, y_max=0.95, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['Thresh'], title='Performance threshold pthresh', nrow=nrow, ncol=ncol)
         offset = 1
     else:
         offset = 0
+
+    if fancy:
+        ncol = 4
+        offset = -2
+        finalize()
+        fig: plt.Figure = plt.figure(figsize=(15, 5) if fancy else (16, 9))
+
     plot(fig, data, quantiles, ['Precision'], 3 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Precision'])
+         mean_for_title=title_means['Precision'], nrow=nrow, ncol=ncol)
     plot(fig, data, quantiles, ['Recall'], 4 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Recall'])
+         mean_for_title=title_means['Recall'], nrow=nrow, ncol=ncol)
     plot(fig, data, quantiles, ['BlackSize'], 5 + offset, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['BlackSize'])
+         mean_for_title=title_means['BlackSize'], title='Number of filter rules', nrow=nrow, ncol=ncol)
     handles, labels = plot(fig, data, quantiles, ['FPR'], 6 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-                           mean_for_title=title_means['FPR'])
-    reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
-    handles, labels = plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
-                           y_max=reward_max, mean_for_title=title_means['Reward'])
-
-    fig.suptitle(title)
-
-    fig.tight_layout()
-    fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.01, 0.01, 1, 1), ncol=2)
-    # fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.375), ncol=1)
-    return fig
+                           mean_for_title=title_means['FPR'], title='False positive rate', nrow=nrow, ncol=ncol)
+    if not fancy:
+        reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
+        plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
+             y_max=reward_max, mean_for_title=title_means['Reward'], nrow=nrow, ncol=ncol)
+    finalize()
 
 
 def plot_kickoff(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
@@ -429,50 +469,139 @@ def plot_training_kickoff(environment_file_path: str, pat):
     plt.show()
 
 
-if __name__ == '__main__':
-    matplotlib.rcParams.update({'font.size': 15})
+def plot_training_curves(ep_paths: List[str], pattern, show_all=False, label_agent_suffixes=None):
+    matplotlib.rcParams.update({'font.size': 13})
     plt.rc('axes', labelsize=18)
     plt.rc('figure', titlesize=18)
 
+    STEPS_PER_EPISODE = 58
+    NUM_EVAL_EPISODES = 9
+    EVAL_PERIODICITY = 3000
+    plt.figure(dpi=200)
+    for i, base_path in enumerate(ep_paths):
+        agent_name = base_path.split('/')[-2].split('_')[0].upper()
+        if label_agent_suffixes is not None:
+            agent_name += label_agent_suffixes[i]
 
-    def plot_hl(ds_base, pattern, window):
-        if ds_base.split('/')[-2].startswith('ppo'):
-            train_dir = 'train1'
+        if agent_name == 'PPO':
+            INITIAL_STEPS = 0
+            date = base_path.split('/')[-2].split('_')[1].split('-')[0]
+            date = datetime.datetime.strptime(date, '%Y%m%d')
+            if date <= datetime.datetime(2022, 1, 11):
+                NUM_EVAL_EPISODES = 3
+                EVAL_PERIODICITY = 6000
         else:
-            train_dir = 'train'
-        train_path = os.path.join(ds_base, train_dir, 'environment.csv')
-        eval_path = os.path.join(ds_base, 'eval', 'environment.csv')
+            INITIAL_STEPS = 1200
+
+        train_path, eval_path = get_paths(base_path, env=False)
+        train_csv = filter_by_pattern(read_env_csv(train_path), pattern)
+        eval_csv = filter_by_pattern(read_env_csv(eval_path), pattern)
+        # replace buggy episode counter by pandas index
+        train_csv.iloc[:, 0] = train_csv.index.values
+        eval_csv.iloc[:, 0] = eval_csv.index.values
+
+        train_csv.iloc[:, 1] = (STEPS_PER_EPISODE - 1) + STEPS_PER_EPISODE * train_csv.iloc[:, 0]
+        print(train_csv.iloc[:, 1])
+
+        eval_csv.iloc[:, 0] = (eval_csv.iloc[:, 0]) // NUM_EVAL_EPISODES  # evaluation round
+        eval_csv = eval_csv.groupby(['Episode'], as_index=False).mean()  # mean return per evaluation round
+        eval_csv.iloc[0, 1] = INITIAL_STEPS
+        eval_csv.iloc[:, 1] = eval_csv.iloc[:, 0] * EVAL_PERIODICITY
+        print(f'mean over last 10 eval: {agent_name, eval_csv.iloc[-10:, -1].mean()}')
+        print(f'std over all eval: {agent_name, eval_csv.iloc[:, -1].std()}')
+
+        if len(ep_paths) == 1 or show_all:
+            plt.plot(train_csv.iloc[:, 1], smooth(np.array(train_csv.iloc[:, -1])),
+                     label='training' if not show_all else f'{agent_name} training')
+            plt.plot(eval_csv.iloc[:, 1], eval_csv.iloc[:, -1],
+                     label='evaluation (no exploration)' if not show_all else f'{agent_name} evaluation (no exploration)')
+            if not show_all:
+                plt.title(f'{agent_name} agent')
+        else:
+            plt.plot(eval_csv.iloc[:, 1], eval_csv.iloc[:, -1],
+                     label=f'{agent_name} evaluation (no exploration)')
+
+    plt.xlabel('Adaptation step in training environment')
+    plt.ylabel('Undiscounted return')
+    plt.ylim(bottom=0)
+    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{}'.format(int(x / 1000)) + 'K'))
+    # plt.xlim(left=0)
+    plt.tight_layout()
+    plt.legend(fontsize=10)
+    plt.show()
+
+
+def get_paths(base_path, env=True):
+    if base_path.split('/')[-2].startswith('ppo'):
+        train_dir = 'train1'
+    else:
+        train_dir = 'train'
+    train_path = os.path.join(base_path, train_dir, 'environment.csv' if env else 'episodes.csv')
+    eval_path = os.path.join(base_path, 'eval', 'environment.csv' if env else 'episodes.csv')
+    if 'eval-baseline' in base_path:
+        if not os.path.exists(train_path):
+            raise ValueError('Paths do not exist')
+    else:
         paths_exist = os.path.exists(train_path) and os.path.exists(eval_path)
         if not paths_exist:
             raise ValueError('Paths do not exist')
+    return train_path, eval_path
 
-        # plot_training_kickoff(train_path, pattern)
-        #plot_training(environment_file_path=train_path, pattern=pattern)
-        #plot_training(environment_file_path=eval_path, pattern=pattern)
-        plot_episode_behavior(environment_file_path=eval_path, pattern=pattern, window=window)
+
+if __name__ == '__main__':
+    # matplotlib.rcParams.update({'font.size': 15})
+    # plt.rc('axes', labelsize=18)
+    # plt.rc('figure', titlesize=18)
+
+    def plot_hl(ds_base, pattern, window, fancy=False):
+        # if not isinstance(ds_base, List):
+        #    ds_base = [ds_base]
+        #
+        # train_paths = []
+        # eval_paths = []
+        # for ds in ds_base:
+        #    train_path, eval_path = get_paths(ds)
+        #    train_paths.append(train_path)
+        #    eval_paths.append(eval_path)
+        train_path, eval_path = get_paths(ds_base)
+        # plot_training_kickoff(train_paths, pattern)
+        # plot_training(environment_file_path=train_paths, pattern=pattern)
+        # plot_training(environment_file_path=eval_paths, pattern=pattern)
+        # plot_episode_behavior(environment_file_path=eval_paths, pattern=pattern, window=window, fancy=fancy)
+        plot_episode_behavior(environment_file_path=train_path, pattern=pattern, window=window, fancy=fancy)
 
 
     first_pattern = 'ssdp'
     second_pattern = 'ssdp'
 
     pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
-    window = (10,0)
+    window = (100, 0)
     # pattern = 'ntp;bot'
-    # pattern = 'T3WithoutPause'
+    pattern = 'T4'
 
-    # ds_base = '/srv/bachmann/data/td3/td3_20211109-154010/datastore'
-    # ds_base = '/home/bachmann/test-pycharm/data/dqn_20210911-132807/datastore'
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20211210-105113/datastore'
+    ##### individual training curves #####
+    # plot_training_curves(['/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'], 'T4')
+    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'], 'T4')
+    # plot_training_curves(['/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'], 'T4')
 
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20211210-105301/datastore'
+    ##### eval curves comparison #####
+    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore',
+    #                      '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore',
+    #                      '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'], 'T4')
 
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20211210-105444/datastore'
+    # DDPG BatchNorm
+    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore',
+    #                      '/srv/bachmann/data/ddpg/ddpg_20220114-073804/datastore'], 'T4', show_all=True,
+    #                     label_agent_suffixes=[' (BatchNorm)', ' (no BatchNorm)'])
 
-    #ds_base = '/srv/bachmann/data/dqn/dqn_20211222-090904/datastore'
-    #ds_base = '/srv/bachmann/data/ddpg/ddpg_20211219-145625/datastore'
-    ds_base='/srv/bachmann/data/ddpg/ddpg_20211222-093154/datastore'
-    #ds_base = '/srv/bachmann/data/ppo/ppo_20211222-095836/datastore'
-    plot_hl(ds_base, pattern, window)
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'  # DQN-S1 in thesis
+    ds_base = '/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'  # DDPG-S1 in thesis
+    # ds_base = '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'  # PPO-S1 in thesis
+    ds_base = '/srv/bachmann/data/ddpg/ddpg_20220114-073804/datastore'  # DDPG-NoBN in thesis
+    # ds_base = '/srv/bachmann/data/dqn/dqn_20220115-141343/datastore'  # DQN L
+    ds_base = '/srv/bachmann/data/dqn/dqn_20220115-141541/datastore'  # DQN no WOC
+    ds_base = '/home/bachmann/test-pycharm/data/eval-baseline_20220117-073045/datastore'  # fix params no WOC
+    ds_base = '/home/bachmann/test-pycharm/data/eval-baseline_20220117-073141/datastore'  # fix params WOC
+    plot_hl(ds_base, 'T4', (100, 0), fancy=True)
 
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20211122-095112/datastore'
-    # ds_base = '/srv/bachmann/data/sac/sac_20211112-072533/datastore'
+    # plot_hl(ds_base, pattern, window, fancy=True)
