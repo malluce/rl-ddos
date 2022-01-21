@@ -111,9 +111,14 @@ class DummyState(Observation):
 class TrafficSituation(Observation):
 
     def get_observation(self, state):
+        try:
+            malicious_fraction = state.estimated_malicious / state.packets_per_step
+        except ZeroDivisionError:
+            malicious_fraction = 0
+
         return np.array([
             # state.estimated_precision, state.estimated_recall,
-            state.packets_per_step, state.estimated_malicious / state.packets_per_step
+            state.packets_per_step, malicious_fraction
         ])
 
     def get_lower_bound(self):
