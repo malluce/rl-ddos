@@ -2,13 +2,8 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-rej2=np.loadtxt('ddpg_contrej2.csv',delimiter=',',dtype=np.float32)
-rej3=np.loadtxt('ddpg_contrej3.csv',delimiter=',',dtype=np.float32)
 
-import scipy
-
-
-def smooth(x, window_len=10, window='hanning'):
+def smooth(x, window_len=10, window='flat'):
     """smooth the data using a window with requested size.
 
     This method is based on the convolution of a scaled window with the signal.
@@ -60,11 +55,3 @@ def smooth(x, window_len=10, window='hanning'):
         w = getattr(np, window)(window_len)
     y = np.convolve(w / w.sum(), s, mode='same')
     return y[window_len - 1:-window_len + 1]
-
-#plt.plot(rej2[:,1], rej2[:,2],label='linear scaling', color='orange')
-plt.plot(rej2[:,1], smooth(rej2[:,2],15,'flat'),color='orange',linestyle='--')
-#plt.plot(rej3[:,1], rej3[:,2],label='exponential scaling',color='blue')
-plt.plot(rej3[:,1], smooth(rej3[:,2],15,'flat'),color='blue',linestyle='--')
-plt.xscale('log')
-plt.legend()
-plt.show()
