@@ -173,7 +173,7 @@ class T3WithoutPause(SamplerTrafficTrace):
 
 
 @gin.configurable
-class T4(SamplerTrafficTrace):
+class T4(SamplerTrafficTrace):  # scenario "S1" in thesis (simple adaptivity)
 
     def __init__(self, num_benign=300, num_attack=150, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
@@ -194,13 +194,13 @@ class T4(SamplerTrafficTrace):
             # direct attack 1
             FlowGroupSampler(self.num_attack // 5,
                              UniformSampler(0, 1),
-                             UniformSampler(0.3 * self.maxtime, 0.6 * self.maxtime),
+                             UniformSampler(0.4 * self.maxtime, 0.5 * self.maxtime),
                              UniformSampler(0.05, 0.35 * self.maxaddr),
                              attack=True),
             # direct attack 2
             FlowGroupSampler(self.num_attack // 5,
                              UniformSampler(0, 1),
-                             UniformSampler(0.3 * self.maxtime, 0.6 * self.maxtime),
+                             UniformSampler(0.4 * self.maxtime, 0.5 * self.maxtime),
                              UniformSampler(0.55 * self.maxaddr, 0.85 * self.maxaddr),
                              attack=True),
             # 1st refl/ampl
@@ -208,20 +208,153 @@ class T4(SamplerTrafficTrace):
                              UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
                              UniformSampler(0.9 * self.maxtime, self.maxtime),
                              UniformSampler(0.3 * self.maxaddr, 0.32 * self.maxaddr),
+                             rate_sampler=UniformSampler(1, 3),
                              attack=True),
             # 2nd refl/ampl
             FlowGroupSampler(self.num_attack // 5,
                              UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
                              UniformSampler(0.9 * self.maxtime, self.maxtime),
                              UniformSampler(0.8 * self.maxaddr, 0.82 * self.maxaddr),
+                             rate_sampler=UniformSampler(1, 3),
                              attack=True),
             # 3rd refl/ampl
             FlowGroupSampler(self.num_attack // 5,
                              UniformSampler(0.6 * self.maxtime, 0.65 * self.maxtime + 1),
                              UniformSampler(0.9 * self.maxtime, self.maxtime),
                              UniformSampler(0.1 * self.maxaddr, 0.12 * self.maxaddr),
+                             rate_sampler=UniformSampler(1, 3),
                              attack=True)
         ]
+
+
+@gin.configurable
+class T5(SamplerTrafficTrace):  # scenario "S2" in thesis ("wandering" bot attack, overlap test)
+
+    def __init__(self, num_benign=500, **kwargs):
+        self.maxtime = 599
+        self.maxaddr = 0xffff
+        super().__init__(self.maxtime)
+        self.num_benign = num_benign
+        self.num_bot = 30
+
+        self.fgs = [
+            # 1st set of benign flows
+            FlowGroupSampler(self.num_benign,
+                             UniformSampler(0, 0.95 * self.maxtime),
+                             WeibullSampler(3 / 2,
+                                            (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * self.maxtime),
+                             NormalSampler(1 / 2 * self.maxaddr, .15 * self.maxaddr, 1, self.maxaddr),
+                             attack=False),
+            # 1st Botnet
+            FlowGroupSampler(self.num_bot * 12,
+                             UniformSampler(0, 99),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.45 * self.maxaddr, .05 * self.maxaddr, 0, self.maxaddr),
+                             attack=True),
+            # 2nd Botnet
+            FlowGroupSampler(self.num_bot * 12,
+                             UniformSampler(110, 209),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.6 * self.maxaddr, .05 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+            # 3rd Botnet
+            FlowGroupSampler(self.num_bot * 12,
+                             UniformSampler(220, 319),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.75 * self.maxaddr, 0.05 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+            # 4th Botnet
+            FlowGroupSampler(self.num_bot * 20,  # previously * 12
+                             UniformSampler(330, 519),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.9 * self.maxaddr, 0.03 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+            # 5th Botnet
+            FlowGroupSampler(self.num_bot * 20,  # previously * 12
+                             UniformSampler(330, 519),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.1 * self.maxaddr, 0.03 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+            # 6th Botnet
+            FlowGroupSampler(self.num_bot * 12,
+                             UniformSampler(500, 589),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.5 * self.maxaddr, 0.05 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+        ]
+
+    def get_flow_group_samplers(self):
+        return self.fgs
+
+
+@gin.configurable
+class T6(SamplerTrafficTrace):  # scenario "S3" in thesis (reflector and bot at same time)
+
+    def __init__(self, num_benign=500, num_dns=10, **kwargs):
+        self.maxtime = 599
+        self.maxaddr = 0xffff
+        super().__init__(self.maxtime)
+        self.num_benign = num_benign
+        self.num_dns = num_dns
+        self.num_bot = self.num_dns * 3
+        self._total_rate = self.num_dns * 30
+
+        self.fgs = [
+            # 1st set of benign flows
+            FlowGroupSampler(self.num_benign,
+                             UniformSampler(0, 0.95 * self.maxtime),
+                             WeibullSampler(3 / 2,
+                                            (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * self.maxtime),
+                             NormalSampler(1 / 2 * self.maxaddr, .17 * self.maxaddr, 1, self.maxaddr),
+                             attack=False),
+            # 1st Botnet
+            FlowGroupSampler(self.num_bot * 10,
+                             UniformSampler(0, 159),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 8 * self.maxtime),
+                             NormalSampler(0.45 * self.maxaddr, .05 * self.maxaddr, 0, self.maxaddr),
+                             attack=True),
+            # 1st DNS Reflection
+            FlowGroupSampler(self.num_dns,
+                             UniformSampler(100, 109),
+                             WeibullSampler(20,
+                                            (1 / WeibullSampler.quantile(99.99, 20)) * 1 / 3 * self.maxtime),
+                             UniformSampler(0, self.maxaddr),  # TODO DNS addresses?
+                             rate_sampler=UniformSampler(self._total_rate // self.num_dns,
+                                                         self._total_rate // self.num_dns),
+                             attack=True),
+            # 2nd DNS Reflection
+            FlowGroupSampler(self.num_dns // 2,
+                             UniformSampler(360, 369),
+                             UniformSampler(600, 600),
+                             UniformSampler(0.55 * self.maxaddr, 0.95 * self.maxaddr),  # TODO DNS addresses?
+                             rate_sampler=UniformSampler(self._total_rate // self.num_dns,
+                                                         self._total_rate // self.num_dns),
+                             attack=True),
+            # 2nd Botnet
+            FlowGroupSampler(self.num_bot * 20,
+                             UniformSampler(270, 439),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 10 * self.maxtime),
+                             NormalSampler(0.2 * self.maxaddr, 0.09 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+            # 3rd Botnet
+            FlowGroupSampler(self.num_bot * 15,
+                             UniformSampler(460, 569),
+                             WeibullSampler(3,
+                                            (1 / WeibullSampler.quantile(99.99, 3)) * 1 / 10 * self.maxtime),
+                             NormalSampler(0.2 * self.maxaddr, 0.02 * self.maxaddr, min=0, max=self.maxaddr),
+                             attack=True),
+        ]
+
+    def get_flow_group_samplers(self):
+        return self.fgs
 
 
 @gin.configurable
@@ -330,57 +463,6 @@ class HafnerRandomSwitch(SamplerTrafficTrace):
                 return 'HafnT2'
             else:
                 raise ValueError('No flow group sampler set, call get_flow_group_samplers() first!')
-
-
-@gin.configurable
-class THauke(SamplerTrafficTrace):
-
-    def __init__(self, benign_flows, attack_flows, maxtime, maxaddr, **kwargs):
-        super().__init__(maxtime)
-        self.attack_flows = attack_flows
-        self.benign_flows = benign_flows
-        self.maxtime = maxtime
-        self.maxaddr = maxaddr
-
-    def get_flow_group_samplers(self):
-        return [
-            # 1st set of benign flows
-            FlowGroupSampler(self.benign_flows,
-                             UniformSampler(0, .95 * self.maxtime),
-                             # 99% of all flows shall end before self.maxtime
-                             WeibullSampler(3 / 2,
-                                            (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(1 / 2 * self.maxaddr, .17 * self.maxaddr, 1, self.maxaddr),
-                             attack=False),
-            # 1st set of attack flows
-            FlowGroupSampler(self.attack_flows // 3,
-                             UniformSampler(0, 3 / 6 * self.maxtime),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * self.maxtime),
-                             NormalSampler(1 / 4 * self.maxaddr, .09 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # 2nd set of attack flows
-            FlowGroupSampler(self.attack_flows // 3,
-                             UniformSampler(2 / 6 * self.maxtime, 5 / 6 * self.maxtime),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * self.maxtime),
-                             NormalSampler(3 / 4 * self.maxaddr, .09 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # 3rd set of attack flows
-            FlowGroupSampler(self.attack_flows // 6,
-                             UniformSampler(0, 5 / 6 * self.maxtime),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * self.maxtime),
-                             NormalSampler(1 / 8 * self.maxaddr, .05 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # 4th set of attack flows
-            FlowGroupSampler(self.attack_flows // 6,
-                             UniformSampler(2 / 6, 5 / 6 * self.maxtime),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 6 * self.maxtime),
-                             NormalSampler(3 / 8 * self.maxaddr, .05 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-        ]
 
 
 @gin.register
@@ -541,100 +623,6 @@ class SSDPTrace(SamplerTrafficTrace):
 
     def get_flow_group_samplers(self):
         return self.benign_fgs + self.ssdp_fgs
-
-
-@gin.register
-class THauke5(SamplerTrafficTrace):
-
-    def __init__(self, **kwargs):
-        super().__init__(599)
-        self.maxaddr = 0xffff
-        self.benign_flows = 500
-        self.attack_flows = 1000
-        attk_start_fg1 = 0
-        attk_start_fg2 = 7 / 30
-        attk_start_fg3 = 15 / 30
-        attk_start_fg4 = 15 / 30
-        attk_start_fg5 = 23 / 30
-        attk_start_fg6 = 23 / 30
-        attk_end_fg1 = 8 / 30
-        attk_end_fg2 = 16 / 30
-        attk_end_fg3 = 24 / 30
-        attk_end_fg4 = 24 / 30
-        attk_end_fg5 = 1
-        attk_end_fg6 = 1
-
-        attk_start_fg1 *= self.maxtime
-        attk_start_fg2 *= self.maxtime
-        attk_start_fg3 *= self.maxtime
-        attk_start_fg4 *= self.maxtime
-        attk_start_fg5 *= self.maxtime
-        attk_start_fg6 *= self.maxtime
-        attk_end_fg1 *= self.maxtime
-        attk_end_fg2 *= self.maxtime
-        attk_end_fg3 *= self.maxtime
-        attk_end_fg4 *= self.maxtime
-        attk_end_fg5 *= self.maxtime
-        attk_end_fg6 *= self.maxtime
-
-        self.fgs = [
-            # FG0: benign flows
-            FlowGroupSampler(self.benign_flows,
-                             UniformSampler(0, .95 * self.maxtime),
-                             # 99% of all flows shall end before maxtime
-                             WeibullSampler(3 / 2,
-                                            (1 / WeibullSampler.quantile(99, 3 / 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(1 / 2 * self.maxaddr, .17 * self.maxaddr, 1, self.maxaddr),
-                             attack=False),
-            # FG1
-            FlowGroupSampler(self.attack_flows,
-                             UniformSampler(attk_start_fg1, attk_end_fg1),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(1 / 4 * self.maxaddr, .06 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # FG2
-            FlowGroupSampler(self.attack_flows // 40,
-                             UniformSampler(attk_start_fg2, attk_end_fg2),
-                             WeibullSampler(10,
-                                            (1 / WeibullSampler.quantile(99, 10)) * 1 / 8 * self.maxtime),
-                             UniformSampler(0, self.maxaddr),
-                             attack=True,
-                             rate_sampler=UniformSampler(40, 40)),
-            # FG3
-            FlowGroupSampler(self.attack_flows // 2,
-                             UniformSampler(attk_start_fg3, attk_end_fg3),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(3 / 16 * self.maxaddr, .03 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # FG4
-            FlowGroupSampler(self.attack_flows // 2,
-                             UniformSampler(attk_start_fg4, attk_end_fg4),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(13 / 16 * self.maxaddr, .03 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-            # FG5
-            FlowGroupSampler(self.attack_flows // 40,
-                             UniformSampler(attk_start_fg5, attk_end_fg5),
-                             WeibullSampler(10,
-                                            (1 / WeibullSampler.quantile(99, 10)) * 1 / 8 * self.maxtime),
-                             UniformSampler(0, self.maxaddr / 2),
-                             attack=True,
-                             rate_sampler=UniformSampler(20, 20)),
-            # FG6
-            FlowGroupSampler(self.attack_flows // 2,
-                             UniformSampler(attk_start_fg6, attk_end_fg6),
-                             WeibullSampler(2,
-                                            (1 / WeibullSampler.quantile(99, 2)) * 1 / 8 * self.maxtime),
-                             NormalSampler(15 / 16 * self.maxaddr, .015 * self.maxaddr, 1, self.maxaddr),
-                             attack=True),
-
-        ]
-
-    def get_flow_group_samplers(self):
-        return self.fgs
 
 
 @gin.register
