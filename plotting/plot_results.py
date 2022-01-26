@@ -14,7 +14,7 @@ from matplotlib import ticker
 from matplotlib.colors import to_rgb
 
 from gyms.hhh.env import pattern_ids_to_pattern_sequence
-from plotting.plot_tb_csv import smooth
+from plotting.util import smooth
 
 TITLESIZE = 18
 LABELSIZE = 18
@@ -90,26 +90,28 @@ def get_quantiles(data: pandas.DataFrame):
     return [(q, data.quantile(q)) for q in [0.1, 0.2, 0.4, 0.6, 0.8, 0.9]]
 
 
-def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_min=None, y_max=None, title=None,
-         labels=None, mean_for_title=None, nrow=None, ncol=None):
-    ax: plt.Axes = fig.add_subplot(nrow, ncol, x)
+def plot(fig: plt.Figure, data, data_quantiles, cols, ax_id, x_label, data_label, y_min=None, y_max=None, title=None,
+         labels=None, mean_for_title=None, nrow=None, ncol=None, ax=None, line_color=None, vspan_spec=None,
+         show_vspan_label=False):
+    ax: plt.Axes = fig.add_subplot(nrow, ncol, ax_id) if ax is None else ax
     x = range(data.shape[0])
     for idx, col in enumerate(cols):
         y = data.loc[:, col]
-        for quantile in data_quantiles:
-            q, quantile_value = quantile
-            alpha = 0.9 - 1.5 * abs(0.5 - q)
-            color = (0, 0.5, 0, alpha)  # RGBA
-            y_err = quantile_value.loc[:, col]
-            if labels is None:
-                if q in [0.1, 0.2, 0.4]:
-                    ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color,
-                                    label=f'{q}/{0.5 + abs(0.5 - q)} Quantile')
+        if data_quantiles is not None:
+            for quantile in data_quantiles:
+                q, quantile_value = quantile
+                alpha = 0.9 - 1.5 * abs(0.5 - q)
+                color = (0, 0.5, 0, alpha)  # RGBA
+                y_err = quantile_value.loc[:, col]
+                if labels is None:
+                    if q in [0.1, 0.2, 0.4]:
+                        ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color,
+                                        label=f'{q}/{0.5 + abs(0.5 - q)} Quantile')
+                    else:
+                        ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color)
                 else:
-                    ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color)
-            else:
-                ax.fill_between(x, y, y_err, edgecolor=color,
-                                facecolor=color)  # plot without label for discounted and undiscounted
+                    ax.fill_between(x, y, y_err, edgecolor=color,
+                                    facecolor=color)  # plot without label for discounted and undiscounted
 
         ax.set_xlabel(x_label, fontsize=LABELSIZE)
 
@@ -117,18 +119,21 @@ def plot(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_
 
         title = '{} (avg={:3.3f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
         ax.set_title(title, fontsize=TITLESIZE)
-
-        median_color = 'navy' if idx == 0 else 'red'
-        if labels is None:
-            ax.plot(x, y, median_color, label=data_label, linewidth=1)
+        if line_color is None:
+            median_color = 'navy' if idx == 0 else 'red'
         else:
-            ax.plot(x, y, median_color, label=labels[idx], linewidth=1)
+            median_color = line_color
+        if labels is None:
+            ax.plot(x, y, color=median_color, label=data_label, linewidth=1)
+        else:
+            ax.plot(x, y, color=median_color, label=labels[idx], linewidth=1)
     if y_max is not None:
         ax.set_ylim(bottom=y_min if y_min is not None else 0, top=y_max if type(y_max) == int else y_max + 0.1)
     else:
         ax.set_ylim(bottom=y_min if y_min is not None else 0)
     ax.tick_params(labelsize=LABELSIZE)
     ax.grid()
+    add_vspan_to(ax, vspan_spec, show_vspan_label)
     return ax.get_legend_handles_labels()
 
 
@@ -183,7 +188,7 @@ def get_patterns(env_csv, pattern):
     return patterns
 
 
-def plot_time_index(last, metric, ax, label, y_top=None):
+def plot_time_index(last, metric, ax, label, y_top=None, make_legend=True, vspan_spec=None, show_vspan_label=False):
     new_df = last.loc[:, ['Episode', 'Step', metric]]
 
     new_df = pd.DataFrame(
@@ -203,7 +208,6 @@ def plot_time_index(last, metric, ax, label, y_top=None):
         unique_prefix_lengths = rule_prefix_lengths.explode().unique()
         unique_prefix_lengths = sorted(np.delete(unique_prefix_lengths, np.where(unique_prefix_lengths == '')))
         for pref_len in unique_prefix_lengths:
-            # if pref_len in ['17', '18', '19']:  # TODO remove
             new_df[f'{pref_len}'] = 0
 
         def fill_pref_len_column(entry):
@@ -214,7 +218,6 @@ def plot_time_index(last, metric, ax, label, y_top=None):
                 if l is None:
                     continue
                 length, count = l
-                # if length in ['17', '18', '19']:  # TODO remove
                 entry[length] += count
             return entry
 
@@ -241,14 +244,14 @@ def plot_time_index(last, metric, ax, label, y_top=None):
         for i, col in enumerate(mean.columns):
             ax.plot(mean[col], linewidth=1.5, label=f'/{col}', linestyle=linestyle[i])
         ax.legend(ncol=int(len(mean.columns) / 2), loc='best')
-        ax.set_ylabel('Cache Utilization')
+        ax.set_ylabel('Mean #rules in WOC')
     else:
         new_df_grouped = new_df.loc[:, ['Index', metric]].groupby(['Index'])
-        new_df_mean = new_df_grouped.mean()
+        new_df_mean = new_df_grouped.median()
 
         new_df_quantiles = get_quantiles(new_df_grouped)
 
-        lines = ax.plot(new_df_mean, linewidth=1.5, label=label)
+        lines = ax.plot(new_df_mean, linewidth=1.5, label='Median')
         plot_color = to_rgb(lines[0].get_color())
         x = new_df['Index'].unique()
         for quantile in new_df_quantiles:
@@ -258,10 +261,14 @@ def plot_time_index(last, metric, ax, label, y_top=None):
             color = (plot_color[0], plot_color[1], plot_color[2], alpha)  # RGBA
             y = new_df_mean.loc[:, metric]
             y_err = quantile_value.loc[:, metric]
-            ax.fill_between(x, y, y_err,
-                            edgecolor=color,
-                            facecolor=color)
-        ax.legend()
+            if q in [0.1, 0.2, 0.4]:
+                ax.fill_between(x, y, y_err, edgecolor=color,
+                                facecolor=color, label=f'{q}/{0.5 + abs(0.5 - q)} Quantile')
+            else:
+                ax.fill_between(x, y, y_err, edgecolor=color, facecolor=color)
+        ax.set_ylabel(label)
+        if make_legend:
+            ax.legend(ncol=2)
 
     ax.set_ylim(bottom=0)
     if y_top is not None:
@@ -269,10 +276,23 @@ def plot_time_index(last, metric, ax, label, y_top=None):
     ax.set_xlim(left=0, right=600)
     ax.vlines(range(0, int(new_df['Index'].max()), 10), ymin=0, ymax=ax.get_ylim()[1], linestyles='--',
               linewidth=1, alpha=0.6)
+    add_vspan_to(ax, vspan_spec, show_vspan_label, use_time_index=True)
     return True
 
 
+def add_vspan_to(ax, vspan_spec, show_vspan_label, use_time_index=False):
+    if vspan_spec is not None:
+        for lo, hi, color, phase_id in vspan_spec:
+            lo = lo if not use_time_index else lo * 10
+            hi = hi if not use_time_index else hi * 10 - 1
+            rect = ax.axvspan(lo, hi, facecolor=color, alpha=0.15)
+            if show_vspan_label:
+                mid_x = rect.xy[0, 0]
+                ax.text(mid_x, 0.5 * ax.get_ylim()[1], phase_id)
+
+
 def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy):
+    vspan_spec = get_vspan_spec_for(pattern=pat)
     print('========== EVAL =========')
     pat_csv = filter_by_pattern(env_csv, pat)
     print_csv_stats(pat_csv)
@@ -290,17 +310,21 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy
     else:
         title = None
 
+    matplotlib.rcParams.update({'font.size': 13})
+    plt.rc('axes', labelsize=18)
+    plt.rc('figure', titlesize=18)
     # plot per time idx
     if all(map(lambda x: x in last.columns, ['PrecisionIdx', 'FPRIdx', 'RecallIdx', 'BlackSizeIdx', 'CacheIdx'])):
         fig: plt.Figure = plt.figure(figsize=(16, 9))
         plotted_at_least_one = False
         for idx, val in enumerate(
-                zip(['CacheIdx', 'CacheIdx', 'BlackSizeIdx'],
-                    ['Cache Utilization (total)', 'rule-gran', 'Number of Filter Rules'])):
+                zip(['CacheIdx', 'CacheIdx'],
+                    ['#Rules in WOC (total)', 'rule-gran'])):
             metric, label = val
-            ax: plt.Axes = fig.add_subplot(3, 1, idx + 1)
-            ax.set_xlabel('time index')
-            plotted = plot_time_index(last, metric, ax, label=label)
+            ax: plt.Axes = fig.add_subplot(2, 1, idx + 1)
+            ax.set_xlabel('Time index')
+            plotted = plot_time_index(last, metric, ax, label=label, make_legend=True, vspan_spec=vspan_spec,
+                                      show_vspan_label=True if idx == 0 else False)
             plotted_at_least_one = plotted_at_least_one or plotted
         if plotted_at_least_one:
             fig.suptitle(title)
@@ -312,11 +336,14 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy
         fig: plt.Figure = plt.figure(figsize=(16, 9))
         plotted_at_least_one = False
         for idx, val in enumerate(
-                zip(['PrecisionIdx', 'RecallIdx', 'FPRIdx'], ['Precision', 'Recall', 'False positive rate'])):
+                zip(['PrecisionIdx', 'RecallIdx', 'BlackSizeIdx', 'FPRIdx'],
+                    ['Precision', 'Recall', '#Rules', 'FPR'])):
             metric, label = val
-            ax: plt.Axes = fig.add_subplot(3, 1, idx + 1)
-            ax.set_xlabel('time index')
-            plotted = plot_time_index(last, metric, ax, label=label, y_top=1.1)
+            ax: plt.Axes = fig.add_subplot(4, 1, idx + 1)
+            ax.set_xlabel('Time index')
+            plotted = plot_time_index(last, metric, ax, label=label, y_top=1.1 if metric != 'BlackSizeIdx' else None,
+                                      make_legend=idx == 3, vspan_spec=vspan_spec,
+                                      show_vspan_label=True if idx == 0 else False)
             plotted_at_least_one = plotted_at_least_one or plotted
         if plotted_at_least_one:
             fig.suptitle(title)
@@ -327,39 +354,59 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy
 
     last = last.groupby(['Step'])  # return all columns grouped for each step
     last_median = last.median()
-    last_means = last.mean()
     last_quantiles = get_quantiles(last)
+
+    print(
+        last.median().loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
+    print('=====direct attack:\n' + str(
+        last.mean().loc[0:21,
+        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====no attack:\n' + str(
+        last.mean().loc[28:32,
+        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====reflector attack:\n' + str(
+        last.mean().loc[37:,
+        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    print('=====total:\n' + str(
+        last.mean().loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
 
     # plot per time step
     create_plots(last_median, last_quantiles,
                  title=title,
                  x_label='Adaptation step',
-                 data_label='Median', means_for_title=last_means, fancy=fancy)
+                 data_label='Median', means_for_title=last.mean(), fancy=fancy, vspan_spec=vspan_spec)
 
 
-def create_plots(data, quantiles, title, x_label, data_label, means_for_title=None, fancy=False):
+def get_vspan_spec_for(pattern):
+    if pattern == 'T5':
+        return [(0, 8, 'yellow', 'LO1'), (13, 19, 'grey', 'MO'), (24, 30, 'purple', 'SO'), (35, 47, 'blue', 'TO'),
+                (55, 57, 'orange', 'LO2')]
+    elif pattern == 'T6':
+        raise NotImplementedError()
+    elif pattern == 'T4':
+        return [(0, 21, 'yellow', 'Direct'), (28, 32, 'grey', 'No'), (37, 57, 'purple', 'Reflection')]
+    else:
+        return None
+
+
+def create_plots(data, quantiles, title, x_label, data_label, means_for_title=None, fancy=False, vspan_spec=None):
+    if vspan_spec is None:
+        vspan_spec = []
+
     def finalize():
         if title is not None:
             fig.suptitle(title)
 
         fig.tight_layout()
         fig.gca().legend(handles, labels, fontsize=LEGENDSIZE, ncol=1)
-        # fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.375), ncol=1)
         plt.show()
 
-    print(data.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
-    print('=====direct attack:\n' + str(
-        data.loc[0:22, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====no attack:\n' + str(
-        data.loc[28:34, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====reflector attack:\n' + str(
-        data.loc[37:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====total:\n' + str(
-        data.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
+    l_used = data['MinPrefix'].max() > 16
+    pthresh_used = 'Thresh' in data and data['Thresh'].max() > -1
 
     if fancy:
         nrow = 1
-        ncol = 3
+        ncol = 3 if l_used and pthresh_used else 2
     else:
         nrow = 2
         ncol = 4
@@ -370,17 +417,21 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
         for col in ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']:
             if col in data:
                 title_means[col] = means_for_title[col].mean() if not fancy else None
-    plot(fig, data, quantiles, ['Phi'], 1, y_max=0.25, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Phi'], title='Frequency threshold $\phi$', nrow=nrow, ncol=ncol)
-    handles, labels = plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label,
-                           mean_for_title=title_means['MinPrefix'], title='Minimum prefix length $L$', nrow=nrow,
-                           ncol=ncol)
-    if 'Thresh' in data and data['Thresh'].max() > -1:
-        plot(fig, data, quantiles, ['Thresh'], 3, y_min=0.84, y_max=0.95, x_label=x_label, data_label=data_label,
-             mean_for_title=title_means['Thresh'], title='Performance threshold pthresh', nrow=nrow, ncol=ncol)
-        offset = 1
+    handles, labels = plot(fig, data, quantiles, ['Phi'], 1, y_max=0.25, x_label=x_label, data_label=data_label,
+                           mean_for_title=title_means['Phi'], title='Frequency threshold $\phi$', nrow=nrow, ncol=ncol,
+                           vspan_spec=vspan_spec, show_vspan_label=True)
+    if l_used:
+        plot(fig, data, quantiles, ['MinPrefix'], 2, y_max=32, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['MinPrefix'], title='Minimum prefix length $L$', nrow=nrow,
+             ncol=ncol, vspan_spec=vspan_spec)
+    if pthresh_used:
+        plot(fig, data, quantiles, ['Thresh'], 3 if l_used else 2, y_min=0.84, y_max=0.95, x_label=x_label,
+             data_label=data_label,
+             mean_for_title=title_means['Thresh'], title='Performance threshold pthresh', nrow=nrow, ncol=ncol,
+             vspan_spec=vspan_spec)
+        offset = 1 if l_used else 0
     else:
-        offset = 0
+        offset = 0 if l_used else -1
 
     if fancy:
         ncol = 4
@@ -389,17 +440,19 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
         fig: plt.Figure = plt.figure(figsize=(15, 5) if fancy else (16, 9))
 
     plot(fig, data, quantiles, ['Precision'], 3 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Precision'], nrow=nrow, ncol=ncol)
+         mean_for_title=title_means['Precision'], nrow=nrow, ncol=ncol, vspan_spec=vspan_spec, show_vspan_label=True)
     plot(fig, data, quantiles, ['Recall'], 4 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['Recall'], nrow=nrow, ncol=ncol)
+         mean_for_title=title_means['Recall'], nrow=nrow, ncol=ncol, vspan_spec=vspan_spec)
     plot(fig, data, quantiles, ['BlackSize'], 5 + offset, x_label=x_label, data_label=data_label,
-         mean_for_title=title_means['BlackSize'], title='Number of filter rules', nrow=nrow, ncol=ncol)
+         mean_for_title=title_means['BlackSize'], title='Number of filter rules', nrow=nrow, ncol=ncol,
+         vspan_spec=vspan_spec)
     handles, labels = plot(fig, data, quantiles, ['FPR'], 6 + offset, y_max=1.0, x_label=x_label, data_label=data_label,
-                           mean_for_title=title_means['FPR'], title='False positive rate', nrow=nrow, ncol=ncol)
+                           mean_for_title=title_means['FPR'], title='False positive rate', nrow=nrow, ncol=ncol,
+                           vspan_spec=vspan_spec)
     if not fancy:
         reward_max = data['Reward'].max() if data['Reward'].max() > 1.0 else 1.0
         plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
-             y_max=reward_max, mean_for_title=title_means['Reward'], nrow=nrow, ncol=ncol)
+             y_max=reward_max, mean_for_title=title_means['Reward'], nrow=nrow, ncol=ncol, vspan_spec=vspan_spec)
     finalize()
 
 
@@ -525,6 +578,7 @@ def plot_training_curves(ep_paths: List[str], pattern, show_all=False, label_age
     plt.ylabel('Undiscounted return')
     plt.ylim(bottom=0)
     plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{}'.format(int(x / 1000)) + 'K'))
+    plt.gca().grid(visible=True)
     # plt.xlim(left=0)
     plt.tight_layout()
     plt.legend(fontsize=10)
@@ -548,60 +602,193 @@ def get_paths(base_path, env=True):
     return train_path, eval_path
 
 
+def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, window=None):
+    paths = []
+    for ds in ds_bases:
+        train_path, eval_path = get_paths(ds)
+        paths.append(train_path if use_train_path else eval_path)
+
+    def finalize():
+        fig.tight_layout()
+        fig.gca().legend(handles, labels, fontsize=15, ncol=1)
+        plt.show()
+
+    _vspan_spec = get_vspan_spec_for(pattern)
+
+    x_label = 'Adaptation step'
+    colors = ['navy', 'red', 'green', 'orange', 'black', 'purple', 'yellow']
+    title_means = defaultdict(lambda: None)
+    nrow = 1
+    ncol = 4
+    fig: plt.Figure = plt.figure(figsize=(15, 5))
+    ax1 = fig.add_subplot(nrow, ncol, 1)
+    ax2 = fig.add_subplot(nrow, ncol, 2)
+    ax3 = fig.add_subplot(nrow, ncol, 3)
+    ax4 = fig.add_subplot(nrow, ncol, 4)
+    for i, path in enumerate(paths):
+        vspan_spec = _vspan_spec if i == 0 else None
+        print(f'------- {data_labels[i]} -------')
+        env_csv = read_env_csv(path)
+        if window is not None:
+            eps = env_csv.loc[:, 'Episode']
+            unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
+            eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
+            print(f'showing eps {eps_to_show}')
+            env_csv = get_rows_with_episode_in(env_csv, eps_to_show)
+
+        last = env_csv.groupby(['Step'])  # return all columns grouped for each step
+        data = last.mean()
+        # print(
+        #    last.mean().loc[:,
+        #    ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
+        print('=====direct attack:\n' + str(
+            last.mean().loc[0:21,
+            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
+        print('=====no attack:\n' + str(
+            last.mean().loc[28:32,
+            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
+        print('=====reflector attack:\n' + str(
+            last.mean().loc[37:,
+            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
+        print('=====total:\n' + str(
+            env_csv.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
+        data_label = f'Mean ({data_labels[i]})'
+        plot(fig, data, None, ['Precision'], 1, y_max=1.0, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['Precision'], ax=ax1, line_color=colors[i], vspan_spec=vspan_spec,
+             show_vspan_label=True)
+        plot(fig, data, None, ['Recall'], 2, y_max=1.0, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['Recall'], ax=ax2, line_color=colors[i],
+             vspan_spec=vspan_spec)
+        plot(fig, data, None, ['BlackSize'], 3, x_label=x_label, data_label=data_label,
+             mean_for_title=title_means['BlackSize'], title='Number of filter rules', ax=ax3, line_color=colors[i],
+             vspan_spec=vspan_spec)
+        handles, labels = plot(fig, data, None, ['FPR'], 4, y_max=1.0, x_label=x_label,
+                               data_label=data_label,
+                               mean_for_title=title_means['FPR'], title='False positive rate', ax=ax4,
+                               line_color=colors[i],
+                               vspan_spec=vspan_spec)
+    ax1.grid(visible=True)
+    ax2.grid(visible=True)
+    ax3.grid(visible=True)
+    ax4.grid(visible=True)
+    finalize()
+
+    l_used = False
+    pthresh_used = False
+    for i, path in enumerate(paths):
+        env_csv = read_env_csv(path)
+        l_used = l_used or env_csv.loc[:, 'MinPrefix'].max() > 16
+        pthresh_used = pthresh_used or env_csv.loc[:, 'Thresh'].min() > -1
+
+    nrow = 1
+    ncol = 3 if l_used and pthresh_used else 2
+    fig: plt.Figure = plt.figure(figsize=(15, 5))
+    axes = []
+    handles, labels = [], []
+    for i in range(ncol):
+        axes.append(fig.add_subplot(nrow, ncol, i + 1))
+
+    plotted_l, plotted_pthresh = False, False
+    for i, path in enumerate(paths):
+        vspan_spec = _vspan_spec if i == 0 else None
+        print(f'------- {data_labels[i]} -------')
+        env_csv = read_env_csv(path)
+        if window is not None:
+            eps = env_csv.loc[:, 'Episode']
+            unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
+            eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
+            env_csv = get_rows_with_episode_in(env_csv, eps_to_show)
+
+        last = env_csv.groupby(['Step'])  # return all columns grouped for each step
+        data = last.mean()
+        print('=====direct attack:\n' + str(last.mean().loc[0:21, ['Phi', 'MinPrefix', 'Thresh']].mean()))
+        print('=====no attack:\n' + str(last.mean().loc[28:32, ['Phi', 'MinPrefix', 'Thresh']].mean()))
+        print('=====reflector attack:\n' + str(last.mean().loc[37:, ['Phi', 'MinPrefix', 'Thresh']].mean()))
+        print('=====total:\n' + str(env_csv.loc[:, ['Phi', 'MinPrefix', 'Thresh']].mean()))
+        data_label = f'Mean ({data_labels[i]})'
+        handles, labels = plot(fig, data, None, ['Phi'], 1, y_max=0.25, x_label=x_label, data_label=data_label,
+                               mean_for_title=title_means['Phi'], ax=axes[0], line_color=colors[i],
+                               title='Frequency threshold $\phi$',
+                               vspan_spec=vspan_spec, show_vspan_label=True)
+
+        if env_csv.loc[:, 'MinPrefix'].max() > 16:
+            plot(fig, data, None, ['MinPrefix'], 2, y_max=32, x_label=x_label,
+                 data_label=data_label,
+                 mean_for_title=title_means['MinPrefix'], ax=axes[1], line_color=colors[i],
+                 title='Minimum prefix length $L$',
+                 vspan_spec=_vspan_spec if i == 0 or not plotted_l else None)
+            plotted_l = True
+        else:
+            assert env_csv.loc[:, 'Thresh'].min() > -1
+            plot(fig, data, None, ['Thresh'], 2, y_min=0.84, y_max=0.95, x_label=x_label,
+                 data_label=data_label,
+                 mean_for_title=title_means['Thresh'], ax=axes[-1], line_color=colors[i],
+                 title='Performance threshold pthresh',
+                 vspan_spec=vspan_spec if i == 0 or not plotted_pthresh else None)
+            plotted_pthresh = True
+    for ax in axes:
+        ax.grid(visible=True)
+    finalize()
+
+
 if __name__ == '__main__':
-    # matplotlib.rcParams.update({'font.size': 15})
-    # plt.rc('axes', labelsize=18)
-    # plt.rc('figure', titlesize=18)
-
-    def plot_hl(ds_base, pattern, window, fancy=False):
-        # if not isinstance(ds_base, List):
-        #    ds_base = [ds_base]
-        #
-        # train_paths = []
-        # eval_paths = []
-        # for ds in ds_base:
-        #    train_path, eval_path = get_paths(ds)
-        #    train_paths.append(train_path)
-        #    eval_paths.append(eval_path)
+    def plot_hl(ds_base, pattern, window, fancy=False, use_train_path=False):
         train_path, eval_path = get_paths(ds_base)
-        # plot_training_kickoff(train_paths, pattern)
-        # plot_training(environment_file_path=train_paths, pattern=pattern)
-        # plot_training(environment_file_path=eval_paths, pattern=pattern)
-        # plot_episode_behavior(environment_file_path=eval_paths, pattern=pattern, window=window, fancy=fancy)
-        plot_episode_behavior(environment_file_path=train_path, pattern=pattern, window=window, fancy=fancy)
+        # plot_training(environment_file_path=train_path, pattern=pattern)
+        # plot_training(environment_file_path=eval_path, pattern=pattern)
+        path = train_path if use_train_path else eval_path
+        plot_episode_behavior(environment_file_path=path, pattern=pattern, window=window, fancy=fancy)
 
 
-    first_pattern = 'ssdp'
-    second_pattern = 'ssdp'
+    old_dqn_s1 = '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'  # (old) DQN-S1 in thesis
+    old_ddpg_s1 = '/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'  # (old) DDPG-S1 in thesis
+    old_ppo_s1 = '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'  # (old) PPO-S1 in thesis
 
-    pattern = f'{first_pattern}->{first_pattern}+{second_pattern}->{second_pattern}'
-    window = (100, 0)
-    # pattern = 'ntp;bot'
-    pattern = 'T4'
+    dqn_s1 = '/srv/bachmann/data/dqn/dqn_20220119-070755/datastore'  # DQN-S1 in thesis
+    ddpg_s1 = '/srv/bachmann/data/ddpg/ddpg_20220120-202020/datastore'  # DDPG-S1 in thesis
+    ppo_s1 = '/srv/bachmann/data/ppo/ppo_20220120-202121/datastore'  # PPO-S1 in thesis
+
+    dddpg_rej_s2 = '/srv/bachmann/data/ddpg/ddpg_20220124-132957/datastore'  # DDPG S2 test (not in thesis)
+    dqn_rej_s2 = '/srv/bachmann/data/dqn/dqn_20220124-125147/datastore'  # DQN-pthresh S2 in thesis
+    dqn_l_s2 = '/srv/bachmann/data/dqn/dqn_20220124-204351/datastore'  # DQN-L S2 in thesis
+
+    # plot_hl(dqn_rej_s2, 'T5', (10, 0), fancy=True)
+    plot_hl(dqn_l_s2, 'T5', (10, 0), fancy=True)
+    # plot_agent_comparison([dqn_rej_s2, dqn_l_s2], ['DQN-pthresh', 'DQN-L'], 'T5',
+    #                      use_train_path=False,
+    #                      window=(10, 0))
+
+    dqn_rej_s3 = '/srv/bachmann/data/dqn/dqn_20220125-105514/datastore'  # DQN-pthresh S3
+    dqn_l_s3 = '/srv/bachmann/data/dqn/dqn_20220125-105606/datastore'  # DQN-L S3
+
+    # plot_hl(dqn_rej_s3, 'T6', (10, 0), fancy=True)
+    # plot_hl(dqn_l_s3, 'T6', (10, 0), fancy=True)
+    # plot_agent_comparison([dqn_rej_s3, dqn_l_s3], ['DQN-pthresh', 'DQN-L'],'T6', use_train_path=False,
+    #                      window=(10, 0))
+
+    ##### params and metrics #####
+    # plot_hl(dqn_s1, 'T4', (10, 0), fancy=True)
+    # plot_hl(ddpg_s1, 'T4', (10, 0), fancy=True)
+    # plot_hl(ppo_s1, 'T4', (10, 0), fancy=True)
 
     ##### individual training curves #####
-    # plot_training_curves(['/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'], 'T4')
-    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'], 'T4')
-    # plot_training_curves(['/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'], 'T4')
+    # plot_training_curves([dqn_s1], 'T4')
+    # plot_training_curves([ddpg_s1], 'T4')
+    # plot_training_curves([ppo_s1], 'T4')
 
     ##### eval curves comparison #####
-    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore',
-    #                      '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore',
-    #                      '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'], 'T4')
+    # plot_training_curves([dqn_s1, ddpg_s1, ppo_s1], 'T4')
+    ##### direct metric and param comp #####
+    # plot_agent_comparison([dqn_s1, ddpg_s1, ppo_s1], ['DQN', 'DDPG', 'PPO'], 'T4', use_train_path=False, window=(10, 0))
 
-    # DDPG BatchNorm
-    # plot_training_curves(['/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore',
-    #                      '/srv/bachmann/data/ddpg/ddpg_20220114-073804/datastore'], 'T4', show_all=True,
+    ##### 6.5 DDPG BatchNorm #####
+    ddpg_s1_no_bn = '/srv/bachmann/data/ddpg/ddpg_20220121-203113/datastore'
+    # plot_training_curves([ddpg_s1, ddpg_s1_no_bn], 'T4', show_all=True,
     #                     label_agent_suffixes=[' (BatchNorm)', ' (no BatchNorm)'])
+    # plot_hl(ddpg_s1_no_bn, 'T4', (10, 0), fancy=True)
 
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'  # DQN-S1 in thesis
-    ds_base = '/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'  # DDPG-S1 in thesis
-    # ds_base = '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'  # PPO-S1 in thesis
-    ds_base = '/srv/bachmann/data/ddpg/ddpg_20220114-073804/datastore'  # DDPG-NoBN in thesis
-    # ds_base = '/srv/bachmann/data/dqn/dqn_20220115-141343/datastore'  # DQN L
-    ds_base = '/srv/bachmann/data/dqn/dqn_20220115-141541/datastore'  # DQN no WOC
-    ds_base = '/home/bachmann/test-pycharm/data/eval-baseline_20220117-073045/datastore'  # fix params no WOC
-    ds_base = '/home/bachmann/test-pycharm/data/eval-baseline_20220117-073141/datastore'  # fix params WOC
-    plot_hl(ds_base, 'T4', (100, 0), fancy=True)
-
-    # plot_hl(ds_base, pattern, window, fancy=True)
+    ##### 6.6.1 WOC vs no WOC #####
+    fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160758/datastore'  # fix params no WOC
+    fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160733/datastore'  # fix params WOC
+    # plot_hl(fix_params_woc, 'T4', (100, 0), fancy=True, use_train_path=True)
+    # plot_agent_comparison([fix_params_no_woc, fix_params_woc], ['No WOC', 'WOC'], 'T4')
