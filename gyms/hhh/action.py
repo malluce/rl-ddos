@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import abc
+import math
 
 import gin
 import numpy as np
@@ -190,11 +191,11 @@ class DiscreteActionSpace(ActionSpace, ABC):
             if len(action) == len(chosen_action):
                 all_equal = True
                 for idx2, act in enumerate(chosen_action):
-                    if action[idx2] != act:
+                    if not math.isclose(action[idx2], act):
                         all_equal = False
                 if all_equal:
                     return idx
-        raise ValueError('Chosen action not included in actions.')
+        raise ValueError(f'Chosen action {chosen_action} not included in actions.')
 
 
 @gin.register
