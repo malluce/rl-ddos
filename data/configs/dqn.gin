@@ -15,39 +15,22 @@ PerformanceTrackingWorstOffenderCache.capacity='inf'
 
 # state
 TrainLoop.use_prev_action_as_obs=False
-TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@TrafficSituation(),)
 
 # action
-TrainLoop.action_space_selection=@DqnRejectionActionSpace() # #
+TrainLoop.action_space_selection=@DqnMinPrefLenActionSpace() #@DqnRejectionActionSpace()
 
 # reward
-#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=1.4
-#MultiplicativeReward.fpr_weight=3
-#MultiplicativeReward.bl_weight=0.29
-
 HHHEnv.reward_calc=@MultiplicativeRewardNew()
 MultiplicativeReward.precision_weight=0
-MultiplicativeReward.recall_weight=1.78
-MultiplicativeReward.fpr_weight=1.43
+MultiplicativeReward.recall_weight=1.5
+MultiplicativeReward.fpr_weight=3
 MultiplicativeReward.bl_weight=0.26
 
-#HHHEnv.reward_calc=@AdditiveRewardCalc()
-#AdditiveRewardCalc.precision_weight=0
-#AdditiveRewardCalc.recall_weight=1.75
-#AdditiveRewardCalc.fpr_weight=1.5
-#AdditiveRewardCalc.bl_weight=0.15
-
-#HHHEnv.reward_calc=@DefaultRewardCalc()
-
 # trace settings
-DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
+DistributionTrace.traffic_trace_construct = @T6
 T4.num_benign=500
 T4.num_attack=300
-TRandomPatternSwitch.random_toggle_time=True
-TRandomPatternSwitch.smooth_transition=True
-TRandomPatternSwitch.benign_normal=True
 Loop.action_interval=10
 
 # generic params
@@ -70,7 +53,7 @@ TrainLoop.train_sequence_length=10
 DQNWrapAgent.rnn_input_layers=(200, 200)
 DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
 DQNWrapAgent.rnn_output_layers=(200,)
-#DQNWrapAgent.q_layers=(200,200,200)
+DQNWrapAgent.batch_norm=True
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'

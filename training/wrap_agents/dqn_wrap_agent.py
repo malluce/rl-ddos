@@ -2,10 +2,9 @@ from typing import Any, List, Tuple
 
 import gin
 from tf_agents.agents import DqnAgent
-from tf_agents.networks.q_rnn_network import QRnnNetwork
 import tensorflow as tf
 
-from nets.dqn_q_network import QNetwork
+from nets.dqn_q_network import QNetwork, QRnnNetwork
 from training.wrap_agents.util import MinExpSchedule, get_optimizer, get_preprocessing_cnn
 from training.wrap_agents.wrap_agent import WrapAgent
 
@@ -23,7 +22,7 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
         self.eps_greedy = eps_greedy
 
         preprocessing_combiner, preprocessing_layers = get_preprocessing_cnn(cnn_spec, time_step_spec, cnn_act_func,
-                                                                             batch_norm=False)
+                                                                             batch_norm=batch_norm)
 
         # set q net
         if not use_rnn:
@@ -34,7 +33,7 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
             self.q_net = QRnnNetwork(time_step_spec.observation, action_spec, input_fc_layer_params=rnn_input_layers,
                                      lstm_size=rnn_lstm_size, output_fc_layer_params=rnn_output_layers,
                                      preprocessing_layers=preprocessing_layers,
-                                     preprocessing_combiner=preprocessing_combiner)
+                                     preprocessing_combiner=preprocessing_combiner, batch_norm=batch_norm)
 
         # set lr (decay)
         self.optimizer = get_optimizer(lr, lr_decay_rate, lr_decay_steps)
