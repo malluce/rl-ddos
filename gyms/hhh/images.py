@@ -18,7 +18,6 @@ class ImageGenerator:
                  # then values will be squashed together with log (smallest value will (likely) be 0, so take 2nd
                  # smallest)
                  hhh_squash_threshold=1,
-                 max_pixel_value=255,  # max value for filter image
                  crop_standalone_hhh_image=True,
                  normalize=True,
                  mode='single'  # single=sum, multi=(sum,mean,std,min,max)
@@ -28,7 +27,6 @@ class ImageGenerator:
         self.img_width_px = img_width_px
         self.address_space = address_space
         self.hhh_squash_threshold = hhh_squash_threshold
-        self.max_pixel_value = max_pixel_value
         self.crop_standalone_hhh_image = crop_standalone_hhh_image
         self.normalize = normalize
         assert mode in ['single', 'multi']
