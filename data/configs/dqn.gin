@@ -1,11 +1,36 @@
-# basic params
-get_train_loop.alg_name='dqn'
+# The config file for the DQN agent.
+# Start DQN training with "cd <project-root> && python -m training.runner --gin_file=data/configs/dqn.gin"
+
+##### Parameters that need to be changed to reproduce the results #####
+
+# select scenario (@S1=S1, @S2=S2, @S3=S3)
+DistributionTrace.traffic_trace_construct = @S3
+
+# action space (@DqnMinPrefLenActionSpace() for DQN-L, @DqnRejectionActionSpace() for DQN-pthresh)
+TrainLoop.action_space_selection=@DqnMinPrefLenActionSpace()
+
+# was only enabled for scenario S3 (False to disable)
+DQNWrapAgent.batch_norm=True
+
+# the data will be stored at a sub-directory created at this path
 TrainLoop.root_dir='/srv/bachmann/data/dqn'
+
+# enables collection of raw trace capture (numpy arrays of generated traffic and rules)
+# creates vast amounts of data!
+TrainLoop.collect_raw = True
+
+
+
+##### Parameters that remained unchanged across the complete evaluation #####
+
+
+get_train_loop.alg_name='dqn'
 TrainLoop.eval_interval = 3000
 TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
-TrainLoop.collect_raw = True # TODO warn
-
+S1.num_benign=500
+S1.num_attack=300
+Loop.action_interval=10
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
@@ -17,21 +42,12 @@ PerformanceTrackingWorstOffenderCache.capacity='inf'
 TrainLoop.use_prev_action_as_obs=False
 TrainLoop.state_obs_selection=(@TrafficSituation(),)
 
-# action
-TrainLoop.action_space_selection=@DqnMinPrefLenActionSpace() #@DqnRejectionActionSpace()
-
 # reward
-HHHEnv.reward_calc=@MultiplicativeRewardNew()
+HHHEnv.reward_calc=@MultiplicativeRewardThesis()
 MultiplicativeReward.precision_weight=0
 MultiplicativeReward.recall_weight=1.5
 MultiplicativeReward.fpr_weight=3
 MultiplicativeReward.bl_weight=0.26
-
-# trace settings
-DistributionTrace.traffic_trace_construct = @T6
-T4.num_benign=500
-T4.num_attack=300
-Loop.action_interval=10
 
 # generic params
 DQNWrapAgent.lr=5e-5
@@ -47,13 +63,12 @@ TrainLoop.replay_buf_size = 150000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 
-# NN
+# the employed NN
 DQNWrapAgent.use_rnn=True
 TrainLoop.train_sequence_length=10
 DQNWrapAgent.rnn_input_layers=(200, 200)
 DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
 DQNWrapAgent.rnn_output_layers=(200,)
-DQNWrapAgent.batch_norm=True
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'

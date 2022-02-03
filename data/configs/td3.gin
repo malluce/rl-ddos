@@ -1,3 +1,6 @@
+##### DEPRECATED; TD3 Agent not used (but config can be used as a starting point) #####
+
+
 # basic params
 get_train_loop.alg_name='td3'
 TrainLoop.root_dir='/srv/bachmann/data/td3'

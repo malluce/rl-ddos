@@ -1,13 +1,34 @@
-# basic params
-get_train_loop.alg_name='ddpg'
+# The config file for the DDPG agent.
+# Start DDPG training with "cd <project-root> && python -m training.runner --gin_file=data/configs/ddpg.gin"
+
+##### Parameters that need to be changed to reproduce the results #####
+
+# select scenario (@S1=S1, @S2=S2, @S3=S3)
+DistributionTrace.traffic_trace_construct = @S1
+
+# was only disabled for experiment 6.5, otherwise enabled (crucial for DDPG performance)
+DDPGWrapAgent.batch_norm=True
+
+# the data will be stored at a sub-directory created at this path
 TrainLoop.root_dir='/srv/bachmann/data/ddpg'
+
+# enables collection of raw trace capture (numpy arrays of generated traffic and rules) and debug info
+# creates vast amounts of data!
+TrainLoop.collect_raw = True
+DDPGWrapAgent.debug=False
+
+
+
+##### Parameters that remained unchanged across the complete evaluation #####
+
+
+get_train_loop.alg_name='ddpg'
 TrainLoop.eval_interval = 3000
 TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
-
-TrainLoop.collect_raw = True # TODO warn
-DDPGWrapAgent.debug=False # TODO warn
-
+S1.num_benign=500
+S1.num_attack=300
+Loop.action_interval=10
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
@@ -15,50 +36,26 @@ RulePerformanceTable.cache_class=@PerformanceTrackingWorstOffenderCache
 PerformanceTrackingWorstOffenderCache.metric='fpr'
 PerformanceTrackingWorstOffenderCache.capacity='inf'
 
-
 # state
 TrainLoop.use_prev_action_as_obs=False
-TrainLoop.state_obs_selection=(@TrafficSituation(),)#, @MinMaxBlockedAddress())#, @DistVol())#, @FalsePositiveRate())
+TrainLoop.state_obs_selection=(@TrafficSituation(),)
 
 # action
 TrainLoop.action_space_selection=@ExponentialContinuousRejectionActionSpace()
 
 # reward
-#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=2.03
-#MultiplicativeReward.fpr_weight=3.4
-#MultiplicativeReward.bl_weight=0.344
-
-#HHHEnv.reward_calc=@AdditiveRewardCalc()
-#AdditiveRewardCalc.precision_weight=0
-#AdditiveRewardCalc.recall_weight=1.75
-#AdditiveRewardCalc.fpr_weight=1.5
-#AdditiveRewardCalc.bl_weight=0.15
-
-HHHEnv.reward_calc=@MultiplicativeRewardNew()
+HHHEnv.reward_calc=@MultiplicativeRewardThesis()
 MultiplicativeReward.precision_weight=0
-MultiplicativeReward.recall_weight=1.78
-MultiplicativeReward.fpr_weight=1.43
+MultiplicativeReward.recall_weight=1.5
+MultiplicativeReward.fpr_weight=3
 MultiplicativeReward.bl_weight=0.26
 
-#HHHEnv.reward_calc=@DefaultRewardCalc()
-
-# trace settings
-DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
-T4.num_benign=500
-T4.num_attack=300
-TRandomPatternSwitch.random_toggle_time=True
-TRandomPatternSwitch.smooth_transition=True
-TRandomPatternSwitch.benign_normal=True
-Loop.action_interval=10
-
-# layers
+# NN layers
 DDPGWrapAgent.critic_obs_fc_layers=None
 DDPGWrapAgent.critic_action_fc_layers=None
 DDPGWrapAgent.critic_joint_fc_layers=(400,300)
 DDPGWrapAgent.actor_layers=(400, 300)
-DDPGWrapAgent.batch_norm=True
+TrainLoop.train_sequence_length=1
 
 # target update
 DDPGWrapAgent.target_update_tau=0.001
@@ -67,11 +64,11 @@ DDPGWrapAgent.target_update_period=1
 # LRs
 DDPGWrapAgent.gradient_clip=0.75
 DDPGWrapAgent.dqda_clip=0.5
-DDPGWrapAgent.critic_lr=1e-5
+DDPGWrapAgent.critic_lr=1e-3
 DDPGWrapAgent.critic_lr_decay_rate=None
 DDPGWrapAgent.critic_lr_decay_steps=None
 DDPGWrapAgent.critic_exp_min_lr=None
-DDPGWrapAgent.actor_lr=1e-5
+DDPGWrapAgent.actor_lr=1e-4
 DDPGWrapAgent.actor_lr_decay_rate=None
 DDPGWrapAgent.actor_lr_decay_steps=None
 DDPGWrapAgent.actor_exp_min_lr=None
@@ -87,9 +84,6 @@ TrainLoop.batch_size = 64
 TrainLoop.replay_buf_size = 100000
 TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
-
-# NN
-TrainLoop.train_sequence_length=1
 
 # CNN parameters
 include '/home/bachmann/test-pycharm/data/configs/cnn.gin'

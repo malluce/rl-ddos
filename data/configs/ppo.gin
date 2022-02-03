@@ -1,18 +1,31 @@
-# basic params
-get_train_loop.alg_name='ppo'
+# The config file for the PPO agent.
+# Start PPO training with "cd <project-root> && python -m training.runner --gin_file=data/configs/ppo.gin"
+
+##### Parameters that need to be changed to reproduce the results #####
+
+# select scenario (@S1=S1, @S2=S2, @S3=S3)
+DistributionTrace.traffic_trace_construct = @S1
+
+# the data will be stored at a sub-directory created at this path
 TrainLoop.root_dir='/srv/bachmann/data/ppo'
-TrainLoop.eval_interval = 6000
-TrainLoop.num_eval_episodes = 9 # 3*3 possible combinations, play all of them
+
+# enables collection of raw trace capture (numpy arrays of generated traffic and rules) and debug info
+# creates vast amounts of data!
+TrainLoop.collect_raw = True
+PPOWrapAgent.sum_grad_vars=False
+
+
+
+##### Parameters that remained unchanged across the complete evaluation #####
+
+
+get_train_loop.alg_name='ppo'
+TrainLoop.eval_interval = 3000
+TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
-
-# debug
-TrainLoop.collect_raw = True # TODO warn
-PPOWrapAgent.sum_grad_vars=False # TODO warn
-
-# state
-TrainLoop.use_prev_action_as_obs=False
-TrainLoop.state_obs_selection=(@TrafficSituation(),) #@MinMaxBlockedAddress(), @DistVol())#, @FalsePositiveRate())
-
+S1.num_benign=500
+S1.num_attack=300
+Loop.action_interval=10
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'
 RulePerformanceTable.use_cache=True
@@ -20,42 +33,22 @@ RulePerformanceTable.cache_class=@PerformanceTrackingWorstOffenderCache
 PerformanceTrackingWorstOffenderCache.metric='fpr'
 PerformanceTrackingWorstOffenderCache.capacity='inf'
 
+# state
+TrainLoop.use_prev_action_as_obs=False
+TrainLoop.state_obs_selection=(@TrafficSituation(),)
+
 # action
 TrainLoop.action_space_selection=@ExponentialContinuousRejectionActionSpace()
 
 # reward
-#HHHEnv.reward_calc=@MultiplicativeRewardSpecificity()
-#MultiplicativeReward.precision_weight=0
-#MultiplicativeReward.recall_weight=1.4
-#MultiplicativeReward.fpr_weight=3
-#MultiplicativeReward.bl_weight=0.29
-
-
-HHHEnv.reward_calc=@MultiplicativeRewardNew()
+HHHEnv.reward_calc=@MultiplicativeRewardThesis()
 MultiplicativeReward.precision_weight=0
-MultiplicativeReward.recall_weight=1.78
-MultiplicativeReward.fpr_weight=1.43
+MultiplicativeReward.recall_weight=1.5
+MultiplicativeReward.fpr_weight=3
 MultiplicativeReward.bl_weight=0.26
 
-#HHHEnv.reward_calc=@AdditiveRewardCalc()
-#AdditiveRewardCalc.precision_weight=0
-#AdditiveRewardCalc.recall_weight=1.75
-#AdditiveRewardCalc.fpr_weight=1.5
-#AdditiveRewardCalc.bl_weight=0.15
-
-#HHHEnv.reward_calc=@DefaultRewardCalc()
-
-# trace settings
-DistributionTrace.traffic_trace_construct = @T4 #@TRandomPatternSwitch
-T4.num_benign=500
-T4.num_attack=300
-TRandomPatternSwitch.random_toggle_time=True
-TRandomPatternSwitch.smooth_transition=True
-TRandomPatternSwitch.benign_normal=True
-Loop.action_interval=10
-
 # generic params
-PPOWrapAgent.lr=5e-5
+PPOWrapAgent.lr=2.5e-5
 TrainLoop.gamma=0
 PPOWrapAgent.use_gae=True
 PPOWrapAgent.gae_lambda=0.95
@@ -66,23 +59,13 @@ PPOWrapAgent.gradient_clip=None
 _normal_projection_net.init_action_stddev=0.35
 PPOWrapAgent.entropy_regularization=0
 PPOWrapAgent.num_epochs=5
-PPOWrapAgent.importance_ratio_clipping=0.15
+PPOWrapAgent.importance_ratio_clipping=0.1
 PpoTrainLoop.num_parallel_envs = 1 # N
 PpoTrainLoop.collect_steps_per_iteration_per_env = 5 # T
 
-# act func for RNN/FFNN
+# act func for FFNN
 PPOWrapAgent.actor_act_func=@tf.keras.activations.tanh
 PPOWrapAgent.value_act_func=@tf.keras.activations.tanh
-
-# RNN
-#PPOWrapAgent.use_actor_rnn=True
-#PPOWrapAgent.act_rnn_in_layers=(64,)
-#PPOWrapAgent.act_rnn_lstm=(64,)
-#PPOWrapAgent.act_rnn_out_layers=(64,)
-#PPOWrapAgent.use_value_rnn=True
-#PPOWrapAgent.val_rnn_in_layers=(64,)
-#PPOWrapAgent.val_rnn_lstm=(64,)
-#PPOWrapAgent.val_rnn_out_layers=(64,)
 
 # FFNN
 PPOWrapAgent.batch_norm=False
