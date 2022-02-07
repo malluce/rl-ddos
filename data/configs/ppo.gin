@@ -73,6 +73,6 @@ PPOWrapAgent.actor_layers=(64,64)
 PPOWrapAgent.value_layers=(64,64)
 
 # CNN parameters
-include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+include 'data/configs/cnn.gin'
 PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
 PPOWrapAgent.cnn_spec=%cnn_128_multi

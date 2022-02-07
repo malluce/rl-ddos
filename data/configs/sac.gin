@@ -85,6 +85,6 @@ SACWrapAgent.critic_act_layers=None
 SACWrapAgent.critic_joint_layers=(256, 256)
 
 # CNN parameters
-include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+include 'data/configs/cnn.gin'
 SACWrapAgent.cnn_act_func=@tf.keras.activations.relu
 SACWrapAgent.cnn_spec=%cnn_256

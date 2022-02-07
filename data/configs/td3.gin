@@ -86,6 +86,6 @@ TrainLoop.initial_collect_steps = 1200
 
 
 # CNN parameters
-include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+include 'data/configs/cnn.gin'
 TD3WrapAgent.cnn_spec=%cnn_256
 TD3WrapAgent.cnn_act_func=@tf.keras.activations.relu

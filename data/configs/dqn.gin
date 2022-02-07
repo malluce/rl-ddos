@@ -71,6 +71,6 @@ DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
 DQNWrapAgent.rnn_output_layers=(200,)
 
 # CNN parameters
-include '/home/bachmann/test-pycharm/data/configs/cnn.gin'
+include 'data/configs/cnn.gin'
 DQNWrapAgent.cnn_spec=%cnn_128_multi
 DQNWrapAgent.cnn_act_func=@tf.keras.activations.relu
