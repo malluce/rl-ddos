@@ -404,7 +404,7 @@ class Blacklist(object):
 
         self.match_counter = np.zeros_like(self.initial_hhhs, dtype=int)
         self.sample_counter = np.zeros_like(self.initial_hhhs, dtype=int)
-        self.sample_modulus = default_rng().choice(range(0, sampling_weight), size=len(self.initial_hhhs))
+        self.sample_remainder = default_rng().choice(range(0, sampling_weight), size=len(self.initial_hhhs))
 
         self._compute_filter_bitmap()
 
@@ -440,7 +440,7 @@ class Blacklist(object):
 
         # ip should be sampled if at least one matching HHH reached sample counter
         do_sample = np.max(
-            self.match_counter[ip_covering_hhhs] % sampling_weight == self.sample_modulus[ip_covering_hhhs])
+            self.match_counter[ip_covering_hhhs] % sampling_weight == self.sample_remainder[ip_covering_hhhs])
 
         if do_sample:
             self.sample_counter[ip_covering_hhhs] += 1
@@ -460,7 +460,7 @@ class Blacklist(object):
         lpm_hhh = ip_covering_hhhs[0][-1]
 
         # ip should be sampled if LPM rule reached sample counter
-        do_sample = (self.match_counter[lpm_hhh] % sampling_weight == self.sample_modulus[lpm_hhh])
+        do_sample = (self.match_counter[lpm_hhh] % sampling_weight == self.sample_remainder[lpm_hhh])
 
         if do_sample:
             self.sample_counter[lpm_hhh] += 1
