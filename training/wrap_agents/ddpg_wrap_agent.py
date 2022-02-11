@@ -70,7 +70,7 @@ class DDPGWrapAgent(DdpgAgent, WrapAgent):
                          gradient_clipping=gradient_clip, dqda_clipping=dqda_clip, debug_summaries=debug,
                          name='ddpg')
 
-    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
+    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:
         return [(self.crit_opt._decayed_lr(tf.float32), 'critic_lr'),
                 (self.act_opt._decayed_lr(tf.float32), 'actor_lr')]
 

@@ -43,7 +43,6 @@ class TD3WrapAgent(Td3Agent, WrapAgent):
 
         # set actor net
         if use_act_rnn:
-            # TODO preprocessing for RNN
             actor_net = ActorRnnNetwork(time_step_spec.observation, action_spec,
                                         input_fc_layer_params=rnn_act_in_fc_layers,
                                         lstm_size=rnn_act_lstm_size, output_fc_layer_params=rnn_act_out_fc_layers,
@@ -56,7 +55,6 @@ class TD3WrapAgent(Td3Agent, WrapAgent):
 
         # set critic net
         if use_crt_rnn:
-            # TODO preprocessing for RNN
             critic_net = CriticRnnNetwork((time_step_spec.observation, action_spec),
                                           observation_fc_layer_params=rnn_crt_obs_fc_layers,
                                           action_fc_layer_params=rnn_crt_act_fc_layers,
@@ -94,7 +92,7 @@ class TD3WrapAgent(Td3Agent, WrapAgent):
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
         pass
 
-    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
+    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:
         actor_lr = self.actor_optimizer._decayed_lr(tf.float32)
         critic_lr = self.critic_optimizer._decayed_lr(tf.float32)
         return [(actor_lr, 'actor_lr'), (critic_lr, 'critic_lr')]

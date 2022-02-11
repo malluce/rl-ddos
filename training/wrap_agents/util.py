@@ -1,5 +1,4 @@
-import sys
-from collections import Callable, OrderedDict
+from collections import OrderedDict
 
 import gin
 
@@ -9,8 +8,7 @@ from tensorflow.keras.layers import Lambda
 
 from tensorflow.python.keras.optimizer_v2.learning_rate_schedule import ExponentialDecay, LearningRateSchedule, \
     PolynomialDecay
-from tensorflow.keras.optimizers import Adam, SGD
-from tensorflow.python.keras.utils.vis_utils import plot_model
+from tensorflow.keras.optimizers import Adam
 
 
 def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_decay_end_lr=None,
@@ -28,7 +26,6 @@ def get_optimizer(lr, lr_decay_rate, lr_decay_steps, exp_min_lr=None, linear_dec
         return Adam(PolynomialDecay(lr, linear_decay_steps, linear_decay_end_lr))
     else:
         return Adam(lr)
-        # return SGD(lr) # TODO add SGD as option?
 
 
 @gin.configurable
@@ -114,15 +111,13 @@ def get_preprocessing_cnn(cnn_spec, time_step_spec, act_func, batch_norm):
     :return: (preprocessing layers, combiner)
     """
     obs_spec = time_step_spec().observation if callable(time_step_spec) else time_step_spec.observation
-    if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec:  # 'image' in obs_spec TODO
+    if type(obs_spec) is OrderedDict and 'hhh_image' in obs_spec:
         logging.info('setting up CNN!')
 
-        cnn = build_cnn_from_spec(cnn_spec, act_func, batch_norm)
         hhh_cnn = build_cnn_from_spec(cnn_spec, act_func, batch_norm)
 
         preprocessing_layers = {
             'vector': Lambda(lambda x: x),  # pass-through layer
-            # 'image': cnn,
             'hhh_image': hhh_cnn
         }
         preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)

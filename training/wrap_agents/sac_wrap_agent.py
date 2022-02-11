@@ -66,7 +66,6 @@ class SACWrapAgent(SacAgent, WrapAgent):
 
         # set critic net
         if use_crt_rnn:
-            # TODO preprocessing for RNN
             critic_net = CriticRnnNetwork((time_step_spec.observation, action_spec),
                                           observation_fc_layer_params=rnn_crt_obs_fc_layers,
                                           action_fc_layer_params=rnn_crt_act_fc_layers,
@@ -104,7 +103,7 @@ class SACWrapAgent(SacAgent, WrapAgent):
         pass
 
     def get_scalars_to_log(self) -> List[
-        Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
+        Tuple[Any, str]]:
         actor_lr = self.actor_optimizer._decayed_lr(tf.float32)
         critic_lr = self.critic_optimizer._decayed_lr(tf.float32)
         alpha_lr = self.alpha_optimizer._decayed_lr(tf.float32)

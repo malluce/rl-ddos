@@ -49,7 +49,7 @@ class DQNWrapAgent(DqnAgent, WrapAgent):
                          gamma=gamma, target_update_period=target_update_period, target_update_tau=target_update_tau,
                          name='dqn')
 
-    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
+    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:
         return [(self.optimizer._decayed_lr(tf.float32), 'lr'),
                 (self.eps_greedy if type(self.eps_greedy) is int else self.eps_greedy(), 'epsilon')]
 

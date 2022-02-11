@@ -81,7 +81,7 @@ class PPOWrapAgent(PPOClipAgent, WrapAgent):
     def _loss(self, experience: types.NestedTensor, weights: types.Tensor) -> Optional[LossInfo]:
         pass
 
-    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:  # TODO as method in superclass once more agents are added
+    def get_scalars_to_log(self) -> List[Tuple[Any, str]]:
         return [(self.optimizer._decayed_lr(tf.float32), 'lr')]
 
     def get_gamma(self):
