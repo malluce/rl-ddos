@@ -15,6 +15,8 @@ from pathlib import Path
 
 
 class Datastore(object):
+    """Stores metrics to log files for result analysis after training/running the environment."""
+
     __instance = None
 
     SUB_BASE_DIR = Path('datastore')  # datastore writes to subdir in root dir (rootdir/datastore/...)
