@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 """Sample Critic/Q network to use with DDPG agents."""
 
 import gin

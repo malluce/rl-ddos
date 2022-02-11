@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 """Sample Keras Value Network.
 
 Implements a network that will generate the following layers:

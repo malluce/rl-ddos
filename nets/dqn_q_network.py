@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 """Sample Keras networks for DQN."""
 
 from __future__ import absolute_import
@@ -59,7 +61,7 @@ class QNetwork(network.Network):
                  activation_fn=tf.keras.activations.relu,
                  kernel_initializer=None,
                  batch_squash=True,
-                 batch_normalization=False,  # added by hauke
+                 batch_normalization=False,  # added
                  dtype=tf.float32,
                  name='QNetwork'):
         """Creates an instance of `QNetwork`.
@@ -294,14 +296,16 @@ class LSTMEncodingNetwork(network.Network):
 
         output_encoder = []
         if output_fc_layer_params:
-            output_encoder.append(tf.keras.layers.BatchNormalization())
+            if batch_norm:
+                output_encoder.append(tf.keras.layers.BatchNormalization())
             for units in output_fc_layer_params:
                 output_encoder.append(tf.keras.layers.Dense(
                     units,
                     activation=activation_fn,
                     kernel_initializer=kernel_initializer,
                     dtype=dtype))
-                output_encoder.append(tf.keras.layers.BatchNormalization())
+                if batch_norm:
+                    output_encoder.append(tf.keras.layers.BatchNormalization())
 
         counter = [-1]
 

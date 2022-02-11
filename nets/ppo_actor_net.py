@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 """Sample Keras actor network that generates distributions."""
 
 from __future__ import absolute_import

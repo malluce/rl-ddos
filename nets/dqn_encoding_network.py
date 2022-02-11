@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 # Lint as: python2, python3
 """Keras Encoding Network.
 
@@ -91,7 +93,7 @@ class EncodingNetwork(network.Network):
                  weight_decay_params=None,
                  kernel_initializer=None,
                  batch_squash=True,
-                 batch_normalization=False,  # added by hauke
+                 batch_normalization=False,  # added
                  dtype=tf.float32,
                  name='EncodingNetwork',
                  conv_type=CONV_TYPE_2D):
@@ -265,8 +267,8 @@ class EncodingNetwork(network.Network):
                                      'lists have different lengths (%d vs. %d.)' %
                                      (len(weight_decay_params), len(fc_layer_params)))
 
-            if batch_normalization:  # added by hauke
-                layers.append(tf.keras.layers.BatchNormalization())  # added by hauke
+            if batch_normalization:  # added
+                layers.append(tf.keras.layers.BatchNormalization())  # added
 
             for num_units, dropout_params, weight_decay in zip(
                     fc_layer_params, dropout_layer_params, weight_decay_params):
@@ -286,8 +288,8 @@ class EncodingNetwork(network.Network):
                 if dropout_params is not None:
                     layers.append(utils.maybe_permanent_dropout(**dropout_params))
 
-                if batch_normalization:  # added by hauke
-                    layers.append(tf.keras.layers.BatchNormalization())  # added by hauke
+                if batch_normalization:  # added
+                    layers.append(tf.keras.layers.BatchNormalization())  # added
 
         super(EncodingNetwork, self).__init__(
             input_tensor_spec=input_tensor_spec, state_spec=(), name=name)

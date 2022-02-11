@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers.
+
 """Sample Actor network to use with DDPG agents.
 
 Note: This network scales actions to fit the given spec by using `tanh`. Due to

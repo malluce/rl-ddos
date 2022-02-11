@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: Copied from TF-Agents, but modified to optionally include BatchNorm layers (in function mlp_layers).
+
 """Network utilities."""
 from __future__ import absolute_import
 from __future__ import division
@@ -179,7 +181,7 @@ def mlp_layers(conv_layer_params=None,
                                  'lists have different lengths (%d vs. %d.)' %
                                  (len(weight_decay_params), len(fc_layer_params)))
 
-        if batch_normalization:  # one batch norm in front (added by hauke)
+        if batch_normalization:  # one batch norm in front
             layers.append(tf.keras.layers.BatchNormalization())
 
         for num_units, dropout_params, weight_decay in zip(
@@ -200,6 +202,6 @@ def mlp_layers(conv_layer_params=None,
                 layers.append(maybe_permanent_dropout(**dropout_params))
 
             if batch_normalization:
-                layers.append(tf.keras.layers.BatchNormalization())  # one batch norm after each layer added by hauke
+                layers.append(tf.keras.layers.BatchNormalization())  # one batch norm after each layer
 
     return layers
