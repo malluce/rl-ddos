@@ -4,6 +4,7 @@ from .cpp import hhhmodule
 
 
 class Label:
+    """Represents the two parts of a CIDR network or filter rule, i.e., address (id) and prefix length."""
     PREFIXMASK = [(1 << hhhmodule.HIERARCHY_SIZE) - (1 << l)
                   for l in reversed(range(hhhmodule.HIERARCHY_SIZE + 1))]
     SIZE_BY_LENGTH = [1 << (hhhmodule.HIERARCHY_SIZE - l) for l in range(33)]

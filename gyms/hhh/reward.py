@@ -30,6 +30,8 @@ class RewardCalc(ABC):
 
 @gin.configurable
 class AdditiveRewardCalc(RewardCalc):
+    """Was considered as a design alternative, but sometimes ran into the ignore-one-metric-optimize-the-others problem,
+    which did not occur with multiplicative rewards"""
 
     def __init__(self, precision_weight, fpr_weight, recall_weight, bl_weight):
         self.precision_weight = precision_weight
@@ -108,6 +110,8 @@ class MultiplicativeReward(DefaultRewardCalc):
 
 @gin.configurable
 class MultiplicativeRewardThesis(MultiplicativeReward):
+    """This reward is employed by the design of the thesis."""
+
     def weighted_precision(self, precision):
         return precision ** 0
 

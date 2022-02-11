@@ -15,10 +15,6 @@ class State(object):
         self.thresh = -1
         self.total = 0  # total packets
 
-        # Hafner Observation: for address space covered by rules
-        self.lowest_ip = 2 ** 32
-        self.highest_ip = 0
-
         self.rewind()
 
     def rewind(self):
@@ -43,9 +39,7 @@ class State(object):
         self.hhh_distance_std = 0
         self.hhh_min = 0
         self.hhh_max = 0
-        self.image = None  # 2-channel image of last steps traffic and filter
         self.hhh_image = None  # 1-channel image of current traffic
-        self.blacklist_coverage = 0  # Hafner observation: fraction of blocked address space
 
         self.precision_per_idx = []
         self.recall_per_idx = []

@@ -5,11 +5,10 @@ from absl import logging
 
 from gym import spaces
 from gym.utils import seeding
-from math import log2, sqrt
 
 from gym.envs.registration import register
 
-from .action import ActionSpace, HafnerActionSpace
+from .action import ActionSpace
 from .flowgen.traffic_traces import SamplerTrafficTrace
 from .images import ImageGenerator
 from .loop import Loop
@@ -50,6 +49,7 @@ def pattern_ids_to_pattern_sequence(pattern_ids):
 
 @gin.configurable
 class HHHEnv(gym.Env):
+    """Implementation of the simulated DDoS mitigation environment, following the OpenAI Gym interface."""
 
     def __init__(self, data_store, state_obs_selection: [Observation], use_prev_action_as_obs: bool,
                  action_space: ActionSpace, gamma: float, reward_calc: RewardCalc, image_gen: ImageGenerator,
@@ -90,7 +90,7 @@ class HHHEnv(gym.Env):
         return [seed]
 
     def step(self, action):
-        # call loop.step
+        # call loop.step (performs the mitigation system simulation)
         logging.debug(self.trace.traffic_trace.get_source_pattern_id(self.current_step))
         trace_ended, state, blacklist_history = self.loop.step(action)
 
@@ -227,7 +227,8 @@ class HHHEnv(gym.Env):
         self.rate_pattern_ids = []
         self.change_pattern_ids = []
         self.trace.rewind()
-        first_action, blacklist_history = self.loop.reset()  # make one step with randomly chosen action (for first observation)
+        # make one step with randomly chosen action (for first observation)
+        first_action, blacklist_history = self.loop.reset()
         self.blacklists += blacklist_history
         return self._build_observation(previous_action=first_action)
 

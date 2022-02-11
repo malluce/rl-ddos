@@ -9,3 +9,12 @@ def maybe_cast_to_arr(arg):
     :return: the parsed argument
     """
     return arg if type(arg) == np.ndarray and len(arg.shape) > 0 else np.array(arg).reshape((1,))
+
+
+def assert_hhh_asc_sorted(hhhs):
+    is_sorted = True
+    val = hhhs[0].len if len(hhhs) > 0 else None
+    for h in hhhs:
+        if h.len < val:
+            is_sorted = False
+    assert is_sorted

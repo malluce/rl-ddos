@@ -19,7 +19,7 @@ from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuf
 from tf_agents.utils import common
 
 from training.util import get_dirs
-from gyms.hhh.action import ActionSpace, TupleActionSpace
+from gyms.hhh.action import ActionSpace, PpoMinPrefLenActionSpace
 from gyms.hhh.images import ImageGenerator
 from gyms.hhh.obs import Observation
 from lib.datastore import Datastore
@@ -442,7 +442,7 @@ class PpoTrainLoop(TrainLoop):
                 categorical_distr = tfp.distributions.Categorical(logits=logits)
                 probs = categorical_distr.probs_parameter()
                 mean_probs = np.mean(probs, axis=0)
-                most_likely_min_prefix = TupleActionSpace().resolve((0, np.argmax(mean_probs)))[1]
+                most_likely_min_prefix = PpoMinPrefLenActionSpace().resolve((0, np.argmax(mean_probs)))[1]
                 with tf.name_scope('DistParams/'):
                     tf.compat.v2.summary.scalar(name='most likely L', data=most_likely_min_prefix,
                                                 step=global_step)

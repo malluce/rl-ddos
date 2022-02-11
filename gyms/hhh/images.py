@@ -1,5 +1,4 @@
 import math
-import time
 
 import gin
 import numpy as np
@@ -62,8 +61,6 @@ class ImageGenerator:
                 return self.generate_multi_channel_hhh_image(hhh_algo, normalize=self.normalize)
 
     def generate_hhh_image(self, hhh_algo, crop, normalize):
-        # start = time.time()
-
         max_addr = 2 ** self.address_space - 1
         # the bounds of the bins to separate the address space (x-axis)
         bounds = self._get_x_axis_bounds(max_addr)
@@ -138,8 +135,6 @@ class ImageGenerator:
         return image
 
     def generate_multi_channel_hhh_image(self, hhh_algo, normalize):
-        start = time.time()
-
         max_addr = 2 ** self.address_space - 1
         # the bounds of the bins to separate the address space (x-axis)
         bounds = self._get_x_axis_bounds(max_addr)

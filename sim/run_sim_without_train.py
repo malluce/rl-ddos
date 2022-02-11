@@ -3,7 +3,7 @@ from basic_agents import FixedSequenceAgent
 from gyms.hhh.action import DqnRejectionActionSpace
 from gyms.hhh.env import register_hhh_gym
 from gyms.hhh.flowgen.traffic_traces import S1, S2, S3
-from gyms.hhh.loop import PerformanceTrackingWorstOffenderCache
+from gyms.hhh.tables import PerformanceTrackingWorstOffenderCache
 from gyms.hhh.reward import MultiplicativeRewardThesis
 from gyms.hhh.obs import BaseObservations
 from lib.datastore import Datastore

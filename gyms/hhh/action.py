@@ -5,14 +5,10 @@ import math
 import gin
 import numpy as np
 
-from gym.spaces import Box, Discrete, MultiDiscrete, Tuple
+from gym.spaces import Box, Discrete, Tuple
 from abc import ABC
 
-from numpy.random import default_rng
-
 from gyms.hhh.obs import Observation
-
-from absl import logging
 
 
 class ActionSpace(Observation, ABC):
@@ -37,61 +33,14 @@ class ActionSpace(Observation, ABC):
         return self.actionspace.sample()
 
 
-class RejectionActionSpace(Observation, ABC):
+class RejectionActionSpace(ActionSpace, ABC):  # marker interface
     def __init__(self):
-        self.actionspace = None
-
-    @abc.abstractmethod
-    def resolve(self, action):
-        """ transform selected action into phi and rejection threshold """
-        pass
-
-    @abc.abstractmethod
-    def inverse_resolve(self, chosen_action):
-        pass
-
-    def get_initialization(self):
-        """
-        Randomly samples action for use in env.reset(), to build first observation on some action.
-        """
-        return self.actionspace.sample()
-
-
-@gin.register
-class LinearContinuousRejectionActionSpace(RejectionActionSpace):
-
-    def __init__(self):
-        super().__init__()
-        self.actionspace = Box(
-            low=-1.0,
-            high=1.0,
-            shape=(2,),
-            dtype=np.float32
-        )
-        self.shape = self.actionspace.shape
-
-    def resolve(self, action):
-        resolved = agent_action_to_resolved(action, lower_bound=self.get_lower_bound(),
-                                            upper_bound=self.get_upper_bound())
-        phi = resolved[0]
-        thresh = resolved[1]
-        return phi, thresh
-
-    def inverse_resolve(self, chosen_action):
-        return inverse_resolve(chosen_action, self.get_lower_bound(), self.get_upper_bound())
-
-    def get_observation(self, action):
-        return np.array(self.resolve(action))
-
-    def get_lower_bound(self):
-        return np.array([0.001, 0.85])
-
-    def get_upper_bound(self):
-        return np.array([0.3, 1.0])
+        super(RejectionActionSpace, self).__init__()
 
 
 @gin.register
 class ExponentialContinuousRejectionActionSpace(RejectionActionSpace):
+    """DDPG and PPO (phi, pthresh) action space"""
 
     def __init__(self):
         super().__init__()
@@ -124,13 +73,41 @@ class ExponentialContinuousRejectionActionSpace(RejectionActionSpace):
         return np.array([0.3, 1.0])
 
 
-def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
-    bin_size = 2 / 17  # range[-1,1], 17 L values (16,17,...,32)
-    return int(min((agent_action + 1) / bin_size + lower_bound, upper_bound))
+@gin.configurable
+class PpoMinPrefLenActionSpace(ActionSpace):
+    """PPO (phi,L) action space"""
+    NUMBER_OF_PREFIXES = 17  # number of different prefixes, e.g. 3 means /32, /31, /30 and 17 means /32.../16
+
+    def __init__(self):
+        super(PpoMinPrefLenActionSpace, self).__init__()
+        phi_space = Box(-1.0, 1.0, shape=(), dtype=np.float32)
+        prefix_space = Discrete(self.NUMBER_OF_PREFIXES)  # values 0..NUMBER_OF_PREFIXES-1
+        self.actionspace = Tuple((phi_space, prefix_space))
+
+    def resolve(self, action):
+        phi = agent_action_to_resolved(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
+        prefix_len = int(32 - action[1])  # values 32..NUMBER_OF_PREFIXES-1
+        return phi, prefix_len
+
+    def get_observation(self, action):
+        return np.array(self.resolve(action))
+
+    def get_lower_bound(self):
+        return np.array([0.001, 16])
+
+    def get_upper_bound(self):
+        return np.array([0.5, 32])
+
+    def inverse_resolve(self, chosen_action):
+        assert len(chosen_action) == 2
+        inverse_phi = inverse_resolve(chosen_action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
+        inverse_l = 32 - chosen_action[1]
+        return np.array([inverse_phi, inverse_l])
 
 
 @gin.register
 class DdpgMinPrefLenActionSpace(ActionSpace):
+    """DDPG (phi, L) action space"""
 
     def __init__(self):
         super().__init__()
@@ -200,6 +177,8 @@ class DiscreteActionSpace(ActionSpace, ABC):
 
 @gin.register
 class DqnRejectionActionSpace(DiscreteActionSpace, RejectionActionSpace):
+    """DQN (phi, pthresh) action space"""
+
     def __init__(self):
         super().__init__()
         self.actions = [(x, y)
@@ -221,6 +200,7 @@ class DqnRejectionActionSpace(DiscreteActionSpace, RejectionActionSpace):
 
 @gin.configurable
 class DqnMinPrefLenActionSpace(DiscreteActionSpace):
+    """DQN (phi, L) action space"""
 
     def __init__(self):
         super().__init__()
@@ -233,13 +213,11 @@ class DqnMinPrefLenActionSpace(DiscreteActionSpace):
                         for y in [_ + 16 for _ in range(17)]]  # l
         self.actionspace = Discrete(len(self.actions))
 
-    def get_initialization(self):
-        return self.actionspace.sample()
-
 
 def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     """
     Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [lower_bound, upper_bound].
+    Uses linear resolving.
     :param upper_bound: upper bound on the output
     :param lower_bound: lower bound on the output
     :param agent_action: action in [-1.0, 1.0]
@@ -247,6 +225,18 @@ def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
     middle = (upper_bound + lower_bound) / 2
     middle_to_bound = upper_bound - middle
     return np.clip(middle + middle_to_bound * agent_action, lower_bound, upper_bound)
+
+
+def agent_action_to_resolved_l(agent_action, lower_bound, upper_bound):
+    """
+    Resolves agent action to L parameter.
+    :param agent_action: action in [-1.0, 1.0]
+    :param lower_bound: lower bound on L (output)
+    :param upper_bound: upper bound on L (output)
+    :return:
+    """
+    bin_size = 2 / 17  # range[-1,1], 17 L values (16,17,...,32)
+    return int(min((agent_action + 1) / bin_size + lower_bound, upper_bound))
 
 
 def agent_action_to_resolved_phi(agent_action, lower_bound, upper_bound):
@@ -268,89 +258,3 @@ def inverse_resolve(chosen_action, lower_bound, upper_bound):
     """
     ub, lb = upper_bound, lower_bound
     return 1 / (ub - (ub + lb) / 2) * chosen_action - ((ub + lb) / 2) / (ub - (ub + lb) / 2)
-
-
-@gin.configurable
-class TupleActionSpace(ActionSpace):
-    NUMBER_OF_PREFIXES = 17  # number of different prefixes, e.g. 3 means /32, /31, /30 and 17 means /32.../16
-
-    def __init__(self):
-        super(TupleActionSpace, self).__init__()
-        phi_space = Box(-1.0, 1.0, shape=(), dtype=np.float32)
-        prefix_space = Discrete(self.NUMBER_OF_PREFIXES)  # values 0..NUMBER_OF_PREFIXES-1
-        self.actionspace = Tuple((phi_space, prefix_space))
-
-    def resolve(self, action):
-        phi = agent_action_to_resolved(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
-        prefix_len = int(32 - action[1])  # values 32..NUMBER_OF_PREFIXES-1
-        return phi, prefix_len
-
-    def get_observation(self, action):
-        return np.array(self.resolve(action))
-
-    def get_lower_bound(self):
-        return np.array([0.001, 16])
-
-    def get_upper_bound(self):
-        return np.array([0.5, 32])
-
-    def get_initialization(self):
-        return self.actionspace.sample()
-
-    def inverse_resolve(self, chosen_action):
-        assert len(chosen_action) == 2
-        inverse_phi = inverse_resolve(chosen_action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
-        inverse_l = 32 - chosen_action[1]
-        return np.array([inverse_phi, inverse_l])
-
-
-@gin.register
-class HafnerActionSpace(ActionSpace):
-
-    def __init__(self):
-        super().__init__()
-        self.re_roll_phi()
-        self.possible_actions = {
-            0: lambda phi: phi,  # keep last phi
-            # assignment actions
-            1: lambda phi: 0.5,
-            2: lambda phi: 0.3,
-            3: lambda phi: 0.1,
-            4: lambda phi: 0.01,
-            5: lambda phi: 0.001,
-            # multiplicative actions
-            6: lambda phi: 2 * phi,
-            7: lambda phi: 0.5 * phi,
-            8: lambda phi: 1.1 * phi,
-            9: lambda phi: 0.9 * phi,
-            10: lambda phi: 10 * phi,
-            11: lambda phi: 0.1 * phi
-        }
-        self.actionspace = Discrete(len(self.possible_actions))
-
-    def re_roll_phi(self):
-        self.current_phi = default_rng().uniform(0.0001, 1.0)
-        logging.debug(f're-rolled phi, new: {self.current_phi}')
-
-    def resolve(self, action):
-        self.current_phi = self.possible_actions[action](self.current_phi)
-        self.current_phi = np.clip(self.current_phi, 0.0001, 1.0)
-        min_prefix = 16  # allow unbounded propagation at query time, use pre-processing for L heuristic
-        logging.debug(f'action={action}')
-        logging.debug(f'resolved actions=({self.current_phi}, {min_prefix})')
-        return self.current_phi, min_prefix
-
-    def get_observation(self, action):
-        return np.array(self.current_phi)
-
-    def get_lower_bound(self):
-        return 0.0001
-
-    def get_upper_bound(self):
-        return 1.0
-
-    def get_initialization(self):
-        raise NotImplementedError('Initialization not fitting for Hafner')
-
-    def inverse_resolve(self, chosen_action):
-        raise NotImplementedError('Inverse resolve not implemented for Hafner')
