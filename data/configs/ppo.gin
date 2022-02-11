@@ -1,5 +1,5 @@
 # The config file for the PPO agent.
-# Start PPO training with "cd <project-root> && python -m training.runner --gin_file=data/configs/ppo.gin"
+# Start PPO training with "cd <project-root> && python -m training.runner --gin_file=<project-root>/data/configs/ppo.gin"
 
 ##### Parameters that need to be changed to reproduce the results #####
 
@@ -73,6 +73,6 @@ PPOWrapAgent.actor_layers=(64,64)
 PPOWrapAgent.value_layers=(64,64)
 
 # CNN parameters
-include 'data/configs/cnn.gin'
+include 'cnn.gin'
 PPOWrapAgent.cnn_act_func=@tf.keras.activations.relu
 PPOWrapAgent.cnn_spec=%cnn_128_multi

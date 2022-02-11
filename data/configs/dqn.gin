@@ -1,5 +1,5 @@
 # The config file for the DQN agent.
-# Start DQN training with "cd <project-root> && python -m training.runner --gin_file=data/configs/dqn.gin"
+# Start DQN training with "cd <project-root> && python -m training.runner --gin_file=<project-root>/data/configs/dqn.gin"
 
 ##### Parameters that need to be changed to reproduce the results #####
 
@@ -71,6 +71,6 @@ DQNWrapAgent.rnn_lstm_size=(128, 128, 128)
 DQNWrapAgent.rnn_output_layers=(200,)
 
 # CNN parameters
-include 'data/configs/cnn.gin'
+include 'cnn.gin'
 DQNWrapAgent.cnn_spec=%cnn_128_multi
 DQNWrapAgent.cnn_act_func=@tf.keras.activations.relu

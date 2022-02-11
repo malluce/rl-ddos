@@ -1,5 +1,5 @@
 # The config file for the DDPG agent.
-# Start DDPG training with "cd <project-root> && python -m training.runner --gin_file=data/configs/ddpg.gin"
+# Start DDPG training with "cd <project-root> && python -m training.runner --gin_file=<project-root>/data/configs/ddpg.gin"
 
 ##### Parameters that need to be changed to reproduce the results #####
 
@@ -86,6 +86,6 @@ TrainLoop.initial_collect_steps = 1200
 TrainLoop.log_interval = 600
 
 # CNN parameters
-include 'data/configs/cnn.gin'
+include 'cnn.gin'
 DDPGWrapAgent.cnn_spec=%cnn_128_multi
 DDPGWrapAgent.cnn_act_func=@tf.keras.activations.relu
