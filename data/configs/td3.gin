@@ -7,7 +7,7 @@ TrainLoop.root_dir='/srv/bachmann/data/td3'
 TrainLoop.eval_interval = 3000
 TrainLoop.num_eval_episodes = 9
 TrainLoop.log_interval = 600
-TrainLoop.collect_raw = True # TODO warn
+TrainLoop.collect_raw = True
 
 Loop.sampling_rate=0.25
 RulePerformanceTable.metric='fpr'

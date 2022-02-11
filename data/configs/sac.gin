@@ -11,8 +11,8 @@ TrainLoop.log_interval = 600
 Loop.sampling_rate=0.25
 
 # debug
-TrainLoop.collect_raw = True # TODO warn
-SACWrapAgent.debug_summaries=False # TODO warn
+TrainLoop.collect_raw = True
+SACWrapAgent.debug_summaries=False
 TrainLoop.batch_size=64
 
 # state
