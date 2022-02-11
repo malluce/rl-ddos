@@ -14,6 +14,7 @@ class BasicAgent(ABC):
 
 
 class RandomAgent(BasicAgent):
+    """Randomly selects actions from the action space."""
 
     def __init__(self, action_space: Space, action_set: ActionSpace):
         self.action_space = action_space
@@ -24,6 +25,7 @@ class RandomAgent(BasicAgent):
 
 
 class FixedAgent(BasicAgent):
+    """Applies the same action at every adaptation step."""
 
     def __init__(self, phi: float, min_prefix_length: int, thresh: float = None, action_space=None):
         self.phi = phi
@@ -37,6 +39,8 @@ class FixedAgent(BasicAgent):
 
 
 class FixedSequenceAgent(BasicAgent):
+    """Applies a fixed sequence of actions (sequences indicate the parameter values for each adaptation step)."""
+
     def __init__(self, episode_length, phis: List[float], min_prefix_lengths: Optional[List[int]],
                  pthreshs: Optional[List[float]] = None,
                  action_space=None):
@@ -61,7 +65,6 @@ class FixedSequenceAgent(BasicAgent):
                                              [self.phis, self.pthreshs, self.min_prefix_lengths])]
 
     def action(self, observation):
-        print(self.action_counter)
         action = [x[self.action_counter] for x in self.not_none_action_lists]
 
         self.action_counter = (self.action_counter + 1) % self.episode_len
