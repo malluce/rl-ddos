@@ -43,7 +43,8 @@ class SamplerTrafficTrace(IdentifiableTrace):
 
 
 @gin.configurable
-class S1(SamplerTrafficTrace):  # scenario "S1" in thesis (simple adaptivity)
+class S1(SamplerTrafficTrace):
+    """Scenario S1 in thesis (simple transition from botnet to reflector attack)"""
 
     def __init__(self, num_benign=300, num_attack=150, maxtime=599, maxaddr=0xffff, **kwargs):
         super().__init__(maxtime)
@@ -98,7 +99,8 @@ class S1(SamplerTrafficTrace):  # scenario "S1" in thesis (simple adaptivity)
 
 
 @gin.configurable
-class S2(SamplerTrafficTrace):  # scenario "S2" in thesis ("wandering" bot attack, overlap test)
+class S2(SamplerTrafficTrace):
+    """Scenario S2 in thesis (botnet attacks with varying overlap)"""
 
     def __init__(self, num_benign=500, **kwargs):
         self.maxtime = 599
@@ -164,7 +166,8 @@ class S2(SamplerTrafficTrace):  # scenario "S2" in thesis ("wandering" bot attac
 
 
 @gin.configurable
-class S3(SamplerTrafficTrace):  # scenario "S3" in thesis (reflector and bot at same time)
+class S3(SamplerTrafficTrace):
+    """Scenario S3 in thesis (multi-vector phases, reflector and bot at same time)"""
 
     def __init__(self, num_benign=500, num_dns=10, **kwargs):
         self.maxtime = 599
@@ -195,7 +198,7 @@ class S3(SamplerTrafficTrace):  # scenario "S3" in thesis (reflector and bot at 
                              UniformSampler(0, 9),
                              WeibullSampler(20,
                                             (1 / WeibullSampler.quantile(99.99, 20)) * 1 / 3 * self.maxtime),
-                             UniformSampler(0, self.maxaddr),  # TODO DNS addresses?
+                             UniformSampler(0, self.maxaddr),
                              rate_sampler=UniformSampler(self._total_rate // self.num_dns,
                                                          self._total_rate // self.num_dns),
                              attack=True),
@@ -203,7 +206,7 @@ class S3(SamplerTrafficTrace):  # scenario "S3" in thesis (reflector and bot at 
             FlowGroupSampler(self.num_dns // 2,  # self.num_dns * 2,
                              UniformSampler(280, 289),
                              UniformSampler(600, 600),
-                             UniformSampler(0.55 * self.maxaddr, 0.95 * self.maxaddr),  # TODO DNS addresses?
+                             UniformSampler(0.55 * self.maxaddr, 0.95 * self.maxaddr),
                              rate_sampler=UniformSampler(self._total_rate // self.num_dns,  # / 3,  # / 6,
                                                          self._total_rate // self.num_dns),  # /3  # / 6),
                              attack=True),

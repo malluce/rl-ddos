@@ -4,7 +4,6 @@ import gin
 
 from .distgen import TraceSampler
 from gyms.hhh.packet import Packet
-from gyms.hhh.flowgen.traffic_traces import T2, T3, THauke, SamplerTrafficTrace
 from absl import logging
 
 

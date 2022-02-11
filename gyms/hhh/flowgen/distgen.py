@@ -3,8 +3,6 @@
 import math
 import numpy as np
 
-from gyms.hhh.cpp.hhhmodule import HIERARCHY_SIZE
-
 from gyms.hhh.packet import Packet
 
 
@@ -125,6 +123,7 @@ class FlowGroupSampler(object):
 
 
 class TraceSampler(object):
+    """Samples flows from provided FlowGroupSamplers."""
 
     @staticmethod
     def load(flow_grid, rate_grid, attack_grid):
@@ -148,16 +147,13 @@ class TraceSampler(object):
 
     def init_flows(self):
         """
-        Samples flows from flowsamplers to flows, sets flowgrid (shape (maxtime, 2*maxaddr))
-        and num_samples (number of non-zero entries in flowgrid).
+        Prepares traffic by sampling from the given distributions, i.e. flowsamplers.
         """
         self.flows = np.concatenate([s.sample() for s in self.flowsamplers])
 
-        # FIXME: Make this self.maxtime/maxaddr
         maxtime = self.flows[:, 1].max()
         maxaddr = self.flows[:, 3].max()
 
-        # FIXME: Remove if necessary
         if self.maxtime is not None:
             maxtime = min(self.maxtime, maxtime)
 
@@ -178,6 +174,9 @@ class TraceSampler(object):
         self.num_attack_samples = self.attack_grid.sum()
 
     def samples(self):
+        """
+        Samples the next packet from the generated traffic, returns (packet, time_index_finished, address_finished).
+        """
         for time_index in range(len(self.rate_grid)):
             time_index_total_rates = self.rate_grid[time_index]
             time_index_attack_rates = self.attack_grid[time_index]
