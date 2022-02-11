@@ -32,6 +32,11 @@ from training.wrap_agents.td3_wrap_agent import TD3WrapAgent
 
 @gin.configurable
 class TrainLoop(ABC):
+    """Training loop implementation.
+    One subclass for each agent to instantiate different WrapAgents and implement specifics for the respective training
+    processes (e.g., PPO empties the complete replay buffer while DQN samples mini-batches without deleting the contents)
+    """
+
     def __init__(self,
                  root_dir: str,
                  # env params
@@ -170,9 +175,6 @@ class TrainLoop(ABC):
             collect_policy,
             observers=[self.replay_buffer.add_batch] + self.train_metrics,
             num_steps=1)
-
-        # self.initial_collect_driver.run = common.function(self.initial_collect_driver.run)
-        # self.collect_driver.run = common.function(self.collect_driver.run)
 
     def _eval(self, eval_policy, global_step):
         logging.info(f'eval for {self.num_eval_episodes} episodes')
@@ -410,7 +412,7 @@ class PpoTrainLoop(TrainLoop):
         # no initial collect driver,..
         logging.info(f'Initializing Step Driver with num_steps=N*T={self.collect_steps}')
 
-        def log_dist_params(step):  # TODO fix that global step is the same for several calls due to T
+        def log_dist_params(step):
             global_step = tf.compat.v1.train.get_or_create_global_step()
             # continuous params
             continuous_policy_info = step.policy_info['dist_params'][0] if isinstance(step.policy_info['dist_params'],
