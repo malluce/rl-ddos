@@ -1,11 +1,11 @@
 """
-Plots the weighted components of the reward function, i.e. FPR/Precision/Recall/BlacklistSize.
+Plots the weighted components of the reward function, i.e. FPR/Precision/Recall/BlacklistSize. (Figure 4.17)
 """
 import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
-from gyms.hhh.reward import DefaultRewardCalc, RewardCalc
+from gyms.hhh.reward import MultiplicativeRewardThesis, RewardCalc
 
 
 def plot_contrib_factors(reward_calc: RewardCalc):
@@ -42,5 +42,5 @@ def plot_contrib_factors(reward_calc: RewardCalc):
 
 
 if __name__ == '__main__':
-    reward_calc = DefaultRewardCalc()
+    reward_calc = MultiplicativeRewardThesis(precision_weight=0, fpr_weight=2, recall_weight=2, bl_weight=0.25)
     plot_contrib_factors(reward_calc)

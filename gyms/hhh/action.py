@@ -53,8 +53,8 @@ class ExponentialContinuousRejectionActionSpace(RejectionActionSpace):
         self.shape = self.actionspace.shape
 
     def resolve(self, action):
-        resolved_pthresh = agent_action_to_resolved(action[1], lower_bound=self.get_lower_bound()[1],
-                                                    upper_bound=self.get_upper_bound()[1])
+        resolved_pthresh = agent_action_to_resolved_linear(action[1], lower_bound=self.get_lower_bound()[1],
+                                                           upper_bound=self.get_upper_bound()[1])
         resolved_phi = agent_action_to_resolved_phi(action[0], lower_bound=self.get_lower_bound()[0],
                                                     upper_bound=self.get_upper_bound()[0])
         return resolved_phi, resolved_pthresh
@@ -85,7 +85,7 @@ class PpoMinPrefLenActionSpace(ActionSpace):
         self.actionspace = Tuple((phi_space, prefix_space))
 
     def resolve(self, action):
-        phi = agent_action_to_resolved(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
+        phi = agent_action_to_resolved_phi(action[0], self.get_lower_bound()[0], self.get_upper_bound()[0])
         prefix_len = int(32 - action[1])  # values 32..NUMBER_OF_PREFIXES-1
         return phi, prefix_len
 
@@ -214,7 +214,7 @@ class DqnMinPrefLenActionSpace(DiscreteActionSpace):
         self.actionspace = Discrete(len(self.actions))
 
 
-def agent_action_to_resolved(agent_action, lower_bound, upper_bound):
+def agent_action_to_resolved_linear(agent_action, lower_bound, upper_bound):
     """
     Transforms an action chosen by the agent in [-1.0, 1.0] to a valid value in [lower_bound, upper_bound].
     Uses linear resolving.

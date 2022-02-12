@@ -1,6 +1,5 @@
 import datetime
 import os
-import struct
 import sys
 from collections import defaultdict
 from typing import List, Tuple
@@ -15,12 +14,21 @@ from matplotlib.colors import to_rgb
 
 from gyms.hhh.env import pattern_ids_to_pattern_sequence
 from plotting.util import smooth
+from plotting.eval_result_paths import *
 
 TITLESIZE = 18
 LABELSIZE = 18
 LEGENDSIZE = 11
 TICKSIZE = 8
 
+
+# This script is used to plot the most training results.
+# This includes training curves, parameter choices and mitigation metrics over the course of an episode,
+# comparisons between agents and so forth. Basically all plots from the eval chapter, except scenario-related plots.
+# (Those are created using the plotting.flowgen module)
+# You can set the section number for which to plot the training results in the main method (see below).
+# Launching the script also prints statistics to command line, which were used in tables throughout the eval chapter
+# to enable quantitative statements.
 
 def read_env_csv(env_file_path):
     env_csv = pandas.read_csv(env_file_path)
@@ -42,38 +50,8 @@ def plot_training(environment_file_path: str, pattern):
         plot_train_for_pattern(env_csv, environment_file_path, pat)
 
 
-def print_csv_stats(csv):
-    # m = csv.groupby(['Phi']).size().sort_values(ascending=False).reset_index(name='Count')
-    # print(f'{m}')
-    # plt.scatter(m['Phi'], m['Count'], marker='x', linewidths=0.5)
-    # plt.yscale('log')
-    # plt.show()
-    # m = csv.groupby(['BlackSize']).size().sort_values(ascending=False)
-    # print(f'{m}')
-    m = csv['Precision'].mean()
-    print(f'precision avg={m}')
-    m = csv['Recall'].mean()
-    print(f'recall avg={m}')
-    m = csv['Reward'].mean()
-    print(f'reward avg={m}')
-    m = csv['Phi'].mean()
-    print(f'phi avg={m}')
-    m = csv['BlackSize'].mean()
-    print(f'blacksize avg={m}')
-    m = csv['FPR'].mean()
-    print(f'fpr avg={m}')
-
-
 def plot_train_for_pattern(env_csv, environment_file_path, pat):
-    print('========== TRAIN =========')
     pat_csv = filter_by_pattern(env_csv, pat)
-
-    print(pat_csv[:1000].loc[:, 'Phi'].mean(), pat_csv[:1000].loc[:, 'Phi'].std())
-    print(pat_csv[-1000:].loc[:, 'Phi'].mean(), pat_csv[-1000:].loc[:, 'Phi'].std())
-    print(pat_csv[:1000].loc[:, 'Thresh'].mean(), pat_csv[:1000].loc[:, 'Thresh'].std())
-    print(pat_csv[-1000:].loc[:, 'Thresh'].mean(), pat_csv[-1000:].loc[:, 'Thresh'].std())
-
-    # print_csv_stats(pat_csv)
     grouped_by_episode = pat_csv.groupby(['Episode'])
 
     mean = grouped_by_episode.mean()
@@ -236,10 +214,6 @@ def plot_time_index(last, metric, ax, label, y_top=None, make_legend=True, vspan
     if label == 'rule-gran':
         new_df_grouped = new_df.groupby(['Index'])
         mean = new_df_grouped.mean().iloc[:, 3:]
-        prop_cycle = plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        linestyle = ['-'] * len(colors) + ['--'] * len(colors)
-        plt.rcParams["axes.prop_cycle"] += plt.cycler("linestyle", linestyle)
         ax.set_prop_cycle(plt.rcParams["axes.prop_cycle"])
         for i, col in enumerate(mean.columns):
             ax.plot(mean[col], linewidth=1.5, label=f'/{col}', linestyle=linestyle[i])
@@ -283,19 +257,17 @@ def plot_time_index(last, metric, ax, label, y_top=None, make_legend=True, vspan
 def add_vspan_to(ax, vspan_spec, show_vspan_label, use_time_index=False):
     if vspan_spec is not None:
         for lo, hi, color, phase_id in vspan_spec:
-            lo = lo if not use_time_index else lo * 10
-            hi = hi if not use_time_index else hi * 10 - 1
+            lo = lo if not use_time_index else 0 if lo == 0 else (lo * 10) + 20
+            hi = hi if not use_time_index else hi * 10 + 29
             rect = ax.axvspan(lo, hi, facecolor=color, alpha=0.15)
             if show_vspan_label:
                 mid_x = rect.xy[0, 0]
-                ax.text(mid_x, 0.5 * ax.get_ylim()[1], phase_id)
+                ax.text(mid_x, 0.5 * ax.get_ylim()[1], phase_id, fontsize=10)
 
 
 def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy):
     vspan_spec = get_vspan_spec_for(pattern=pat)
-    print('========== EVAL =========')
     pat_csv = filter_by_pattern(env_csv, pat)
-    print_csv_stats(pat_csv)
     eps = pat_csv.loc[:, 'Episode']
     unique_eps = sorted(list(set(eps)))  # get all unique episode numbers (some are not included in csv files)
     eps_to_show = unique_eps[len(unique_eps) - window[0]:len(unique_eps) - window[1]]
@@ -356,20 +328,9 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy
     last_median = last.median()
     last_quantiles = get_quantiles(last)
 
-    print(
-        last.median().loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
-    print('=====direct attack:\n' + str(
-        last.mean().loc[0:21,
-        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====no attack:\n' + str(
-        last.mean().loc[28:32,
-        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====reflector attack:\n' + str(
-        last.mean().loc[37:,
-        ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-    print('=====total:\n' + str(
-        last.mean().loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']].mean()))
-
+    print_means_for_pattern_phases(pattern=pat, last_data=last,
+                                   columns=['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh',
+                                            'MinPrefix'])
     # plot per time step
     create_plots(last_median, last_quantiles,
                  title=title,
@@ -377,13 +338,47 @@ def plot_ep_behav_for_pattern(env_csv, environment_file_path, pat, window, fancy
                  data_label='Median', means_for_title=last.mean(), fancy=fancy, vspan_spec=vspan_spec)
 
 
+def print_means_for_pattern_phases(pattern, last_data, columns):
+    print(f'max fpr: ' + str(last_data.max().loc[:, 'FPR'].max()))
+    print(last_data.quantile(0.9).loc[:, 'FPR'].quantile(0.9))
+    for lo, hi, _, phase_id in get_vspan_spec_for(pattern):
+        print(f'====={phase_id}:\n' + str(last_data.mean().loc[lo:hi, columns].mean()))
+    print(f'(medians!):\n' + str(last_data.median().loc[:, ['Phi', 'Thresh']]))
+
+    if pattern == 'S2' or pattern == 'T5':
+        transitions = last_data.mean().loc[9:12, columns].append(
+            last_data.mean().loc[20:23, columns]
+        ).append(
+            last_data.mean().loc[31:34, columns]
+        ).append(
+            last_data.mean().loc[48:54, columns]
+        )
+        print('=====Transitions:\n' + str(transitions.mean()))
+    elif pattern == 'S3' or pattern == 'T6':
+        transitions = last_data.mean().loc[6:7, columns].append(
+            last_data.mean().loc[13:17, columns]
+        ).append(
+            last_data.mean().loc[25:26, columns]
+        ).append(
+            last_data.mean().loc[32:35, columns]
+        ).append(
+            last_data.mean().loc[42:45, columns]
+        ).append(
+            last_data.mean().loc[55:57, columns]
+        )
+        print('=====Transitions:\n' + str(transitions.mean()))
+
+    print('=====total:\n' + str(last_data.mean().loc[:, columns].mean()))
+
+
 def get_vspan_spec_for(pattern):
-    if pattern == 'T5':
+    if pattern == 'S2' or pattern == 'T5':
         return [(0, 8, 'yellow', 'LO1'), (13, 19, 'grey', 'MO'), (24, 30, 'purple', 'SO'), (35, 47, 'blue', 'TO'),
                 (55, 57, 'orange', 'LO2')]
-    elif pattern == 'T6':
-        raise NotImplementedError()
-    elif pattern == 'T4':
+    elif pattern == 'S3' or pattern == 'T6':
+        return [(0, 5, 'yellow', 'R1'), (8, 12, 'grey', 'R1\n+D1'), (18, 24, 'blue', 'D2'),
+                (27, 31, 'orange', 'R2\n+D2'), (36, 41, 'green', 'R2\n+D3'), (46, 54, 'red', 'R2\n+D4')]
+    elif pattern == 'S1' or pattern == 'T4':
         return [(0, 21, 'yellow', 'Direct'), (28, 32, 'grey', 'No'), (37, 57, 'purple', 'Reflection')]
     else:
         return None
@@ -454,72 +449,6 @@ def create_plots(data, quantiles, title, x_label, data_label, means_for_title=No
         plot(fig, data, quantiles, ['Reward'], 7 + offset, x_label=x_label, data_label=data_label,
              y_max=reward_max, mean_for_title=title_means['Reward'], nrow=nrow, ncol=ncol, vspan_spec=vspan_spec)
     finalize()
-
-
-def plot_kickoff(fig: plt.Figure, data, data_quantiles, cols, x, x_label, data_label, y_max=None, title=None,
-                 labels=None, mean_for_title=None):
-    ax: plt.Axes = fig.add_subplot(1, 4, x)
-    x = range(data.shape[0])
-    for idx, col in enumerate(cols):
-        y = data.loc[:, col]
-        color = 'g' if idx == 0 else 'orange'  # lines[-1].get_color()
-        for quantile in data_quantiles:
-            q, quantile_value = quantile
-            alpha = 0.9 - 1.5 * abs(0.5 - q)
-            y_err = quantile_value.loc[:, col]
-            if labels is None:
-                if q == 0.2 or q == 0.4:
-                    ax.plot(x, y_err, color=color, alpha=alpha, label=f'{q}/{0.5 + abs(0.5 - q)} quantile')
-                else:
-                    ax.plot(x, y_err, color=color, alpha=alpha)
-            else:
-                ax.plot(x, y_err, color=color, alpha=alpha)  # plot without label for discounted and undiscounted
-            ax.fill_between(x, y, y_err, color=color, alpha=alpha)
-
-        ax.set_xlabel(x_label)
-
-        base_title = title if title is not None else col
-
-        title = '{} (avg={:3.2f})'.format(base_title, mean_for_title) if mean_for_title is not None else base_title
-        ax.set_title(title)
-
-        median_color = 'navy' if idx == 0 else 'red'
-        if labels is None:
-            ax.plot(x, y, median_color, label=data_label)
-        else:
-            ax.plot(x, y, median_color, label=labels[idx])
-    if y_max is not None:
-        ax.set_ylim(bottom=0, top=y_max if type(y_max) == int else y_max + 0.1)
-    else:
-        ax.set_ylim(bottom=0)
-
-    return ax.get_legend_handles_labels()
-
-
-def plot_training_kickoff(environment_file_path: str, pat):
-    env_csv = read_env_csv(environment_file_path)
-    env_csv = filter_by_pattern(env_csv, pat)
-    grouped_by_episode = env_csv.groupby(['Episode'])
-    mean = grouped_by_episode.mean()
-    quantiles = get_quantiles(grouped_by_episode)
-
-    data = mean
-    data_label = 'mean'
-    x_label = 'training episode'
-
-    fig: plt.Figure = plt.figure(figsize=(16, 4))
-    plot_kickoff(fig, data, quantiles, ['Precision'], 1, y_max=1.0, x_label=x_label, data_label=data_label)
-    handles, labels = plot_kickoff(fig, data, quantiles, ['FPR'], 2, y_max=1.0, x_label=x_label, data_label=data_label,
-                                   title='False positive rate')
-    plot_kickoff(fig, data, quantiles, ['Recall'], 3, y_max=1.0, x_label=x_label, data_label=data_label)
-    plot_kickoff(fig, data, quantiles, ['BlackSize'], 4, x_label=x_label, data_label=data_label,
-                 title='Number of filter rules')
-
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0, 0, 1, 1), ncol=5)
-    plt.suptitle(' ')
-    plt.tight_layout()
-
-    plt.show()
 
 
 def plot_training_curves(ep_paths: List[str], pattern, show_all=False, label_agent_suffixes=None):
@@ -625,6 +554,7 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
     ax2 = fig.add_subplot(nrow, ncol, 2)
     ax3 = fig.add_subplot(nrow, ncol, 3)
     ax4 = fig.add_subplot(nrow, ncol, 4)
+    bl_y_max = 0
     for i, path in enumerate(paths):
         vspan_spec = _vspan_spec if i == 0 else None
         print(f'------- {data_labels[i]} -------')
@@ -638,20 +568,8 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
 
         last = env_csv.groupby(['Step'])  # return all columns grouped for each step
         data = last.mean()
-        # print(
-        #    last.mean().loc[:,
-        #    ['Precision', 'Recall', 'BlackSize', 'FPR', 'Reward', 'Phi', 'Thresh', 'MinPrefix']])
-        print('=====direct attack:\n' + str(
-            last.mean().loc[0:21,
-            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
-        print('=====no attack:\n' + str(
-            last.mean().loc[28:32,
-            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
-        print('=====reflector attack:\n' + str(
-            last.mean().loc[37:,
-            ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
-        print('=====total:\n' + str(
-            env_csv.loc[:, ['Precision', 'Recall', 'BlackSize', 'FPR']].mean()))
+        print_means_for_pattern_phases(pattern=pattern, last_data=last,
+                                       columns=['Precision', 'Recall', 'BlackSize', 'FPR'])
         data_label = f'Mean ({data_labels[i]})'
         plot(fig, data, None, ['Precision'], 1, y_max=1.0, x_label=x_label, data_label=data_label,
              mean_for_title=title_means['Precision'], ax=ax1, line_color=colors[i], vspan_spec=vspan_spec,
@@ -659,9 +577,10 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
         plot(fig, data, None, ['Recall'], 2, y_max=1.0, x_label=x_label, data_label=data_label,
              mean_for_title=title_means['Recall'], ax=ax2, line_color=colors[i],
              vspan_spec=vspan_spec)
+        bl_y_max = max(bl_y_max, data.loc[:, 'BlackSize'].max())
         plot(fig, data, None, ['BlackSize'], 3, x_label=x_label, data_label=data_label,
              mean_for_title=title_means['BlackSize'], title='Number of filter rules', ax=ax3, line_color=colors[i],
-             vspan_spec=vspan_spec)
+             vspan_spec=vspan_spec, y_max=bl_y_max + 1)
         handles, labels = plot(fig, data, None, ['FPR'], 4, y_max=1.0, x_label=x_label,
                                data_label=data_label,
                                mean_for_title=title_means['FPR'], title='False positive rate', ax=ax4,
@@ -701,10 +620,7 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
 
         last = env_csv.groupby(['Step'])  # return all columns grouped for each step
         data = last.mean()
-        print('=====direct attack:\n' + str(last.mean().loc[0:21, ['Phi', 'MinPrefix', 'Thresh']].mean()))
-        print('=====no attack:\n' + str(last.mean().loc[28:32, ['Phi', 'MinPrefix', 'Thresh']].mean()))
-        print('=====reflector attack:\n' + str(last.mean().loc[37:, ['Phi', 'MinPrefix', 'Thresh']].mean()))
-        print('=====total:\n' + str(env_csv.loc[:, ['Phi', 'MinPrefix', 'Thresh']].mean()))
+        print_means_for_pattern_phases(pattern, last, ['Phi', 'MinPrefix', 'Thresh'])
         data_label = f'Mean ({data_labels[i]})'
         handles, labels = plot(fig, data, None, ['Phi'], 1, y_max=0.25, x_label=x_label, data_label=data_label,
                                mean_for_title=title_means['Phi'], ax=axes[0], line_color=colors[i],
@@ -732,63 +648,89 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
 
 
 if __name__ == '__main__':
+    # change to create plots for the specified section (6.4, 6.5, 6.6.1, 6.6.2.2, 6.6.2.4)
+    # set to sth else (e.g., None) to plot results that were not included in the thesis, but are still interesting
+    section_to_plot = '6.5'
+
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+    linestyle = ['-'] * len(colors) + ['--'] * len(colors)
+    plt.rcParams["axes.prop_cycle"] += plt.cycler("linestyle", linestyle)
+
+
     def plot_hl(ds_base, pattern, window, fancy=False, use_train_path=False):
         train_path, eval_path = get_paths(ds_base)
-        # plot_training(environment_file_path=train_path, pattern=pattern)
-        # plot_training(environment_file_path=eval_path, pattern=pattern)
         path = train_path if use_train_path else eval_path
         plot_episode_behavior(environment_file_path=path, pattern=pattern, window=window, fancy=fancy)
 
 
-    old_dqn_s1 = '/srv/bachmann/data/dqn/dqn_20220108-133951/datastore'  # (old) DQN-S1 in thesis
-    old_ddpg_s1 = '/srv/bachmann/data/ddpg/ddpg_20220114-070345/datastore'  # (old) DDPG-S1 in thesis
-    old_ppo_s1 = '/srv/bachmann/data/ppo/ppo_20220112-071400/datastore'  # (old) PPO-S1 in thesis
+    if section_to_plot == '6.4':
+        # individual training curves and eval curves comparison (Figure 6.3)
+        plot_training_curves([dqn_s1], 'T4')
+        plot_training_curves([ddpg_s1], 'T4')
+        plot_training_curves([ppo_s1], 'T4')
+        plot_training_curves([dqn_s1, ddpg_s1, ppo_s1], 'T4')
 
-    dqn_s1 = '/srv/bachmann/data/dqn/dqn_20220119-070755/datastore'  # DQN-S1 in thesis
-    ddpg_s1 = '/srv/bachmann/data/ddpg/ddpg_20220120-202020/datastore'  # DDPG-S1 in thesis
-    ppo_s1 = '/srv/bachmann/data/ppo/ppo_20220120-202121/datastore'  # PPO-S1 in thesis
+        # chosen parameter and mitigation metrics (Figures 6.4, 6.5, 6.6)
+        plot_hl(dqn_s1, 'T4', (10, 0), fancy=True)
+        plot_hl(ddpg_s1, 'T4', (10, 0), fancy=True)
+        plot_hl(ppo_s1, 'T4', (10, 0), fancy=True)
 
-    dddpg_rej_s2 = '/srv/bachmann/data/ddpg/ddpg_20220124-132957/datastore'  # DDPG S2 test (not in thesis)
-    dqn_rej_s2 = '/srv/bachmann/data/dqn/dqn_20220124-125147/datastore'  # DQN-pthresh S2 in thesis
-    dqn_l_s2 = '/srv/bachmann/data/dqn/dqn_20220124-204351/datastore'  # DQN-L S2 in thesis
+        # metric and param comparison (Figure 6.7)
+        plot_agent_comparison([dqn_s1, ddpg_s1, ppo_s1], ['DQN', 'DDPG', 'PPO'], 'T4', use_train_path=False,
+                              window=(10, 0))
+    elif section_to_plot == '6.5':
+        # training and eval curves compared between DDPG-BN and DDPG-no-BN (Figure 6.11)
+        plot_training_curves([ddpg_s1, ddpg_s1_no_bn], 'S1', show_all=True,
+                             label_agent_suffixes=[' (BatchNorm)', ' (no BatchNorm)'])
+        # chosen parameter and resulting mitigation metrics of DDPG-no-BN (Figure 6.12)
+        plot_hl(ddpg_s1_no_bn, 'T4', (10, 0), fancy=True)
+    elif section_to_plot == '6.6.1':
+        # comparison of no WOC and WOC (Figure 6.14)
+        plot_agent_comparison([fix_params_no_woc, fix_params_woc], ['No WOC', 'WOC'], 'T4')
+        # WOC stored rules and metric per time index (Figure 6.16, 6.17)
+        plot_hl(fix_params_woc, 'T4', (100, 0), fancy=True, use_train_path=True)
+    elif section_to_plot == '6.6.2.2':
+        # chosen parameters and resulting metrics for DQN-pthresh and DQN-L (Figures 6.20 and 6.21)
+        plot_hl(dqn_rej_s2, 'T5', (10, 0), fancy=True)
+        plot_hl(dqn_l_s2, 'T5', (10, 0), fancy=True)
+        # comparison of means (Figures 6.22)
+        plot_agent_comparison([dqn_rej_s2, dqn_l_s2], ['DQN-pthresh', 'DQN-L'], 'T5',
+                              use_train_path=False,
+                              window=(10, 0))
+    elif section_to_plot == '6.6.2.4':
+        # chosen parameters and resulting metrics for DQN-pthresh and DQN-L (Figures 6.27 and 6.28)
+        plot_hl(dqn_rej_s3_bn, 'T6', (10, 0), fancy=True)
+        plot_hl(dqn_l_s3_bn, 'T6', (10, 0), fancy=True)
+        # comparison of means (Figures 6.29)
+        plot_agent_comparison([dqn_rej_s3_bn, dqn_l_s3_bn],
+                              ['DQN-pthresh', 'DQN-L'], 'T6',
+                              use_train_path=False,
+                              window=(10, 0))
+    else:
+        # plot training results not used in thesis
 
-    # plot_hl(dqn_rej_s2, 'T5', (10, 0), fancy=True)
-    plot_hl(dqn_l_s2, 'T5', (10, 0), fancy=True)
-    # plot_agent_comparison([dqn_rej_s2, dqn_l_s2], ['DQN-pthresh', 'DQN-L'], 'T5',
-    #                      use_train_path=False,
-    #                      window=(10, 0))
+        # S2 influence of WOC
+        plot_agent_comparison([s2_fix_params_no_woc, s2_fix_params_woc], ['No WOC', 'WOC'], 'S2')
 
-    dqn_rej_s3 = '/srv/bachmann/data/dqn/dqn_20220125-105514/datastore'  # DQN-pthresh S3
-    dqn_l_s3 = '/srv/bachmann/data/dqn/dqn_20220125-105606/datastore'  # DQN-L S3
+        # S3 influence of WOC
+        plot_agent_comparison([s3_fix_params_no_woc, s3_fix_params_woc], ['No WOC', 'WOC'], 'S3')
 
-    # plot_hl(dqn_rej_s3, 'T6', (10, 0), fancy=True)
-    # plot_hl(dqn_l_s3, 'T6', (10, 0), fancy=True)
-    # plot_agent_comparison([dqn_rej_s3, dqn_l_s3], ['DQN-pthresh', 'DQN-L'],'T6', use_train_path=False,
-    #                      window=(10, 0))
+        # S3 influence of TCAM sampling rate
+        plot_agent_comparison(
+            [dqn_rej_s3_bn, dqn_rej_s3_ten_percent, dqn_rej_s3_five_percent, dqn_rej_s3_one_percent],
+            ['DQN-pthresh (0.25)', 'DQN-pthresh (0.1)', 'DQN-pthresh (0.05)', 'DQN-pthresh (0.01)'], 'S3',
+            use_train_path=False,
+            window=(10, 0))
 
-    ##### params and metrics #####
-    # plot_hl(dqn_s1, 'T4', (10, 0), fancy=True)
-    # plot_hl(ddpg_s1, 'T4', (10, 0), fancy=True)
-    # plot_hl(ppo_s1, 'T4', (10, 0), fancy=True)
+        # S3 comparison between DQN, PPO, DDPG agents
+        plot_agent_comparison([dqn_rej_s3_bn, ppo_rej_s3, ddpg_rej_s3, dqn_l_s3_bn],
+                              ['DQN-pthresh', 'PPO-pthresh', 'DDPG-pthresh', 'DQN-L'], 'S3',
+                              use_train_path=False,
+                              window=(10, 0))
 
-    ##### individual training curves #####
-    # plot_training_curves([dqn_s1], 'T4')
-    # plot_training_curves([ddpg_s1], 'T4')
-    # plot_training_curves([ppo_s1], 'T4')
-
-    ##### eval curves comparison #####
-    # plot_training_curves([dqn_s1, ddpg_s1, ppo_s1], 'T4')
-    ##### direct metric and param comp #####
-    # plot_agent_comparison([dqn_s1, ddpg_s1, ppo_s1], ['DQN', 'DDPG', 'PPO'], 'T4', use_train_path=False, window=(10, 0))
-
-    ##### 6.5 DDPG BatchNorm #####
-    ddpg_s1_no_bn = '/srv/bachmann/data/ddpg/ddpg_20220121-203113/datastore'
-    # plot_training_curves([ddpg_s1, ddpg_s1_no_bn], 'T4', show_all=True,
-    #                     label_agent_suffixes=[' (BatchNorm)', ' (no BatchNorm)'])
-    # plot_hl(ddpg_s1_no_bn, 'T4', (10, 0), fancy=True)
-
-    ##### 6.6.1 WOC vs no WOC #####
-    fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160758/datastore'  # fix params no WOC
-    fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160733/datastore'  # fix params WOC
-    # plot_hl(fix_params_woc, 'T4', (100, 0), fancy=True, use_train_path=True)
-    # plot_agent_comparison([fix_params_no_woc, fix_params_woc], ['No WOC', 'WOC'], 'T4')
+        # S3 influence of pthresh
+        plot_agent_comparison([chosen_thresh, min_thresh, max_thresh],
+                              ['chosen', 'min', 'max'], 'S3',
+                              use_train_path=True,
+                              window=(10, 0))
