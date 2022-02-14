@@ -1,31 +1,55 @@
+import os
+from collections import namedtuple
+
 # This script contains the paths to training results that are used in the evaluation.
-# Currently, the results used in the thesis are used. If you reproduce some results, you must change the paths below to
-# point to the new result directory (i.e., datastore root directory).
-# The results can be plotted with plot_results.py
+# Currently, path to the results shown in the thesis are defined.
+# If you reproduce some results, you must change the paths below to
+# point to the new results directories. For raw paths, episode numbers have to be changed.
+# The results can be plotted with plot_results.py and rawdata_vis.py
+
+
+# for raw data ("Generated rules" plots)
+RawPath = namedtuple('raw_path', ['path', 'episode_number'])
+
+
+def to_raw_path(datastore_path, train=False):
+    return os.path.join(datastore_path, 'eval/rawdata' if not train else 'train/rawdata')
+
 
 # 6.4 Adaptivity of three agents in scenario S1
 dqn_s1 = '/srv/bachmann/data/dqn/dqn_20220119-070755/datastore'  # DQN S1
+raw_dqn_s1 = RawPath(path=to_raw_path(dqn_s1), episode_number=503)
 ddpg_s1 = '/srv/bachmann/data/ddpg/ddpg_20220120-202020/datastore'  # DDPG S1
+raw_ddpg_s1 = RawPath(path=to_raw_path(ddpg_s1), episode_number=1662)
 ppo_s1 = '/srv/bachmann/data/ppo/ppo_20220120-202121/datastore'  # PPO S1
+raw_ppo_s1 = RawPath(path=to_raw_path(ppo_s1), episode_number=1664)
 
 # 6.5 DDPG without BatchNorm (scenario S1)
 ddpg_s1_no_bn = '/srv/bachmann/data/ddpg/ddpg_20220121-203113/datastore'
+raw_ddpg_s1_no_bn = RawPath(path=to_raw_path(ddpg_s1_no_bn), episode_number=1663)
 
 # 6.6.1 WOC vs no WOC
 fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160758/datastore'
+raw_fix_params_no_woc = RawPath(path=to_raw_path(fix_params_no_woc, train=True), episode_number=1)
 fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160733/datastore'
+raw_fix_params_woc = RawPath(path=to_raw_path(fix_params_woc, train=True), episode_number=1)  # not shown in thesis
 
 # 6.6.2.2 Scenario S2: DQN-pthresh vs DQN-L
 ddpg_rej_s2 = '/srv/bachmann/data/ddpg/ddpg_20220124-132957/datastore'  # DDPG (not shown in thesis)
+raw_ddpg_rej_s2 = RawPath(path=to_raw_path(ddpg_rej_s2), episode_number=1600)  # not shown in thesis
 dqn_rej_s2 = '/srv/bachmann/data/dqn/dqn_20220124-125147/datastore'  # DQN-pthresh
+raw_dqn_rej_s2 = RawPath(path=to_raw_path(dqn_rej_s2), episode_number=506)
 dqn_l_s2 = '/srv/bachmann/data/dqn/dqn_20220124-204351/datastore'  # DQN-L
+raw_dqn_l_s2 = RawPath(path=to_raw_path(dqn_l_s2), episode_number=507)
 
 # 6.6.2.4 Scenario S3: DQN-pthresh vs DQN-L
 dqn_rej_s3 = '/srv/bachmann/data/dqn/dqn_20220131-143520/datastore'  # DQN-pthresh without BatchNorm - not used!
 dqn_l_s3 = '/srv/bachmann/data/dqn/dqn_20220131-143427/datastore'  # DQN-L without BatchNorm - not used!
 
 dqn_rej_s3_bn = '/srv/bachmann/data/dqn/dqn_20220201-071304/datastore'  # DQN-pthresh
+raw_dqn_rej_s3_bn = RawPath(path=to_raw_path(dqn_rej_s3_bn), episode_number=509)
 dqn_l_s3_bn = '/srv/bachmann/data/dqn/dqn_20220201-071412/datastore'  # DQN-L
+raw_dqn_l_s3_bn = RawPath(path=to_raw_path(dqn_l_s3_bn), episode_number=505)
 
 # Below file paths contain results of additional experiments that did not make it into the thesis,
 # even though the results might still be interesting.

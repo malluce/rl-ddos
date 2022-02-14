@@ -126,14 +126,11 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     ax0 = fig.add_subplot(gs[0, :])
     ax1 = fig.add_subplot(gs[1, :])
     ax2 = fig.add_subplot(gs[2, :])
-    # ax3 = fig.add_subplot(gs[3, :])
 
     titlesize = 15
     labelsize = 15
-    ticksize = 8
     benign_color = 'dodgerblue'
     attack_color = 'crimson'
-    combined_color = 'darkgrey'
     benign_grid = rate_grid - attack_grid
 
     def scale(grid, num_bins, axis, transpose=False):
@@ -201,20 +198,12 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     for ax in [ax0, ax1, ax2]:
         ax.set_xlim(left=0)
     plt.tight_layout()
-
-    plt.savefig(f'test{time.time()}.png', bbox_inches='tight')
     plt.show()
 
     fig = plt.figure()
     gs = mgrid.GridSpec(1, 1)
 
     ax0 = fig.add_subplot(gs[0, :])
-
-    # ax1 = fig.add_subplot(gs[1, :])
-
-    def plot_frequencies(axis, x, y, color):
-        axis.fill_between(x, y, 0, facecolor=color, alpha=.6)
-        axis.tick_params(labelsize=ticksize)
 
     ax0.set_xlabel('Time index', fontsize=labelsize)
     ax0.set_ylabel('Data rate', fontsize=labelsize)
@@ -229,19 +218,6 @@ def plot(steps, phi, l, flows, rate_grid, attack_grid, hhh_grid=None, squash=Fal
     if pattern_id is not None:
         add_vspan_to(ax0, get_vspan_spec_for(pattern=pattern_id), True, use_time_index=True)
 
-    # ax1.set_title('Data rate distribution', fontsize=titlesize)
-    # ax1.set_xlabel('Address space', fontsize=labelsize)
-    # ax1.set_ylabel('Data rate', fontsize=labelsize)
-    # num_bin = 100
-    # benign_y, bins = scale(benign_grid.sum(axis=0), num_bin, 0)
-    # x = num_bin * bins / bins[-1]
-    # attack_y, _ = scale(attack_grid.sum(axis=0), num_bin, 0)
-    # attack_y += benign_y
-    # ax1.fill_between(x, 0, benign_y, facecolor=benign_color)
-    # ax1.fill_between(x, benign_y, attack_y, facecolor=attack_color)
-    # ax1.tick_params(labelsize=ticksize)
-    # ax1.set_xticks(np.arange(0, 101, 50))
-    # ax1.set_xticklabels(['0', '$2^{15}$', '$2^{16}$'])
     plt.legend(loc='upper left')
     plt.subplots_adjust(wspace=.5, hspace=.5)
     plt.tight_layout()
