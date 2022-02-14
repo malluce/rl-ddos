@@ -494,9 +494,9 @@ def plot_training_curves(ep_paths: List[str], pattern, show_all=False, label_age
 
         if len(ep_paths) == 1 or show_all:
             plt.plot(train_csv.iloc[:, 1], smooth(np.array(train_csv.iloc[:, -1])),
-                     label='training' if not show_all else f'{agent_name} training')
+                     label='Training' if not show_all else f'{agent_name} training')
             plt.plot(eval_csv.iloc[:, 1], eval_csv.iloc[:, -1],
-                     label='evaluation (no exploration)' if not show_all else f'{agent_name} evaluation (no exploration)')
+                     label='Evaluation (no exploration)' if not show_all else f'{agent_name} evaluation (no exploration)')
             if not show_all:
                 plt.title(f'{agent_name} agent')
         else:
@@ -650,7 +650,7 @@ def plot_agent_comparison(ds_bases, data_labels, pattern, use_train_path=True, w
 if __name__ == '__main__':
     # change to create plots for the specified section (6.4, 6.5, 6.6.1, 6.6.2.2, 6.6.2.4)
     # set to sth else (e.g., None) to plot results that were not included in the thesis, but are still interesting
-    section_to_plot = '6.5'
+    section_to_plot = '6.4'
 
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
