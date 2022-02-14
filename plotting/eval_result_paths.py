@@ -29,9 +29,9 @@ ddpg_s1_no_bn = '/srv/bachmann/data/ddpg/ddpg_20220121-203113/datastore'
 raw_ddpg_s1_no_bn = RawPath(path=to_raw_path(ddpg_s1_no_bn), episode_number=1663)
 
 # 6.6.1 WOC vs no WOC
-fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160758/datastore'
+fix_params_no_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220122-160758/datastore'
 raw_fix_params_no_woc = RawPath(path=to_raw_path(fix_params_no_woc, train=True), episode_number=1)
-fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220122-160733/datastore'
+fix_params_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220122-160733/datastore'
 raw_fix_params_woc = RawPath(path=to_raw_path(fix_params_woc, train=True), episode_number=1)  # not shown in thesis
 
 # 6.6.2.2 Scenario S2: DQN-pthresh vs DQN-L
@@ -55,12 +55,12 @@ raw_dqn_l_s3_bn = RawPath(path=to_raw_path(dqn_l_s3_bn), episode_number=505)
 # even though the results might still be interesting.
 
 # Comparison between disabled WOC and enabled WOC in scenario S2 (similar to 6.6.1, just for scenario S2)
-s2_fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220209-105133/datastore'
-s2_fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220209-105117/datastore'
+s2_fix_params_no_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220209-105133/datastore'
+s2_fix_params_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220209-105117/datastore'
 
 # Comparison between disabled WOC and enabled WOC in scenario S3 (similar to 6.6.1, just for scenario S3)
-s3_fix_params_no_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220209-105204/datastore'
-s3_fix_params_woc = '/home/bachmann/test-pycharm/data/eval-baseline_20220209-105154/datastore'
+s3_fix_params_no_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220209-105204/datastore'
+s3_fix_params_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220209-105154/datastore'
 
 # S3 influence of TCAM sampling rate
 dqn_rej_s3_ten_percent = '/srv/bachmann/data/dqn/dqn_20220208-105402/datastore'  # 0.1
@@ -73,8 +73,8 @@ ppo_rej_s3_bn = '/srv/bachmann/data/ppo/ppo_20220202-072037/datastore'  # PPO-pt
 ddpg_rej_s3 = '/srv/bachmann/data/ddpg/ddpg_20220207-102818/datastore'  # DDPG-pthresh
 
 # S3 influence of pthresh on metrics?
-chosen_thresh = '/home/bachmann/test-pycharm/data/eval-baseline_20220205-090240/datastore'  # training behavior
+chosen_thresh = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220205-090240/datastore'  # training behavior
 # minimum pthresh(0.85) chosen throughout complete episode
-min_thresh = '/home/bachmann/test-pycharm/data/eval-baseline_20220205-090332/datastore'
+min_thresh = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220205-090332/datastore'
 # maximum pthresh(1.0) chosen throughout complete episode
-max_thresh = '/home/bachmann/test-pycharm/data/eval-baseline_20220205-090407/datastore'
+max_thresh = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220205-090407/datastore'
