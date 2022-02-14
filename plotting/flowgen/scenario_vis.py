@@ -1,4 +1,3 @@
-import argparse
 import json
 import time
 from ipaddress import IPv4Address
@@ -14,10 +13,11 @@ from gyms.hhh.flowgen.traffic_traces import S1, S2, S3
 from gyms.hhh.label import Label
 from plotting.plot_results import add_vspan_to, get_vspan_spec_for
 
-
 # This script is used to visualize scenarios by generating an example episode and showing the active benign and attack
 # flows over time. Also the data rate is plotted. (Figures 6.2, 6.19, 6.26)
-# Scenarios can be selected in the visualize(..) method below, then simply run the script.
+# Scenarios can be selected by changing the line of code below, then simply run the script.
+scenario = S2()  # change this line of code to "S1()", "S2()", or "S3()" to visualize a scenario
+
 
 class ProgressBar(object):
 
@@ -281,7 +281,7 @@ def main():
 def visualize(flow_file, rate_grid_file, attack_grid_file, blacklist_file, nohhh, interval, epsilon, steps, phi=None,
               l=None, trace_id=None):
     if flow_file is None:
-        trace = S3()  # change this line of code to "S1()", "S2()", or "S3()" visualize a scenario
+        trace = scenario
         fgs = trace.get_flow_group_samplers()
         trace_sampler = TraceSampler(fgs, steps)
         trace_sampler.init_flows()
