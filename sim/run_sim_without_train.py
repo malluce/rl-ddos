@@ -5,7 +5,7 @@ from gyms.hhh.env import register_hhh_gym
 from gyms.hhh.flowgen.traffic_traces import S1, S2, S3
 from gyms.hhh.tables import PerformanceTrackingWorstOffenderCache
 from gyms.hhh.reward import MultiplicativeRewardThesis
-from gyms.hhh.obs import BaseObservations
+from gyms.hhh.obs import TrafficSituation
 from lib.datastore import Datastore
 from training.util import get_dirs
 from plotting.plot_results import plot_episode_behavior
@@ -54,7 +54,7 @@ def run_eval_episodes(env, eval_agent, num_episodes=10):
 
 def make_env(dirs, action_space):
     gym_kwargs = {
-        'state_obs_selection': [BaseObservations()],
+        'state_obs_selection': [TrafficSituation()],
         'use_prev_action_as_obs': False,
         'action_space': action_space,
         'gamma': 0,
