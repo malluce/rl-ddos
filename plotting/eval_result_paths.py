@@ -35,8 +35,6 @@ fix_params_woc = '/home/bachmann/test-pycharm/data/sim/eval-baseline_20220122-16
 raw_fix_params_woc = RawPath(path=to_raw_path(fix_params_woc, train=True), episode_number=1)  # not shown in thesis
 
 # 6.6.2.2 Scenario S2: DQN-pthresh vs DQN-L
-ddpg_rej_s2 = '/srv/bachmann/data/ddpg/ddpg_20220124-132957/datastore'  # DDPG (not shown in thesis)
-raw_ddpg_rej_s2 = RawPath(path=to_raw_path(ddpg_rej_s2), episode_number=1600)  # not shown in thesis
 dqn_rej_s2 = '/srv/bachmann/data/dqn/dqn_20220124-125147/datastore'  # DQN-pthresh
 raw_dqn_rej_s2 = RawPath(path=to_raw_path(dqn_rej_s2), episode_number=506)
 dqn_l_s2 = '/srv/bachmann/data/dqn/dqn_20220124-204351/datastore'  # DQN-L
